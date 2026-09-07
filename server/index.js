@@ -92,6 +92,8 @@ app.post('/api/inmovilla', express.json({ limit: '64kb' }), async (req, res) => 
 // ---------------------------------------------------------------------------
 if (MOCK) {
   app.use('/api/rest', createMockRest().router)
+  // sample listing photos for the mock (generate them with scripts/generate-mock-photos.mjs)
+  app.use('/mock-photos', express.static(process.env.MOCK_PHOTOS_DIR || path.join(__dirname, '..', 'data', 'mock-photos'), { maxAge: '1d' }))
 } else {
   app.use('/api/rest', express.raw({ type: () => true, limit: MAX_BODY }), async (req, res) => {
     const token = req.get('x-inmovilla-token')

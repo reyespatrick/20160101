@@ -55,7 +55,7 @@ function makeProperty(i) {
     destacado: r() < 0.2 ? 1 : 0,
     numfotos: 5,
     fechaact: `2026-0${1 + Math.floor(r() * 8)}-${String(1 + Math.floor(r() * 27)).padStart(2, '0')} 10:00:00`,
-    foto: `https://picsum.photos/seed/${photoSeed}/800/600`,
+    foto: `/mock-photos/${(photoSeed % 12) + 1}.jpg`,
     latitud: 38.34 + r(),
     altitud: -0.48 + r(),
     nombreagente: 'Ana',
@@ -112,7 +112,7 @@ export function upsertMockProperty(rest) {
 function detailFor(p) {
   return {
     ...p,
-    fotos: p.fotos || Array.from({ length: 5 }, (_, k) => `https://picsum.photos/seed/${100 + (p.cod_ofer - 10_000)}-${k}/1200/800`),
+    fotos: p.fotos || Array.from({ length: 5 }, (_, k) => `/mock-photos/${((p.cod_ofer + k) % 12) + 1}.jpg`),
     descripciones: p.descripciones || [
       `${p.nbtipo} en ${p.ciudad}, zona ${p.zona}. ${p.habitaciones} dormitorios y ${p.banyos} baños en ${p.m_cons} m² construidos. ` +
         'Vivienda luminosa, lista para entrar a vivir, muy cerca de todos los servicios.',

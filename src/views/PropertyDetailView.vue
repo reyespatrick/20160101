@@ -16,7 +16,7 @@ const activePhoto = ref(0)
 const summary = computed(() => store.summaryFor(props.codOfer))
 const p = computed(() => detail.value || summary.value)
 const photos = computed(() => {
-  const list = Array.isArray(detail.value?.fotos) ? detail.value.fotos.filter((u) => /^https?:\/\//.test(u)) : []
+  const list = Array.isArray(detail.value?.fotos) ? detail.value.fotos.filter((u) => /^(https?:\/\/|\/)/.test(u)) : []
   return list.length ? list : [photoOf(p.value)]
 })
 const description = computed(() => {

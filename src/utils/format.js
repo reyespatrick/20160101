@@ -36,7 +36,7 @@ export function formatDate(str) {
 /** Photo field may be a full URL or missing; fall back to a neutral placeholder. */
 export function photoOf(p) {
   const url = p?.foto || (Array.isArray(p?.fotos) ? p.fotos[0] : '')
-  return url && /^https?:\/\//.test(url) ? url : PLACEHOLDER
+  return url && /^(https?:\/\/|\/)/.test(url) ? url : PLACEHOLDER
 }
 
 export const PLACEHOLDER =
