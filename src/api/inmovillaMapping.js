@@ -1,138 +1,202 @@
 /**
- * Mapping between the app's records and Inmovilla's REST API v1.
- *
- * ┌──────────────────────────────────────────────────────────────────────────────┐
- * │ TO CONFIRM against https://procesos.inmovilla.com/api/v1/apidoc/            │
- * │ Endpoint paths and field names below are our best reading of Inmovilla's   │
- * │ naming (they mirror the ficha fields of the read API). Adjust them here    │
- * │ and ONLY here once the documentation is available.                          │
- * └──────────────────────────────────────────────────────────────────────────────┘
+ * Mapping between the app's records and Inmovilla's REST API v1
+ * (https://procesos.inmovilla.com/api/v1, documentation "API REST v.1 Inmovilla").
  */
+import { FEATURES, NUMERIC_FEATURES } from '../models/property'
+import { splitPhone } from '../models/client'
 
 export const PATHS = {
-  clients: '/clientes',
-  properties: '/propiedades',
-  photos: (propertyId) => `/propiedades/${encodeURIComponent(propertyId)}/fotos`,
+  enums: '/enums/',
+  clients: '/clientes/',
+  clientSearch: '/clientes/buscar/',
+  properties: '/propiedades/',
+  owners: '/propietarios/',
 }
-
-const OPERATION_TO_KEYACCI = { sale: 1, rent: 2 }
-const KEYACCI_TO_OPERATION = { 1: 'sale', 2: 'rent' }
-const CONDITION_TO_CONSERVACION = { new: 1, good: 2, renovate: 3, renovated: 4 }
-const CLIENT_OPERATION = { buy: 1, rent: 2, sell: 3, let: 4 }
-const CLIENT_OPERATION_BACK = { 1: 'buy', 2: 'rent', 3: 'sell', 4: 'let' }
 
 const num = (v) => (v === null || v === undefined || v === '' ? undefined : Number(v))
+const text = (v) => (v === null || v === undefined || String(v).trim() === '' ? undefined : String(v).trim())
 const strip = (obj) => Object.fromEntries(Object.entries(obj).filter(([, v]) => v !== undefined))
-const pick = (obj, ...keys) => {
-  for (const k of keys) if (obj?.[k] !== undefined && obj?.[k] !== null && obj?.[k] !== '') return obj[k]
-  return undefined
+
+/** Error body → readable message ({codigo, mensaje} per the docs; be lenient). */
+export function errorMessage(body, status) {
+  if (body && typeof body === 'object') {
+    const msg = body.mensaje || body.message || body.error || body.descripcion
+    if (msg) return body.codigo ? `${msg} (${body.codigo})` : String(msg)
+  }
+  if (typeof body === 'string' && body.trim()) return body.trim().slice(0, 200)
+  return status === 408 ? 'Inmovilla limita las peticiones; se reintentará en un momento' : `Error ${status}`
 }
 
-/** Id of a created/updated record, whatever shape Inmovilla answers with. */
-export function extractId(body) {
-  if (body === null || body === undefined) return null
-  if (typeof body === 'number' || typeof body === 'string') return String(body)
-  const found = [body.cod_ofer, body.id, body.codigo, body.cod_cliente, body.data?.cod_ofer, body.data?.id, body.data?.codigo].find(
-    (v) => v !== undefined && v !== null && v !== '',
-  )
-  return found === undefined ? null : String(found)
+// ---------------------------------------------------------------------------
+// Enums
+// ---------------------------------------------------------------------------
+
+/** `/enums/?tipos` → { keyacci: [{nombre, valor}], ... } normalised to { name: [{ value, label }] } */
+export function parseTipos(body) {
+  const out = {}
+  if (!body || typeof body !== 'object' || Array.isArray(body)) return out
+  for (const [name, list] of Object.entries(body)) {
+    if (!Array.isArray(list)) continue
+    out[name] = list.map((o) => ({ value: o.valor ?? o.value, label: String(o.nombre ?? o.label ?? o.valor) })).filter((o) => o.value !== undefined)
+  }
+  return out
 }
 
-/** Items of a list response: bare array, or wrapped in data/items/clientes/propiedades. */
-export function extractList(body) {
-  if (Array.isArray(body)) return body
-  if (!body || typeof body !== 'object') return []
-  for (const key of ['data', 'items', 'clientes', 'propiedades', 'results']) if (Array.isArray(body[key])) return body[key]
-  return []
+/** `/enums/?ciudades` → flat [{ key_loca, ciudad, provincia, cod_prov }] */
+export function parseCiudades(body) {
+  const out = []
+  for (const prov of Array.isArray(body) ? body : []) {
+    for (const c of prov.ciudades || []) {
+      if (c.key_loca === undefined) continue
+      out.push({ key_loca: Number(c.key_loca), ciudad: String(c.ciudad), provincia: String(prov.provincia || ''), cod_prov: prov.cod_prov })
+    }
+  }
+  return out
 }
 
-// ---- clients ----
-export function toInmovillaClient(c) {
+/** `/enums/?zonas=31699` → { "31699": [{ key_zona, zona }] } (the docs' sample mixes key names; accept both) */
+export function parseZonas(body) {
+  const out = {}
+  if (!body || typeof body !== 'object') return out
+  for (const [keyLoca, list] of Object.entries(body)) {
+    out[keyLoca] = (Array.isArray(list) ? list : [])
+      .map((z) => ({ key_zona: Number(z.key_zona ?? z.key_loca), zona: String(z.zona ?? z.ciudad ?? '') }))
+      .filter((z) => Number.isFinite(z.key_zona) && z.zona)
+  }
+  return out
+}
+
+// ---------------------------------------------------------------------------
+// Clients (/clientes)
+// ---------------------------------------------------------------------------
+
+export function toInmovillaClient(c, { forUpdate = false } = {}) {
+  const mobile = splitPhone(c.mobile)
+  const phone = splitPhone(c.phone)
   return strip({
-    nombre: c.name || undefined,
-    apellidos: c.surname || undefined,
-    telefono: c.phone || undefined,
-    email: c.email || undefined,
-    tipo: c.type || undefined,
-    estado: c.status || undefined,
-    keyacci: CLIENT_OPERATION[c.operation],
-    tipos: c.propertyTypes?.length ? c.propertyTypes.join(', ') : undefined,
-    zonas: c.zones?.length ? c.zones.join(', ') : undefined,
-    preciomin: num(c.budgetMin),
-    preciomax: num(c.budgetMax),
-    habitaciones: num(c.bedrooms),
-    observaciones: c.notes || undefined,
+    cod_cli: forUpdate ? num(c.remoteId) : undefined,
+    nombre: text(c.name),
+    apellidos: text(c.surname),
+    nif: text(c.nif),
+    email: text(c.email),
+    telefono1: phone.number ?? undefined,
+    prefijotel1: phone.prefix ?? undefined,
+    telefono2: mobile.number ?? undefined,
+    prefijotel2: mobile.prefix ?? undefined,
+    calle: text(c.street),
+    numero: text(c.number),
+    cp: text(c.postalCode),
+    localidad: text(c.city),
+    provincia: text(c.province),
+    observacion: text(c.notes),
   })
 }
 
-/** Inmovilla client → app client (remoteId set, local id derived from it). */
+function joinPhone(prefix, number) {
+  if (number === undefined || number === null || number === '' || Number(number) === 0) return ''
+  return prefix && Number(prefix) !== 34 ? `+${prefix} ${number}` : String(number)
+}
+
+/** Inmovilla client → app client. */
 export function fromInmovillaClient(raw) {
-  const remoteId = extractId(raw)
-  if (!remoteId) return null
-  const split = (v) => (typeof v === 'string' ? v.split(/\s*,\s*/).filter(Boolean) : Array.isArray(v) ? v : [])
-  const ts = Date.parse(pick(raw, 'fechamodificacion', 'fechaact', 'updated_at', 'fechaalta', 'fecha') || '') || 0
+  const codCli = raw?.cod_cli
+  if (codCli === undefined || codCli === null || codCli === '') return null
+  const remoteId = String(codCli)
+  const ts = Date.parse(String(raw.altacliente || '').replace(' ', 'T')) || Date.now()
   return {
     id: `inmo-${remoteId}`,
     remoteId,
-    name: String(pick(raw, 'nombre', 'name') ?? ''),
-    surname: String(pick(raw, 'apellidos', 'surname') ?? ''),
-    phone: String(pick(raw, 'telefono', 'telefono1', 'phone') ?? ''),
-    email: String(pick(raw, 'email') ?? ''),
-    type: String(pick(raw, 'tipo', 'type') ?? 'buyer'),
-    status: String(pick(raw, 'estado', 'status') ?? 'new'),
-    operation: CLIENT_OPERATION_BACK[pick(raw, 'keyacci')] || '',
-    propertyTypes: split(pick(raw, 'tipos')),
-    zones: split(pick(raw, 'zonas')),
-    budgetMin: num(pick(raw, 'preciomin')) ?? null,
-    budgetMax: num(pick(raw, 'preciomax')) ?? null,
-    bedrooms: num(pick(raw, 'habitaciones')) ?? null,
-    notes: String(pick(raw, 'observaciones', 'notas') ?? ''),
-    properties: [],
-    createdAt: Date.parse(pick(raw, 'fechaalta', 'fecha', 'created_at') || '') || ts,
+    name: String(raw.nombre ?? ''),
+    surname: String(raw.apellidos ?? ''),
+    nif: String(raw.nif ?? ''),
+    email: String(raw.email ?? ''),
+    phone: joinPhone(raw.prefijotel1, raw.telefono1),
+    mobile: joinPhone(raw.prefijotel2, raw.telefono2),
+    street: String(raw.calle ?? ''),
+    number: String(raw.numero ?? ''),
+    postalCode: String(raw.cp ?? ''),
+    city: String(raw.localidad ?? ''),
+    province: String(raw.provincia ?? ''),
+    notes: String(raw.observacion ?? ''),
+    agentName: raw.agente ? [raw.agente.nombre, raw.agente.apellidos].filter(Boolean).join(' ') : '',
+    createdAt: ts,
     updatedAt: ts,
     deleted: false,
   }
 }
 
-// ---- properties ----
-export function toInmovillaProperty(p) {
+/** The search endpoint may answer with one object or a list. */
+export function clientsFromSearch(body) {
+  const list = Array.isArray(body) ? body : body && typeof body === 'object' && body.cod_cli ? [body] : Array.isArray(body?.data) ? body.data : []
+  return list.map(fromInmovillaClient).filter(Boolean)
+}
+
+// ---------------------------------------------------------------------------
+// Properties (/propiedades) — POST creates or updates by `ref`, all fields every time
+// ---------------------------------------------------------------------------
+
+/**
+ * @param {object} p app listing
+ * @param {string[]} photoUrls public URLs of the photos, in display order
+ */
+export function toInmovillaProperty(p, photoUrls = []) {
+  const rent = Number(p.operation) === 2
   const payload = {
-    ref: p.ref || undefined,
-    keyacci: OPERATION_TO_KEYACCI[p.operation] || 1,
-    nbtipo: p.type || undefined,
-    precioinmo: p.operation === 'rent' ? undefined : num(p.price),
-    precioalq: p.operation === 'rent' ? num(p.priceRent) : undefined,
-    titulo: p.title || undefined,
-    descripcion: p.description || undefined,
-    ciudad: p.city || undefined,
-    zona: p.zone || undefined,
-    provincia: p.province || undefined,
-    cp: p.postalCode || undefined,
-    direccion: p.address || undefined,
+    ref: text(p.ref),
+    keyacci: Number(p.operation) || 1,
+    key_tipo: num(p.typeKey),
+    key_loca: num(p.cityKey),
+    key_zona: num(p.zoneKey),
+    zona: p.zoneKey ? undefined : text(p.zoneName),
+    prospecto: false,
+    nodisponible: Boolean(p.unavailable),
+    precioinmo: rent ? undefined : num(p.price),
+    precioalq: rent ? num(p.priceRent) : undefined,
+    tituloes: text(p.title),
+    descripciones: text(p.description),
+    calle: text(p.street),
+    numero: text(p.number),
+    cp: text(p.postalCode),
     habitaciones: num(p.bedrooms),
     banyos: num(p.bathrooms),
     m_cons: num(p.builtArea),
-    m_uties: num(p.usableArea),
+    m_utiles: num(p.usableArea),
     m_parcela: num(p.plotArea),
-    planta: p.floor || undefined,
-    antiguedad: p.yearBuilt ? new Date().getFullYear() - Number(p.yearBuilt) : undefined,
-    conservacion: CONDITION_TO_CONSERVACION[p.condition],
-    energialetra: p.energyRating || undefined,
-    nborientacion: p.orientation || undefined,
-    propietario: p.ownerName || undefined,
-    telefonopropietario: p.ownerPhone || undefined,
-    observaciones: p.notes || undefined,
-    eninternet: p.status === 'ready' || p.status === 'published' ? 1 : 0,
+    planta: num(p.floor),
+    antiguedad: num(p.yearBuilt),
+    conservacion: num(p.conservation),
+    keyori: num(p.orientation),
+    energialetra: text(p.energyRating),
+    eninternet: num(p.publish),
   }
-  for (const [key, value] of Object.entries(p.features || {})) payload[key] = value ? 1 : 0
+  for (const [key] of FEATURES) {
+    const on = Boolean(p.features?.[key])
+    payload[key] = NUMERIC_FEATURES.has(key) ? (on ? 1 : 0) : on
+  }
+  if (photoUrls.length) {
+    payload.fotos = {}
+    photoUrls.forEach((url, i) => {
+      payload.fotos[String(i + 1)] = { url, posicion: i + 1 }
+    })
+  }
   return strip(payload)
 }
 
-export function operationFromKeyacci(v) {
-  return KEYACCI_TO_OPERATION[v] || 'sale'
+/** Owner (propietario) linked to a listing by cod_ofer. */
+export function toInmovillaOwner(p, { forUpdate = false } = {}) {
+  const phone = splitPhone(p.ownerPhone)
+  return strip({
+    cod_cli: forUpdate ? num(p.ownerRemoteId) : undefined,
+    cod_ofer: forUpdate ? undefined : num(p.codOfer),
+    nombre: text(p.ownerName),
+    apellidos: text(p.ownerSurname),
+    email: text(p.ownerEmail),
+    telefono1: phone.number ?? undefined,
+    prefijotel1: phone.prefix ?? undefined,
+  })
 }
 
-/** Photo upload body. Switch to multipart here if the documentation requires it. */
-export function toInmovillaPhoto(base64, { order = 0, caption = '' } = {}) {
-  return { orden: order, descripcion: caption, foto: base64, formato: 'jpg' }
+export function extractCodCli(body) {
+  const v = body?.cod_cli ?? body?.data?.cod_cli
+  return v === undefined || v === null ? null : String(v)
 }

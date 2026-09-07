@@ -2,6 +2,7 @@
 import { ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { LANGUAGES, useAuthStore } from '../stores/auth'
+import { useEnumsStore } from '../stores/enums'
 
 const auth = useAuthStore()
 const router = useRouter()
@@ -22,6 +23,7 @@ async function submit() {
   loading.value = true
   try {
     await auth.login({ numagencia: numagencia.value, password: password.value, restToken: restToken.value, idioma: idioma.value, remember: remember.value })
+    useEnumsStore().warm() // types + cities for the property form (2 enum calls, the minute's allowance)
     router.replace(typeof route.query.redirect === 'string' ? route.query.redirect : { name: 'properties' })
   } catch (err) {
     if (err.status === 401 || err.status === 403) {

@@ -1,18 +1,20 @@
 <script setup>
 import { computed, onMounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-import { CONDITIONS, LISTING_STATUSES, activeFeatures, completeness, labelOf, locationOf, priceOf, titleOf } from '../models/property'
 import InmovillaState from '../components/InmovillaState.vue'
+import { LISTING_STATUSES, activeFeatures, completeness, locationOf, priceOf, titleOf } from '../models/property'
+import { useEnumsStore } from '../stores/enums'
 import { useLocalPropertiesStore } from '../stores/localProperties'
 import { PLACEHOLDER, formatDate } from '../utils/format'
 
 const props = defineProps({ id: { type: String, required: true } })
 const store = useLocalPropertiesStore()
+const enums = useEnumsStore()
 const router = useRouter()
 const route = useRoute()
 
 const loading = ref(true)
-const confirmDelete = ref(false)
+const confirmRemove = ref(false)
 const active = ref(0)
 const toast = ref(route.query.saved ? 'Propiedad guardada' : '')
 
@@ -24,7 +26,7 @@ const rows = computed(() => {
   const d = p.value || {}
   return [
     ['Referencia', d.ref],
-    ['Tipo', d.type],
+    ['Tipo', d.typeName],
     ['Dormitorios', d.bedrooms],
     ['Baños', d.bathrooms],
     ['Construidos', d.builtArea ? `${d.builtArea} m²` : ''],
@@ -32,33 +34,38 @@ const rows = computed(() => {
     ['Parcela', d.plotArea ? `${d.plotArea} m²` : ''],
     ['Planta', d.floor],
     ['Año', d.yearBuilt],
-    ['Estado', labelOf(CONDITIONS, d.condition)],
-    ['Orientación', d.orientation],
+    ['Estado', enums.label('conservacion', d.conservation)],
+    ['Orientación', enums.label('keyori', d.orientation)],
     ['Certificado energético', d.energyRating],
-    ['Dirección', d.address],
+    ['Publicación', enums.label('eninternet', d.publish)],
+    ['Dirección', [d.street, d.number].filter(Boolean).join(' ')],
     ['Código postal', d.postalCode],
-    ['Provincia', d.province],
   ].filter(([, v]) => v !== undefined && v !== null && String(v).trim() !== '')
 })
 
 onMounted(async () => {
   await store.ensureLoaded()
+  enums.restore()
   if (p.value) await store.ensurePhotoUrls(p.value)
   loading.value = false
   if (toast.value) setTimeout(() => (toast.value = ''), 2500)
 })
 watch(() => p.value?.photos?.length, () => p.value && store.ensurePhotoUrls(p.value))
 
-async function setStatus(value) {
-  if (!p.value || p.value.status === value) return
-  await store.save({ ...p.value, status: value })
-  toast.value = `Estado: ${labelOf(LISTING_STATUSES, value)}`
-  setTimeout(() => (toast.value = ''), 2000)
-}
-
 async function remove() {
+  const wasDraft = p.value?.status === 'draft'
   await store.remove(props.id)
-  router.replace({ name: 'properties', query: { source: 'mine' } })
+  confirmRemove.value = false
+  if (wasDraft) router.replace({ name: 'properties', query: { source: 'mine' } })
+  else {
+    toast.value = 'Marcada como no disponible en Inmovilla'
+    setTimeout(() => (toast.value = ''), 2500)
+  }
+}
+async function reactivate() {
+  await store.reactivate(props.id)
+  toast.value = 'Disponible de nuevo'
+  setTimeout(() => (toast.value = ''), 2500)
 }
 </script>
 
@@ -75,7 +82,7 @@ async function remove() {
     <template v-else>
       <div class="gallery">
         <img :src="photos.length ? store.photoUrls[photos[active]?.id] || PLACEHOLDER : PLACEHOLDER" :alt="titleOf(p)" />
-        <span class="badge" :class="p.operation === 'rent' ? 'badge-rent' : 'badge-sale'">{{ p.operation === 'rent' ? 'Alquiler' : 'Venta' }}</span>
+        <span class="badge" :class="Number(p.operation) === 2 ? 'badge-rent' : 'badge-sale'">{{ Number(p.operation) === 2 ? 'Alquiler' : 'Venta' }}</span>
         <span v-if="!photos.length" class="no-photos">Sin fotos todavía</span>
         <div v-if="photos.length > 1" class="thumbs">
           <button v-for="(ph, i) in photos" :key="ph.id" type="button" :class="{ active: i === active }" @click="active = i">
@@ -93,31 +100,18 @@ async function remove() {
       </header>
 
       <p class="sync muted">
-        <InmovillaState :record="p" />
+        <InmovillaState :record="p" :sent="p.status !== 'draft'" :label="`ref. ${p.ref}`" />
         <span v-if="pendingPhotos" class="pending-photos">· {{ pendingPhotos }} foto{{ pendingPhotos === 1 ? '' : 's' }} por subir</span>
         <span>· ficha {{ completeness(p) }}% completa</span>
       </p>
       <p v-if="p.syncError" class="alert">Inmovilla rechazó la ficha: {{ p.syncError }}. Corrige los campos y guarda de nuevo.</p>
-      <p v-else-if="p.remoteId" class="alert alert-info">
-        Esta propiedad ya está en Inmovilla. <RouterLink :to="{ name: 'property', params: { codOfer: p.remoteId } }">Ver la ficha publicada</RouterLink>.
+      <p v-else-if="p.status === 'unavailable'" class="alert alert-info">
+        Marcada como <strong>no disponible</strong> en Inmovilla. <button type="button" class="link" @click="reactivate">Volver a activar</button>
       </p>
-
-      <article class="block">
-        <h2>Estado de la ficha</h2>
-        <div class="statuses">
-          <button
-            v-for="s in LISTING_STATUSES"
-            :key="s.value"
-            type="button"
-            :class="{ active: p.status === s.value }"
-            :style="p.status === s.value ? { background: s.color, borderColor: s.color } : {}"
-            @click="setStatus(s.value)"
-          >
-            {{ s.label }}
-          </button>
-        </div>
-        <p class="hint muted">La ficha se envía a Inmovilla automáticamente; «Lista para publicar» la marca como visible en internet.</p>
-      </article>
+      <p v-else-if="p.codOfer" class="alert alert-info">
+        Ya está en Inmovilla con el código {{ p.codOfer }}. <RouterLink :to="{ name: 'property', params: { codOfer: p.codOfer } }">Ver la ficha publicada</RouterLink>.
+      </p>
+      <p v-else-if="p.status === 'sent'" class="alert alert-info">Enviada a Inmovilla; el enlace a la ficha aparecerá cuando Inmovilla la haya procesado.</p>
 
       <article v-if="p.description" class="block">
         <h2>Descripción</h2>
@@ -137,22 +131,26 @@ async function remove() {
       </article>
 
       <article v-if="p.ownerName || p.ownerPhone || p.notes" class="block">
-        <h2>Interno</h2>
+        <h2>Propietario y notas</h2>
         <dl class="rows">
-          <template v-if="p.ownerName"><dt>Propietario</dt><dd>{{ p.ownerName }}</dd></template>
+          <template v-if="p.ownerName"><dt>Propietario</dt><dd>{{ [p.ownerName, p.ownerSurname].filter(Boolean).join(' ') }} <span v-if="p.ownerRemoteId" class="muted">· en Inmovilla nº {{ p.ownerRemoteId }}</span><span v-else-if="p.status !== 'draft'" class="muted">· pendiente de crear en Inmovilla</span></dd></template>
           <template v-if="p.ownerPhone"><dt>Teléfono</dt><dd><a :href="`tel:${p.ownerPhone}`">{{ p.ownerPhone }}</a></dd></template>
+          <template v-if="p.ownerEmail"><dt>Email</dt><dd><a :href="`mailto:${p.ownerEmail}`">{{ p.ownerEmail }}</a></dd></template>
         </dl>
         <p v-if="p.notes" class="description notes">{{ p.notes }}</p>
       </article>
 
-      <p class="dates muted">Creada {{ formatDate(new Date(p.createdAt).toISOString()) }} · Actualizada {{ formatDate(new Date(p.updatedAt).toISOString()) }}</p>
+      <p class="dates muted">Creada {{ formatDate(new Date(p.createdAt).toISOString()) }} · Actualizada {{ formatDate(new Date(p.updatedAt).toISOString()) }} · <span :style="{ color: status.color }">{{ status.label }}</span></p>
 
-      <div class="danger-zone">
-        <button v-if="!confirmDelete" type="button" class="btn btn-ghost danger" @click="confirmDelete = true">Eliminar propiedad</button>
+      <div v-if="p.status !== 'unavailable'" class="danger-zone">
+        <button v-if="!confirmRemove" type="button" class="btn btn-ghost danger" @click="confirmRemove = true">
+          {{ p.status === 'draft' ? 'Eliminar borrador' : 'Dar de baja en Inmovilla' }}
+        </button>
         <div v-else class="confirm">
-          <span>¿Eliminar “{{ titleOf(p) }}” y sus fotos?</span>
-          <button type="button" class="btn danger-fill" @click="remove">Sí, eliminar</button>
-          <button type="button" class="btn btn-ghost" @click="confirmDelete = false">No</button>
+          <span v-if="p.status === 'draft'">¿Eliminar “{{ titleOf(p) }}” y sus fotos de este dispositivo?</span>
+          <span v-else>¿Marcar “{{ titleOf(p) }}” como no disponible en Inmovilla?</span>
+          <button type="button" class="btn danger-fill" @click="remove">Sí</button>
+          <button type="button" class="btn btn-ghost" @click="confirmRemove = false">No</button>
         </div>
       </div>
     </template>
@@ -176,14 +174,11 @@ async function remove() {
 .head h1 { margin: 0 0 0.2rem; font-size: 1.4rem; }
 .head p { margin: 0; }
 .price { font-size: 1.5rem; font-weight: 800; color: var(--brand); white-space: nowrap; }
-.sync { display: flex; align-items: center; gap: 0.45rem; font-size: 0.82rem; margin: 0.25rem 0 1rem; }
+.sync { display: flex; flex-wrap: wrap; align-items: center; gap: 0.45rem; font-size: 0.82rem; margin: 0.25rem 0 1rem; }
 .pending-photos { color: var(--accent); font-weight: 600; }
+.link { border: 0; background: none; color: var(--brand); font-weight: 600; padding: 0; text-decoration: underline; font-size: inherit; }
 .block { background: var(--surface); border-radius: var(--radius); box-shadow: var(--shadow); padding: 1rem 1.2rem; margin-bottom: 0.85rem; }
 .block h2 { margin: 0 0 0.7rem; font-size: 1rem; color: var(--muted); text-transform: uppercase; letter-spacing: 0.04em; }
-.statuses { display: flex; flex-wrap: wrap; gap: 0.45rem; }
-.statuses button { border: 1.5px solid var(--border); background: var(--surface); border-radius: 999px; padding: 0.5rem 0.9rem; font-weight: 600; min-height: 40px; color: var(--text); }
-.statuses button.active { color: #fff; }
-.hint { font-size: 0.8rem; margin: 0.6rem 0 0; }
 .description { white-space: pre-line; margin: 0; line-height: 1.55; }
 .notes { margin-top: 0.6rem; }
 .features { display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 0.4rem; list-style: none; padding: 0; margin: 0; }

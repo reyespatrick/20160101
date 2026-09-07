@@ -1,21 +1,28 @@
 import { defineStore } from 'pinia'
-import { createProperty, deleteProperty, updateProperty, uploadPhoto } from '../api/inmovillaRest'
+import { findByRef } from '../api/inmovilla'
+import { createOwner, hostPhoto, isAuthError, isRateLimited, saveProperty, updateOwner } from '../api/inmovillaRest'
 import { propertiesDb } from '../db/propertiesDb'
 import { emptyProperty, matchesProperty, newId } from '../models/property'
-import { pendingRecords, planFor } from '../sync/outbox'
+import { pendingRecords } from '../sync/outbox'
 import { resizeImage } from '../utils/image'
 import { useAuthStore } from './auth'
 
 /**
- * Listings created in the app ("altas"). They are drafted on the device (IndexedDB,
- * photos as blobs) and pushed to Inmovilla's REST API: create the listing, then
- * upload each photo. Once in Inmovilla the listing also appears in the normal
- * Inmovilla tab; the local copy keeps its remote id (cod_ofer) for editing.
+ * Listings created in the app. Drafted on the device (IndexedDB, photos as blobs),
+ * then sent to Inmovilla's REST API:
+ *   1. photos are hosted on the relay to get public URLs (Inmovilla downloads them),
+ *   2. POST /propiedades/ creates or updates the listing (identified by `ref`),
+ *   3. the cod_ofer is resolved through apiweb (unlimited) for the ficha link,
+ *   4. the owner, if any, is created/updated as a propietario linked by cod_ofer.
+ * Inmovilla has no delete: a sent listing is "dada de baja" with nodisponible=true.
+ * The REST limit for properties is 10 calls/min; a 408 pauses the outbox for a minute.
  */
+const RETRY_AFTER_408_MS = 65_000
+
 export const useLocalPropertiesStore = defineStore('localProperties', {
   state: () => ({
     items: [],
-    photoMeta: {}, // photoId -> { id, propertyId, uploaded, width, height, size }
+    photoMeta: {}, // photoId -> { id, propertyId, uploaded, publicUrl, width, height, size }
     photoUrls: {}, // photoId -> object URL (in-memory only)
     loaded: false,
     loading: false,
@@ -24,6 +31,7 @@ export const useLocalPropertiesStore = defineStore('localProperties', {
     lastSyncAt: 0,
     syncError: '',
     needsLogin: false,
+    rateLimitedUntil: 0,
     query: '',
     statusFilter: '',
   }),
@@ -32,10 +40,8 @@ export const useLocalPropertiesStore = defineStore('localProperties', {
     filtered() {
       return this.active.filter((p) => (!this.statusFilter || p.status === this.statusFilter) && matchesProperty(p, this.query))
     },
-    pendingPhotosOf: (s) => (p) => (p?.photos || []).filter((ph) => s.photoMeta[ph.id] && !s.photoMeta[ph.id].uploaded).length,
-    pendingCount() {
-      return this.items.filter((p) => p.dirty).length + this.items.reduce((n, p) => n + (p.deleted ? 0 : this.pendingPhotosOf(p)), 0)
-    },
+    pendingPhotosOf: (s) => (p) => (p?.photos || []).filter((ph) => s.photoMeta[ph.id] && !s.photoMeta[ph.id].publicUrl).length,
+    pendingCount: (s) => s.items.filter((p) => p.dirty).length,
     byId: (s) => (id) => s.items.find((p) => p.id === String(id) && !p.deleted) || null,
     coverUrl: (s) => (p) => {
       const first = [...(p?.photos || [])].sort((a, b) => a.order - b.order)[0]
@@ -70,7 +76,6 @@ export const useLocalPropertiesStore = defineStore('localProperties', {
       return this.byId(id)
     },
 
-    /** Object URLs for a property's photos (blobs live in IndexedDB on this device). */
     async ensurePhotoUrls(property) {
       const agency = this.agency()
       for (const ph of property?.photos || []) {
@@ -78,19 +83,17 @@ export const useLocalPropertiesStore = defineStore('localProperties', {
         const local = await propertiesDb.getPhoto(agency, ph.id)
         if (local?.blob) {
           this.photoUrls[ph.id] = URL.createObjectURL(local.blob)
-          this.photoMeta[ph.id] = { id: ph.id, propertyId: property.id, uploaded: local.uploaded, size: local.size }
+          this.photoMeta[ph.id] = { id: ph.id, propertyId: property.id, uploaded: local.uploaded, publicUrl: local.publicUrl, size: local.size }
         }
       }
     },
-
-    /** Resize and store a picked file locally. Returns the entry to add to property.photos. */
     async addPhotoFile(propertyId, file, order) {
       const agency = this.agency()
       const { blob, width, height } = await resizeImage(file)
       const id = newId()
-      await propertiesDb.putPhoto(agency, { id, propertyId, blob, mime: blob.type, width, height, size: blob.size, uploaded: false })
+      await propertiesDb.putPhoto(agency, { id, propertyId, blob, mime: blob.type, width, height, size: blob.size, uploaded: false, publicUrl: '' })
       this.photoUrls[id] = URL.createObjectURL(blob)
-      this.photoMeta[id] = { id, propertyId, uploaded: false, width, height, size: blob.size }
+      this.photoMeta[id] = { id, propertyId, uploaded: false, publicUrl: '', width, height, size: blob.size }
       return { id, order, caption: '' }
     },
     async discardPhoto(photoId) {
@@ -100,52 +103,87 @@ export const useLocalPropertiesStore = defineStore('localProperties', {
       delete this.photoMeta[photoId]
     },
 
+    /** Is this reference free in Inmovilla? (apiweb lookup; null when it cannot be checked) */
+    async refIsAvailable(ref, ownId) {
+      const auth = useAuthStore()
+      if (navigator.onLine === false) return null
+      const local = this.items.find((p) => p.id !== ownId && !p.deleted && p.ref === ref)
+      if (local) return false
+      try {
+        const found = await findByRef(auth.credentials, ref)
+        if (!found) return true
+        const own = this.items.find((p) => p.id === ownId)
+        return Boolean(own && own.status !== 'draft' && own.ref === ref)
+      } catch {
+        return null
+      }
+    },
+
     async save(property) {
-      const record = { ...emptyProperty(), ...property, id: property.id, updatedAt: Date.now(), deleted: false, syncError: '' }
+      const agency = this.agency()
+      const existing = this.items.find((p) => p.id === property.id)
+      const ownerChanged =
+        !existing ||
+        ['ownerName', 'ownerSurname', 'ownerPhone', 'ownerEmail'].some((k) => (existing[k] || '') !== (property[k] || '')) ||
+        existing.ownerDirty
+      const record = { ...emptyProperty(), ...property, id: property.id, updatedAt: Date.now(), deleted: false, syncError: '', ownerDirty: ownerChanged }
       record.photos = (record.photos || []).map((ph, i) => ({ ...ph, order: i }))
       if (!record.createdAt) record.createdAt = record.updatedAt
-      const saved = await propertiesDb.putLocal(this.agency(), record)
+      const saved = await propertiesDb.putLocal(agency, record)
       this.upsertLocal(saved)
       this.sync()
       return saved
     },
+
+    /** Drafts are deleted locally; listings already in Inmovilla are marked unavailable there. */
     async remove(id) {
       const agency = this.agency()
       const existing = this.items.find((p) => p.id === id)
       if (!existing) return
-      for (const ph of existing.photos || []) await this.discardPhoto(ph.id)
-      if (!existing.remoteId) {
+      if (existing.status === 'draft') {
+        for (const ph of existing.photos || []) await this.discardPhoto(ph.id)
         await propertiesDb.remove(agency, id)
         this.items = this.items.filter((p) => p.id !== id)
         return
       }
-      const saved = await propertiesDb.putLocal(agency, { ...existing, photos: [], deleted: true, updatedAt: Date.now() })
-      this.upsertLocal(saved)
-      this.sync()
+      await this.save({ ...existing, unavailable: true, status: 'unavailable' })
     },
+    async reactivate(id) {
+      const existing = this.items.find((p) => p.id === id)
+      if (existing) await this.save({ ...existing, unavailable: false, status: 'sent' })
+    },
+
     upsertLocal(p) {
       const i = this.items.findIndex((x) => x.id === p.id)
       if (i >= 0) this.items.splice(i, 1, p)
       else this.items.push(p)
     },
 
-    /** Push drafts and edits to Inmovilla, then upload photos that are not there yet. */
     async sync() {
       const auth = useAuthStore()
       const agency = auth.numagencia
       if (!agency || !auth.restToken || this.syncing) return false
       if (typeof navigator !== 'undefined' && navigator.onLine === false) return false
+      if (this.rateLimitedUntil > Date.now()) {
+        setTimeout(() => this.sync(), this.rateLimitedUntil - Date.now() + 500)
+        return false
+      }
       this.syncing = true
       this.syncError = ''
       try {
         await this.ensureLoaded()
         for (const record of pendingRecords(this.items)) {
           try {
-            await this.pushOne(auth.restToken, agency, record)
+            await this.pushOne(auth, agency, record)
           } catch (err) {
             if (err.status === 0) return false
-            if (err.status === 401 || err.status === 403) {
+            if (isAuthError(err)) {
               this.needsLogin = true
+              return false
+            }
+            if (isRateLimited(err)) {
+              this.rateLimitedUntil = Date.now() + RETRY_AFTER_408_MS
+              setTimeout(() => this.sync(), RETRY_AFTER_408_MS + 500)
               return false
             }
             const failed = { ...record, syncError: err.message || 'Inmovilla rechazó la ficha' }
@@ -153,63 +191,82 @@ export const useLocalPropertiesStore = defineStore('localProperties', {
             this.upsertLocal({ ...failed, dirty: true })
           }
         }
-        await this.uploadPendingPhotos(auth.restToken, agency)
+        // second pass: cod_ofer / owner for listings sent earlier whose lookup was not ready
+        for (const record of this.items.filter((p) => !p.dirty && p.status !== 'draft' && (!p.codOfer || (p.ownerDirty && p.ownerName)))) {
+          try {
+            await this.completeRemote(auth, agency, record)
+          } catch (err) {
+            if (err.status === 0 || isAuthError(err) || isRateLimited(err)) break
+          }
+        }
         this.lastSyncAt = Date.now()
         await propertiesDb.setMeta(`lastSync:${agency}`, this.lastSyncAt)
         this.needsLogin = false
         return true
-      } catch (err) {
-        if (err.status === 401 || err.status === 403) this.needsLogin = true
-        else if (err.status !== 0) this.syncError = err.message || 'Error al sincronizar con Inmovilla'
-        return false
       } finally {
         this.syncing = false
       }
     },
 
-    async pushOne(token, agency, record) {
-      const { dirty, syncError, ...payload } = record
-      switch (planFor(record)) {
-        case 'create': {
-          const remoteId = await createProperty(token, payload)
-          await propertiesDb.markSynced(agency, record.id, { remoteId: remoteId || null })
-          break
-        }
-        case 'update':
-          await updateProperty(token, record.remoteId, payload)
-          await propertiesDb.markSynced(agency, record.id, {})
-          break
-        case 'delete':
-          await deleteProperty(token, record.remoteId)
-          await propertiesDb.remove(agency, record.id)
-          break
-        default:
-          await propertiesDb.remove(agency, record.id)
+    async pushOne(auth, agency, record) {
+      if (record.deleted) {
+        await propertiesDb.remove(agency, record.id)
+        this.items = await propertiesDb.all(agency)
+        return
       }
-      this.items = await propertiesDb.all(agency)
-    },
-
-    /** Upload photos of listings already in Inmovilla that have not been sent yet. */
-    async uploadPendingPhotos(token, agency) {
-      for (const p of this.items) {
-        if (p.deleted || p.dirty || !p.remoteId) continue
-        for (const ph of [...(p.photos || [])].sort((a, b) => a.order - b.order)) {
-          const meta = this.photoMeta[ph.id]
-          if (!meta || meta.uploaded) continue
+      if (record.status === 'draft') {
+        const free = await this.refIsAvailable(record.ref, record.id)
+        if (free === false) throw Object.assign(new Error(`La referencia ${record.ref} ya existe en Inmovilla; cámbiala para no sobrescribir otra propiedad`), { status: 409 })
+      }
+      // 1. host photos so Inmovilla can download them
+      const urls = []
+      for (const ph of [...(record.photos || [])].sort((a, b) => a.order - b.order)) {
+        let meta = this.photoMeta[ph.id]
+        if (!meta?.publicUrl) {
           const local = await propertiesDb.getPhoto(agency, ph.id)
           if (!local?.blob) continue
           this.uploading++
           try {
-            await uploadPhoto(token, p.remoteId, local.blob, { order: ph.order, caption: ph.caption })
-            await propertiesDb.markUploaded(agency, ph.id)
-            this.photoMeta[ph.id] = { ...meta, uploaded: true }
-          } catch (err) {
-            if (err.status === 0) return
-            this.syncError = `No se pudo subir una foto a Inmovilla: ${err.message}`
+            const url = await hostPhoto(auth.restToken, local.blob)
+            await propertiesDb.setPhotoUrl(agency, ph.id, url)
+            meta = { ...(meta || { id: ph.id, propertyId: record.id }), uploaded: true, publicUrl: url }
+            this.photoMeta[ph.id] = meta
           } finally {
             this.uploading--
           }
         }
+        urls.push(meta.publicUrl)
+      }
+      // 2. create / update the listing
+      const { dirty, syncError, ...payload } = record
+      await saveProperty(auth.restToken, payload, urls)
+      const status = record.unavailable ? 'unavailable' : 'sent'
+      await propertiesDb.markSynced(agency, record.id, { status, sentAt: Date.now() })
+      this.items = await propertiesDb.all(agency)
+      // 3./4. cod_ofer and owner (best effort; retried on later syncs)
+      const fresh = this.items.find((p) => p.id === record.id)
+      if (fresh) await this.completeRemote(auth, agency, fresh).catch(() => {})
+    },
+
+    async completeRemote(auth, agency, record) {
+      let patch = {}
+      let codOfer = record.codOfer
+      if (!codOfer) {
+        const found = await findByRef(auth.credentials, record.ref)
+        if (found?.cod_ofer) {
+          codOfer = String(found.cod_ofer)
+          patch.codOfer = codOfer
+        }
+      }
+      if (codOfer && record.ownerDirty && record.ownerName) {
+        const withCod = { ...record, codOfer }
+        if (record.ownerRemoteId) await updateOwner(auth.restToken, withCod)
+        else patch.ownerRemoteId = await createOwner(auth.restToken, withCod)
+        patch.ownerDirty = false
+      }
+      if (Object.keys(patch).length) {
+        await propertiesDb.markSynced(agency, record.id, patch)
+        this.items = await propertiesDb.all(agency)
       }
     },
 

@@ -5,6 +5,9 @@
  *  - ANY  /api/rest/*     → relays to Inmovilla's REST API v1 with the user's token (write: clients,
  *                           listings, photos). The token travels in the X-Inmovilla-Token header of
  *                           each request and is never stored here.
+ *  - PUT  /api/photos      → stores a listing photo and returns its public URL (Inmovilla fetches
+ *                           photos by URL). Files are purged after PHOTO_TTL_DAYS.
+ *  - GET  /photos/:id.jpg  → serves it.
  *  - serves the built PWA.
  *
  * Why a server at all: the browser cannot call apiweb directly (no CORS, whitelisted server IPs only),
@@ -16,6 +19,8 @@ import { fileURLToPath } from 'node:url'
 import { buildFormBody, normalizeRequest, parseApiResponse } from './inmovilla.js'
 import { mockResponse } from './mock.js'
 import { createMockRest } from './mockRest.js'
+import crypto from 'node:crypto'
+import { mkdir, readdir, rename, stat, unlink, writeFile } from 'node:fs/promises'
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 const PORT = Number(process.env.PORT || 3000)
@@ -25,6 +30,13 @@ const DOMAIN = process.env.INMOVILLA_DOMAIN || ''
 const MOCK = process.env.INMOVILLA_MOCK === '1'
 const UPSTREAM_TIMEOUT_MS = 30_000
 const MAX_BODY = '12mb'
+// Photo hosting: Inmovilla's REST API downloads listing photos from public URLs, so the
+// relay keeps the uploaded files for a while at unguessable addresses. This is the only
+// thing the server stores.
+const PHOTOS_DIR = process.env.PHOTOS_DIR || path.join(__dirname, '..', 'data', 'photos')
+const PHOTO_TTL_DAYS = Number(process.env.PHOTO_TTL_DAYS || 30)
+const PUBLIC_URL = (process.env.PUBLIC_URL || '').replace(/\/+$/, '')
+const MAX_PHOTO_BYTES = 8 * 1024 * 1024
 
 const app = express()
 app.disable('x-powered-by')
@@ -106,6 +118,66 @@ if (MOCK) {
 }
 
 // ---------------------------------------------------------------------------
+// Photo hosting for Inmovilla to fetch
+// ---------------------------------------------------------------------------
+const tokenCache = new Map() // token -> expiry; avoids hitting Inmovilla for every upload
+async function tokenIsValid(token) {
+  if (!token) return false
+  if (MOCK) return token === 'demo-token'
+  const cached = tokenCache.get(token)
+  if (cached && cached > Date.now()) return true
+  try {
+    const res = await fetch(`${REST_URL}/clientes/buscar/?telefono=000000000`, { headers: { Token: token, Accept: 'application/json' } })
+    if (res.status === 401 || res.status === 403) return false
+    tokenCache.set(token, Date.now() + 60 * 60_000)
+    return true
+  } catch {
+    return false
+  }
+}
+
+app.put('/api/photos', express.raw({ type: ['image/jpeg', 'image/png', 'image/webp', 'application/octet-stream'], limit: MAX_PHOTO_BYTES }), async (req, res) => {
+  if (!(await tokenIsValid(req.get('x-inmovilla-token')))) return res.status(401).json({ error: 'Clave de la API REST no válida' })
+  if (!Buffer.isBuffer(req.body) || req.body.length === 0) return res.status(400).json({ error: 'Foto vacía' })
+  const id = crypto.randomBytes(16).toString('hex')
+  try {
+    await mkdir(PHOTOS_DIR, { recursive: true })
+    const target = path.join(PHOTOS_DIR, `${id}.jpg`)
+    await writeFile(`${target}.tmp`, req.body)
+    await rename(`${target}.tmp`, target)
+  } catch (err) {
+    console.error('[photos] write failed:', err.message)
+    return res.status(500).json({ error: 'No se pudo guardar la foto' })
+  }
+  const base = PUBLIC_URL || `${req.protocol}://${req.get('host')}`
+  res.json({ id, url: `${base}/photos/${id}.jpg` })
+})
+
+app.get('/photos/:id.jpg', (req, res) => {
+  if (!/^[a-f0-9]{32}$/.test(req.params.id)) return res.status(404).end()
+  res.set('Cache-Control', 'public, max-age=31536000, immutable')
+  res.type('image/jpeg')
+  res.sendFile(path.join(PHOTOS_DIR, `${req.params.id}.jpg`), (err) => {
+    if (err) res.status(404).end()
+  })
+})
+
+async function purgeOldPhotos() {
+  try {
+    const cutoff = Date.now() - PHOTO_TTL_DAYS * 86_400_000
+    for (const file of await readdir(PHOTOS_DIR)) {
+      const full = path.join(PHOTOS_DIR, file)
+      const info = await stat(full).catch(() => null)
+      if (info?.isFile() && info.mtimeMs < cutoff) await unlink(full).catch(() => {})
+    }
+  } catch (err) {
+    if (err.code !== 'ENOENT') console.error('[photos] purge failed:', err.message)
+  }
+}
+purgeOldPhotos()
+setInterval(purgeOldPhotos, 60 * 60_000).unref()
+
+// ---------------------------------------------------------------------------
 // Built PWA
 // ---------------------------------------------------------------------------
 const dist = path.join(__dirname, '..', 'dist')
@@ -120,4 +192,5 @@ app.listen(PORT, () => {
   console.log(`[server] listening on http://localhost:${PORT}`)
   console.log(`[server] apiweb → ${MOCK ? 'MOCK' : API_URL}`)
   console.log(`[server] REST   → ${MOCK ? 'MOCK (token "demo-token")' : REST_URL}`)
+  console.log(`[server] photos → ${PHOTOS_DIR} (kept ${PHOTO_TTL_DAYS} days${PUBLIC_URL ? `, public at ${PUBLIC_URL}/photos/` : ''})`)
 })

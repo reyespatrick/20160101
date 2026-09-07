@@ -19,7 +19,7 @@ onMounted(() => store.ensurePhotoUrls(p.value))
   <RouterLink :to="{ name: 'local-property', params: { id: p.id } }" class="card">
     <div class="photo">
       <img :src="cover" :alt="titleOf(p)" loading="lazy" />
-      <span class="badge" :class="p.operation === 'rent' ? 'badge-rent' : 'badge-sale'">{{ p.operation === 'rent' ? 'Alquiler' : 'Venta' }}</span>
+      <span class="badge" :class="Number(p.operation) === 2 ? 'badge-rent' : 'badge-sale'">{{ Number(p.operation) === 2 ? 'Alquiler' : 'Venta' }}</span>
       <span class="count">📷 {{ p.photos?.length || 0 }}</span>
     </div>
     <div class="body">
@@ -37,7 +37,7 @@ onMounted(() => store.ensurePhotoUrls(p.value))
       <div class="foot muted">
         <span>Ref. {{ p.ref || '—' }}</span>
         <span v-if="pendingPhotos" class="pending">● {{ pendingPhotos }} foto{{ pendingPhotos === 1 ? '' : 's' }} por subir</span>
-        <InmovillaState v-else :record="p" />
+        <InmovillaState v-else :record="p" :sent="p.status !== 'draft'" :label="`ref. ${p.ref}`" />
       </div>
     </div>
   </RouterLink>

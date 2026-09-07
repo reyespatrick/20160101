@@ -4,9 +4,13 @@
  */
 import { splitSection } from './inmovilla.js'
 
-const CITIES = ['Alicante', 'Elche', 'Torrevieja', 'Benidorm', 'Altea', 'Dénia', 'Jávea', 'Calpe']
-const ZONES = ['Centro', 'Playa', 'Casco antiguo', 'Urbanización', 'Norte', 'Sur']
-const TYPES = [
+export const CITIES = ['Alicante', 'Elche', 'Torrevieja', 'Benidorm', 'Altea', 'Dénia', 'Jávea', 'Calpe']
+export const ZONES = ['Centro', 'Playa', 'Casco antiguo', 'Urbanización', 'Norte', 'Sur']
+/** key_loca codes used by the mock REST enums: 31001.. in CITIES order */
+export const CITY_KEY_BASE = 31001
+/** key_zona codes: cityKey * 100 + index */
+export const zoneKey = (cityKey, i) => Number(cityKey) * 100 + i
+export const TYPES = [
   [1, 'Piso'],
   [2, 'Apartamento'],
   [3, 'Chalet'],
@@ -63,11 +67,53 @@ function makeProperty(i) {
 
 const PROPERTIES = Array.from({ length: 57 }, (_, i) => makeProperty(i + 1))
 
+/**
+ * Called by the mock REST when a listing is created/updated so it appears in the
+ * apiweb listing like it would in the real Inmovilla.
+ */
+export function upsertMockProperty(rest) {
+  const type = TYPES.find(([k]) => k === Number(rest.key_tipo)) || [0, 'Inmueble']
+  const cityIdx = Number(rest.key_loca) - CITY_KEY_BASE
+  const zoneIdx = rest.key_zona ? Number(rest.key_zona) % 100 : -1
+  const fotos = Object.values(rest.fotos || {})
+  const record = {
+    cod_ofer: Number(rest.cod_ofer),
+    ref: rest.ref,
+    keyacci: Number(rest.keyacci) || 1,
+    precioinmo: Number(rest.precioinmo) || 0,
+    precioalq: Number(rest.precioalq) || 0,
+    key_tipo: type[0],
+    nbtipo: type[1],
+    ciudad: CITIES[cityIdx] || String(rest.key_loca),
+    zona: zoneIdx >= 0 ? ZONES[zoneIdx] || '' : rest.zona || '',
+    habitaciones: Number(rest.habitaciones) || 0,
+    banyos: Number(rest.banyos) || 0,
+    m_cons: Number(rest.m_cons) || 0,
+    m_parcela: Number(rest.m_parcela) || 0,
+    ascensor: rest.ascensor ? 1 : 0,
+    piscina_com: rest.piscina_com ? 1 : 0,
+    terraza: rest.terraza ? 1 : 0,
+    plaza_gara: Number(rest.plaza_gara) || 0,
+    aire_con: rest.aire_con ? 1 : 0,
+    destacado: 0,
+    numfotos: fotos.length,
+    fechaact: new Date().toISOString().slice(0, 19).replace('T', ' '),
+    foto: fotos[0]?.url || '',
+    fotos: fotos.map((f) => f.url),
+    descripciones: [rest.descripciones || ''],
+    nodisponible: rest.nodisponible ? 1 : 0,
+  }
+  const i = PROPERTIES.findIndex((p) => p.ref === rest.ref)
+  if (i >= 0) PROPERTIES.splice(i, 1, { ...PROPERTIES[i], ...record })
+  else PROPERTIES.unshift(record)
+  return record
+}
+
 function detailFor(p) {
   return {
     ...p,
-    fotos: Array.from({ length: 5 }, (_, k) => `https://picsum.photos/seed/${100 + (p.cod_ofer - 10_000)}-${k}/1200/800`),
-    descripciones: [
+    fotos: p.fotos || Array.from({ length: 5 }, (_, k) => `https://picsum.photos/seed/${100 + (p.cod_ofer - 10_000)}-${k}/1200/800`),
+    descripciones: p.descripciones || [
       `${p.nbtipo} en ${p.ciudad}, zona ${p.zona}. ${p.habitaciones} dormitorios y ${p.banyos} baños en ${p.m_cons} m² construidos. ` +
         'Vivienda luminosa, lista para entrar a vivir, muy cerca de todos los servicios.',
     ],
@@ -97,7 +143,9 @@ function applyWhere(list, where) {
   }
   const cod = where.match(/cod_ofer\s*=\s*(\d+)/)
   if (cod) out = out.filter((p) => p.cod_ofer === Number(cod[1]))
-  return out
+  const ref = where.match(/(?:^|\s|\()ref\s*=\s*'([^']+)'/)
+  if (ref) out = out.filter((p) => p.ref === ref[1])
+  return out.filter((p) => !p.nodisponible)
 }
 
 function applyOrder(list, order) {

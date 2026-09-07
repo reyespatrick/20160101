@@ -1,18 +1,20 @@
 <script setup>
 import { computed } from 'vue'
 
-/** Where a record stands with respect to Inmovilla (device-side flags: dirty / remoteId / syncError). */
+/** Where a record stands with respect to Inmovilla. `sent` = already exists there; `label` = its reference. */
 const props = defineProps({
   record: { type: Object, required: true },
+  sent: { type: Boolean, default: false },
+  label: { type: String, default: '' },
   compact: { type: Boolean, default: false },
 })
 
 const state = computed(() => {
   const r = props.record
   if (r.syncError) return { kind: 'error', label: 'Rechazado por Inmovilla', title: r.syncError }
-  if (r.dirty && r.remoteId) return { kind: 'pending', label: 'Cambios por enviar', title: 'Se enviarán a Inmovilla al recuperar la conexión' }
-  if (r.dirty || !r.remoteId) return { kind: 'pending', label: 'Pendiente de enviar', title: 'Guardado en este dispositivo, se enviará a Inmovilla al sincronizar' }
-  return { kind: 'ok', label: `En Inmovilla · ref. ${r.remoteId}`, title: 'Guardado en Inmovilla' }
+  if (r.dirty && props.sent) return { kind: 'pending', label: 'Cambios por enviar', title: 'Se enviarán a Inmovilla al sincronizar' }
+  if (r.dirty || !props.sent) return { kind: 'pending', label: 'Pendiente de enviar', title: 'Guardado en este dispositivo, se enviará a Inmovilla al sincronizar' }
+  return { kind: 'ok', label: `En Inmovilla${props.label ? ` · ${props.label}` : ''}`, title: 'Guardado en Inmovilla' }
 })
 </script>
 

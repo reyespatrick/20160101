@@ -114,10 +114,11 @@ export const propertiesDb = {
   async deletePhoto(agency, photoId) {
     await tx('photos', 'readwrite', (s) => promisify(s.delete(key(agency, photoId))))
   },
-  async markUploaded(agency, photoId) {
+  /** Record the public URL the relay gave this photo (Inmovilla downloads it from there). */
+  async setPhotoUrl(agency, photoId, publicUrl) {
     await tx('photos', 'readwrite', async (s) => {
       const rec = await promisify(s.get(key(agency, photoId)))
-      if (rec) await promisify(s.put({ ...rec, uploaded: true }))
+      if (rec) await promisify(s.put({ ...rec, publicUrl, uploaded: true }))
     })
   },
 

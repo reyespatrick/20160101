@@ -20,34 +20,43 @@ Inmovilla credentials and browse the properties published in the **Inmovilla CRM
 ## Architecture: a thin gateway to Inmovilla
 
 The app is a mobile front door to the Inmovilla CRM. **Inmovilla is the only database**; the Node process in
-`server/` is a stateless relay that keeps nothing.
+`server/` is a relay that stores nothing but the photos Inmovilla has to download.
 
 ```
- phone / PWA ─────► server/ (relay, no storage) ─────► Inmovilla apiweb   (read: listings, ficha, types)
-   IndexedDB cache + outbox                      ─────► Inmovilla REST v1 (write: clients, listings, photos)
+ phone / PWA ─────► server/ (relay) ─────► Inmovilla apiweb   (read: listings, ficha, types)  — unlimited
+   IndexedDB cache + outbox         ─────► Inmovilla REST v1 (write: clients, listings, owners) — rate limited
+                                    ◄───── Inmovilla downloads listing photos from /photos/<id>.jpg
 ```
 
-- **Reading** uses the legacy `apiweb` (fast, rich `where` filters) through `POST /api/inmovilla`. The
-  browser cannot call it directly: no CORS, and Inmovilla only accepts whitelisted server IPs.
+- **Reading** uses the legacy `apiweb` (fast, free-form `where` filters, no rate limit) through
+  `POST /api/inmovilla`. The REST API only offers a bare listing plus one call per ficha at 10 calls/minute,
+  so it is not usable for browsing.
 - **Writing** uses the REST API v1 through `ANY /api/rest/*`. The relay forwards the request as is, adding
-  the user's token from the `X-Inmovilla-Token` header as Inmovilla's `Token` header.
+  the user's token from the `X-Inmovilla-Token` header as Inmovilla's `Token` header. Neither API sends CORS
+  headers (verified), so a browser cannot call them directly; that is the only reason the relay exists.
+- **Photos**: Inmovilla's REST API takes photo *URLs* and downloads them. The phone therefore uploads each
+  resized photo to `PUT /api/photos` (token checked against Inmovilla, cached one hour) and receives a public
+  URL under `/photos/<random>.jpg`, which is what gets sent in the listing. Files are purged after
+  `PHOTO_TTL_DAYS`. `PUBLIC_URL` must be the address Inmovilla can reach.
 - **Credentials belong to the user.** The login screen asks for the agency number, the apiweb password and
-  the REST token. They are checked against Inmovilla and stored only in the browser, never on the server.
+  the REST token (Inmovilla › Ajustes › Opciones › Token para API Rest). They are checked against Inmovilla
+  and stored only in the browser.
 - **Offline**: every edit is written to IndexedDB first and flagged as pending; when online the app replays
-  the outbox against Inmovilla (create → update with the returned id → upload photos → delete). Cards and
-  detail screens show each record's state: pending, "En Inmovilla · ref. …", or the error Inmovilla returned.
+  the outbox against Inmovilla. Cards and detail screens show each record's state: pending, "En Inmovilla",
+  or the error Inmovilla returned. A 408 (rate limit) pauses the outbox for a minute and retries.
 
-Why keep a server at all: only for apiweb's CORS/IP restrictions. If Inmovilla enables CORS on the REST API
-the `/api/rest` relay could be bypassed, but routing both through the same origin keeps one deployment and
-one IP to whitelist.
+### Inmovilla REST specifics the app follows
 
-### Confirming the REST contract
-
-The REST v1 endpoint paths and payload field names live in **one file**, `src/api/inmovillaMapping.js`.
-They mirror the field names of the read API (`keyacci`, `precioinmo`, `habitaciones`, `m_cons`…) and must
-be checked against the official documentation (`https://procesos.inmovilla.com/api/v1/apidoc/`). The
-in-memory fake REST used by `npm run dev:mock` (`server/mockRest.js`) follows the same shapes; adjust both
-together.
+| Topic | What Inmovilla does | What the app does |
+| --- | --- | --- |
+| Listing identity | `POST /propiedades/` creates **or updates** by `ref`, all fields every time | Ref is required, suggested as `APP-yymmdd-xxx`, checked against apiweb before the first send; read-only once sent |
+| Required fields | `ref`, `keyacci`, `key_tipo`, `key_loca` | Type and city are chosen from the enum lists; free text is never sent as a code |
+| Enums | `/enums/?tipos`, `?ciudades`, `?zonas=key_loca`, **2 calls/min** | Cached a week in localStorage, calls spaced 31 s apart, warmed right after login |
+| Delete | none for listings | "Dar de baja" sends `nodisponible: true`; drafts are deleted locally |
+| cod_ofer | not returned by the POST | Resolved through apiweb by `ref` to link the ficha and create the owner |
+| Owner | `POST /propietarios/` needs `cod_ofer` | Created/updated after the listing exists |
+| Clients | no list, search by phone/email only, `telefono*` numeric | Device cache of clients created or looked up here; phone/email queries also search Inmovilla; phones sent as digits with `prefijotel*` |
+| Client fields | nombre, apellidos, nif, email, teléfonos, dirección, observacion | Form limited to those fields (no invented status/budget) |
 
 ## Run locally
 
@@ -57,6 +66,7 @@ cp .env.example .env         # adjust if needed
 
 # Development with sample data (no Inmovilla account required)
 npm run dev:mock             # login with agency 1234 / key "demo" / REST token "demo-token"
+                             # listings created through the fake REST show up in the fake apiweb listing
 
 # Development against the real API
 npm run dev                  # Vite on :5173, proxy on :3000
@@ -77,27 +87,31 @@ Deploy `server/` + `dist/` to any Node host (Render, Railway, Fly, a VPS…). En
 | `INMOVILLA_API_URL` | `https://apiweb.inmovilla.com/apiweb/apiweb.php` | Legacy read endpoint |
 | `INMOVILLA_DOMAIN` | *(empty)* | Sent as `elDominio` |
 | `INMOVILLA_REST_URL` | `https://procesos.inmovilla.com/api/v1` | REST API v1 base URL |
+| `PUBLIC_URL` | request host | Public base URL of this server, used in the photo URLs Inmovilla downloads |
+| `PHOTOS_DIR` | `./data/photos` | Where uploaded photos wait for Inmovilla (needs a persistent disk) |
+| `PHOTO_TTL_DAYS` | `30` | Photos older than this are purged |
 | `INMOVILLA_MOCK` | `0` | `1` serves sample listings and an in-memory fake REST API |
 
-No secrets and no data directory: the server holds nothing.
+Whitelist the server's public IP in Inmovilla if the agency's account restricts API access by IP.
 
 ## New listings module
 
-1. The form saves the draft to **IndexedDB** immediately; photos are resized to 1600 px JPEG on the device
-   and stored as blobs next to it. Everything works offline.
-2. When online, the app creates the listing in Inmovilla (`POST /propiedades`), keeps the returned
-   `cod_ofer` as `remoteId`, then uploads each photo (`POST /propiedades/{id}/fotos`). Later edits become
-   `PUT`, deletions `DELETE`.
-3. A listing already in Inmovilla shows a link to its published ficha in the Inmovilla tab.
+1. The form saves the draft to **IndexedDB** immediately; photos are resized to 1600 px JPEG on the device and
+   stored as blobs next to it. Everything works offline. Type, city, zone, state, orientation and publication
+   come from Inmovilla's enums (cached).
+2. When online: photos without a public URL are uploaded to the relay; `POST /propiedades/` is sent with all
+   fields and the photo URLs; the `cod_ofer` is looked up through apiweb; the owner is created with
+   `POST /propietarios/`. Later edits repeat the POST (Inmovilla matches on `ref`).
+3. A listing already in Inmovilla links to its published ficha in the Inmovilla tab and appears in the normal
+   listing.
 
 ## Clients module
 
-1. Clients are read from Inmovilla (`GET /clientes`) and cached in IndexedDB so search works offline.
-2. Creating, editing or deleting a client writes the cache first and flags the record; the outbox is replayed
-   against Inmovilla (`POST` / `PUT` / `DELETE /clientes`) after each edit, on reconnect, when the app becomes
-   visible and when the Clients screen opens.
-3. After the replay the list is refreshed from Inmovilla; unsent local edits always win over the fetched copy.
-   If Inmovilla rejects a record the error is shown on it and the data stays on the device.
+1. Clients created or looked up on the device are cached in IndexedDB so search works offline by any field.
+2. Typing a phone or an email also searches Inmovilla (`/clientes/buscar/`); results join the cache.
+3. Creating, editing or deleting writes the cache first and flags the record; the outbox is replayed with
+   `POST` / `PUT` / `DELETE /clientes` after each edit, on reconnect, when the app becomes visible and when the
+   Clients screen opens. Opening a client refreshes it from Inmovilla when online.
 
 ## Tests
 
@@ -107,28 +121,27 @@ npm test
 
 ## Inmovilla API notes
 
-Every call is a form POST with `param` and `json=1`. `param` is a semicolon separated string:
+**apiweb (read)**: form POST with `param` and `json=1`; `param` is `numagencia;password;idioma;lostipos;<type>;<pos>;<num>;<where>;<order>`.
+Types: `paginacion` (list), `ficha` (detail, `where=cod_ofer=123`), `destacados`, `lostipos`, `ciudades`, `zonas`, `provincias`.
+Each response key is an array whose first element is `{ posicion, elementos, total }` followed by the items.
 
-```
-numagencia;password;idioma;lostipos;<type>;<pos>;<num>;<where>;<order>[;<type>;...]
-```
-
-Supported `type`s: `paginacion` (list), `ficha` (detail, `where=cod_ofer=123`), `destacados`,
-`lostipos`, `ciudades`, `zonas`, `provincias`. Each response key is an array whose first element is
-`{ posicion, elementos, total }` followed by the items.
+**REST v1 (write)**: base `https://procesos.inmovilla.com/api/v1`, headers `Token` and `Content-Type: application/json`.
+Endpoints used: `/enums/`, `/clientes/` (+ `/clientes/buscar/`), `/propiedades/`, `/propietarios/`. Errors come as
+`{ codigo, mensaje }`; 408 means the per-minute limit was hit. The full mapping is in `src/api/inmovillaMapping.js`
+and the fake server in `server/mockRest.js` follows the same contract.
 
 ## Project layout
 
 ```
-server/          Stateless relay: index.js (apiweb + REST relay + static), inmovilla.js (apiweb param builder),
-                 mock.js (sample listings), mockRest.js (in-memory fake REST for development)
-src/api/         inmovilla.js (apiweb client), inmovillaRest.js (REST client), inmovillaMapping.js (paths + field
-                 mapping to confirm against the REST documentation)
-src/db/          IndexedDB wrappers: clients cache, local listing drafts + photo blobs
-src/models/      Client and property models: options, validation, search matching
-src/sync/        Outbox helpers (plan, merge of the Inmovilla list into the cache)
+server/          index.js (apiweb relay, REST relay, photo hosting, static), inmovilla.js (apiweb param builder),
+                 mock.js (sample listings), mockRest.js (fake REST following the documentation)
+src/api/         inmovilla.js (apiweb client), inmovillaRest.js (REST client), inmovillaMapping.js (fields + enums)
+src/db/          IndexedDB wrappers: clients cache, listing drafts + photo blobs
+src/models/      Client and property models aligned with Inmovilla's fields
+src/sync/        Outbox helpers
 src/utils/       Formatting helpers and on-device image resizing
-src/stores/      Pinia stores: auth (credentials on device), properties (Inmovilla listing), localProperties, clients
+src/stores/      Pinia stores: auth, enums (cached Inmovilla lists), properties (apiweb listing), localProperties, clients
 src/views/       Login, Properties, PropertyDetail, LocalPropertyForm, LocalPropertyDetail, Clients, ClientForm, ClientDetail
-src/components/  AppHeader, BottomNav, FilterBar, PropertyCard, LocalPropertyCard, PhotoPicker, ClientCard, ChipGroup, InmovillaState
+src/components/  AppHeader, BottomNav, FilterBar, PropertyCard, LocalPropertyCard, PhotoPicker, CityPicker, ClientCard,
+                 ChipGroup, InmovillaState
 ```

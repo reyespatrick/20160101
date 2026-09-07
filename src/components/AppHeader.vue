@@ -5,6 +5,7 @@ import { useAuthStore } from '../stores/auth'
 import { usePropertiesStore } from '../stores/properties'
 import { useClientsStore } from '../stores/clients'
 import { useLocalPropertiesStore } from '../stores/localProperties'
+import { useEnumsStore } from '../stores/enums'
 
 const auth = useAuthStore()
 const properties = usePropertiesStore()
@@ -28,6 +29,7 @@ async function logout() {
   properties.reset()
   clients.reset()
   localProperties.reset()
+  useEnumsStore().reset()
   router.replace({ name: 'login' })
 }
 </script>

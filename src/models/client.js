@@ -1,33 +1,8 @@
-/** Client (contact) model shared by the UI, the local database and the sync layer. */
-
-export const CLIENT_TYPES = [
-  { value: 'buyer', label: 'Comprador' },
-  { value: 'tenant', label: 'Inquilino' },
-  { value: 'seller', label: 'Vendedor' },
-  { value: 'landlord', label: 'Propietario' },
-  { value: 'other', label: 'Otro' },
-]
-
-export const CLIENT_STATUSES = [
-  { value: 'new', label: 'Nuevo', color: '#2e3192' },
-  { value: 'contacted', label: 'Contactado', color: '#0e7c86' },
-  { value: 'visiting', label: 'Visitando', color: '#f39200' },
-  { value: 'negotiating', label: 'Negociando', color: '#8e44ad' },
-  { value: 'closed', label: 'Cerrado', color: '#2e7d32' },
-  { value: 'lost', label: 'Perdido', color: '#6b6e85' },
-]
-
-export const OPERATIONS = [
-  { value: '', label: 'Sin especificar' },
-  { value: 'buy', label: 'Comprar' },
-  { value: 'rent', label: 'Alquilar' },
-  { value: 'sell', label: 'Vender' },
-  { value: 'let', label: 'Poner en alquiler' },
-]
-
-export function labelOf(list, value) {
-  return list.find((o) => o.value === value)?.label || ''
-}
+/**
+ * Client (contact) model, aligned with Inmovilla's REST /clientes fields.
+ * Inmovilla's client has no pipeline status, budget or search profile, so the
+ * app does not invent them: what you see here is what ends up in the CRM.
+ */
 
 export function newId() {
   if (globalThis.crypto?.randomUUID) return globalThis.crypto.randomUUID()
@@ -38,20 +13,20 @@ export function emptyClient() {
   const now = Date.now()
   return {
     id: newId(),
+    remoteId: null, // cod_cli in Inmovilla
     name: '',
     surname: '',
-    phone: '',
+    nif: '',
     email: '',
-    type: 'buyer',
-    status: 'new',
-    operation: '',
-    propertyTypes: [],
-    zones: [],
-    budgetMin: null,
-    budgetMax: null,
-    bedrooms: null,
-    notes: '',
-    properties: [],
+    mobile: '', // telefono2
+    phone: '', // telefono1
+    street: '',
+    number: '',
+    postalCode: '',
+    city: '',
+    province: '',
+    notes: '', // observacion
+    agentName: '',
     createdAt: now,
     updatedAt: now,
     deleted: false,
@@ -67,7 +42,6 @@ export function initials(c) {
   return parts.slice(0, 2).map((p) => p[0].toUpperCase()).join('') || '?'
 }
 
-/** Lowercase, accent-free text used for searching. */
 export function normalizeText(s) {
   return String(s ?? '')
     .normalize('NFD')
@@ -75,34 +49,64 @@ export function normalizeText(s) {
     .toLowerCase()
 }
 
-export function searchIndex(c) {
-  return normalizeText(
-    [c.name, c.surname, c.phone, c.email, c.notes, ...(c.zones || []), labelOf(CLIENT_TYPES, c.type), labelOf(CLIENT_STATUSES, c.status)].join(' '),
-  )
+export function digitsOf(s) {
+  return String(s ?? '').replace(/\D/g, '')
 }
 
-/** Match every whitespace-separated term; digits also match the phone with separators removed. */
+/** "+34 600 12 34 56" → { prefix: 34, number: 600123456 }; "600123456" → { prefix: null, number: 600123456 } */
+export function splitPhone(s) {
+  const raw = String(s ?? '').trim()
+  if (!raw) return { prefix: null, number: null }
+  let digits = digitsOf(raw)
+  let prefix = null
+  if (raw.startsWith('+') || digits.startsWith('00')) {
+    if (digits.startsWith('00')) digits = digits.slice(2)
+    // Spanish numbers are 9 digits; anything longer carries a country prefix
+    if (digits.length > 9) {
+      prefix = Number(digits.slice(0, digits.length - 9))
+      digits = digits.slice(-9)
+    }
+  }
+  return { prefix, number: digits ? Number(digits) : null }
+}
+
+export function looksLikePhone(q) {
+  return digitsOf(q).length >= 6 && /^[\d\s()+.-]+$/.test(String(q).trim())
+}
+export function looksLikeEmail(q) {
+  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(String(q).trim())
+}
+
+export function searchIndex(c) {
+  return normalizeText([c.name, c.surname, c.nif, c.email, c.city, c.province, c.notes, c.agentName].join(' '))
+}
+
+/** Match every whitespace-separated term; digit terms also match the phones with separators removed. */
 export function matchesClient(c, query) {
   const terms = normalizeText(query).split(/\s+/).filter(Boolean)
   if (!terms.length) return true
   const haystack = searchIndex(c)
-  const phoneDigits = String(c.phone || '').replace(/\D/g, '')
-  return terms.every((t) => haystack.includes(t) || (/^\d+$/.test(t) && phoneDigits.includes(t)))
+  const phones = digitsOf(c.mobile) + ' ' + digitsOf(c.phone)
+  return terms.every((t) => haystack.includes(t) || (/^\d+$/.test(t) && phones.includes(t)))
 }
 
 export function validateClient(c) {
   const errors = {}
   if (!String(c.name || '').trim()) errors.name = 'El nombre es obligatorio'
-  if (c.email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(c.email)) errors.email = 'Email no válido'
-  if (c.budgetMin != null && c.budgetMax != null && Number(c.budgetMin) > Number(c.budgetMax)) {
-    errors.budgetMax = 'El máximo debe ser mayor que el mínimo'
+  if (c.email && !looksLikeEmail(c.email)) errors.email = 'Email no válido'
+  for (const key of ['mobile', 'phone']) {
+    if (c[key] && digitsOf(c[key]).length < 6) errors[key] = 'Teléfono no válido'
   }
+  if (c.postalCode && !/^\d{4,6}$/.test(String(c.postalCode).trim())) errors.postalCode = 'Código postal no válido'
   return errors
 }
 
+export function primaryPhone(c) {
+  return c?.mobile || c?.phone || ''
+}
+
 export function whatsappLink(phone) {
-  const digits = String(phone || '').replace(/\D/g, '')
-  if (!digits) return ''
-  const intl = digits.length === 9 ? `34${digits}` : digits
-  return `https://wa.me/${intl}`
+  const { prefix, number } = splitPhone(phone)
+  if (!number) return ''
+  return `https://wa.me/${prefix || 34}${number}`
 }

@@ -6,10 +6,12 @@ import BottomNav from './components/BottomNav.vue'
 import { useAuthStore } from './stores/auth'
 import { useClientsStore } from './stores/clients'
 import { useLocalPropertiesStore } from './stores/localProperties'
+import { useEnumsStore } from './stores/enums'
 
 const auth = useAuthStore()
 const clients = useClientsStore()
 const localProperties = useLocalPropertiesStore()
+const enums = useEnumsStore()
 const online = ref(navigator.onLine)
 
 function syncAll() {
@@ -28,6 +30,7 @@ onMounted(() => {
     if (document.visibilityState === 'visible' && auth.isAuthenticated) syncAll()
   })
   if (auth.isAuthenticated) {
+    enums.restore()
     clients.load().then(() => clients.sync())
     localProperties.load().then(() => localProperties.sync())
   }

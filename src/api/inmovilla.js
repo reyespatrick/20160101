@@ -88,3 +88,11 @@ export async function fetchProperty(credentials, codOfer) {
   const { items } = splitSection(data.ficha)
   return items[0] || null
 }
+
+/** Look a listing up by its public reference through apiweb. Returns the summary or null. */
+export async function findByRef(credentials, ref) {
+  const safe = String(ref).replace(/[%';\\]/g, '')
+  if (!safe) return null
+  const data = await callInmovilla(credentials, [{ type: 'paginacion', pos: 1, num: 1, where: `ref=${sqlString(safe)}`, order: '' }])
+  return splitSection(data.paginacion).items[0] || null
+}

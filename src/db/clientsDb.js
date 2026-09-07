@@ -86,6 +86,11 @@ export const clientsDb = {
     return { ...client, dirty: true }
   },
 
+  /** Write records fetched from Inmovilla (clean). */
+  async putClean(agency, clients) {
+    await tx('clients', 'readwrite', (s) => Promise.all(clients.map((c) => promisify(s.put(toRecord(agency, c, false))))))
+  },
+
   /** Mark a record as accepted by Inmovilla (optionally recording its remote id). */
   async markSynced(agency, id, patch = {}) {
     await tx('clients', 'readwrite', async (s) => {
