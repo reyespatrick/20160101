@@ -10,7 +10,7 @@ const store = useLocalPropertiesStore()
 const p = computed(() => props.property)
 const status = computed(() => LISTING_STATUSES.find((s) => s.value === p.value.status) || LISTING_STATUSES[0])
 const cover = computed(() => store.coverUrl(p.value) || PLACEHOLDER)
-const pendingPhotos = computed(() => (p.value.photos || []).filter((ph) => store.photoMeta[ph.id] && !store.photoMeta[ph.id].uploaded).length)
+const pendingPhotos = computed(() => store.pendingPhotosOf(p.value))
 
 onMounted(() => store.ensurePhotoUrls(p.value))
 </script>

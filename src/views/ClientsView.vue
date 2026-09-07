@@ -15,7 +15,7 @@ onMounted(async () => {
 function syncLabel() {
   if (store.syncing) return 'Sincronizando…'
   if (store.pendingCount) return `${store.pendingCount} cambio${store.pendingCount === 1 ? '' : 's'} pendiente${store.pendingCount === 1 ? '' : 's'}`
-  if (store.lastSyncAt) return 'Todo sincronizado'
+  if (store.lastSyncAt) return 'Todo en Inmovilla'
   return 'Guardado en este dispositivo'
 }
 </script>
@@ -58,7 +58,7 @@ function syncLabel() {
       {{ syncLabel() }}
       <button v-if="!store.syncing && store.pendingCount" type="button" class="link" @click="store.sync()">Sincronizar ahora</button>
     </p>
-    <p v-if="store.needsLogin" class="alert">La sesión ha caducado. Tus cambios están guardados en este dispositivo; vuelve a iniciar sesión para sincronizarlos.</p>
+    <p v-if="store.needsLogin" class="alert">Inmovilla rechazó la clave de la API REST. Tus cambios están guardados en este dispositivo; vuelve a iniciar sesión con una clave válida para enviarlos.</p>
     <p v-else-if="store.syncError" class="alert">{{ store.syncError }}</p>
 
     <div v-if="store.loading" class="spinner"></div>

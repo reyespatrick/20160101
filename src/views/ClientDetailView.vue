@@ -62,7 +62,7 @@ async function remove() {
         <div>
           <h1>{{ fullName(client) }}</h1>
           <p class="muted">{{ labelOf(CLIENT_TYPES, client.type) }} · <InmovillaState :record="client" /></p>
-          <p v-if="client.remote?.state === 'error'" class="alert">Inmovilla rechazó el contacto: {{ client.remote.error }}. Se reintentará automáticamente.</p>
+          <p v-if="client.syncError" class="alert">Inmovilla rechazó el contacto: {{ client.syncError }}. Corrige los datos y guarda de nuevo.</p>
         </div>
       </header>
 

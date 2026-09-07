@@ -1,7 +1,7 @@
 <script setup>
 import { computed } from 'vue'
 
-/** Shows where a record stands with respect to the Inmovilla CRM (server-owned `remote` field). */
+/** Where a record stands with respect to Inmovilla (device-side flags: dirty / remoteId / syncError). */
 const props = defineProps({
   record: { type: Object, required: true },
   compact: { type: Boolean, default: false },
@@ -9,15 +9,10 @@ const props = defineProps({
 
 const state = computed(() => {
   const r = props.record
-  if (r.dirty) return { kind: 'pending', label: 'Pendiente de enviar', title: 'Guardado en este dispositivo, se enviará a Inmovilla al sincronizar' }
-  const remote = r.remote
-  if (!remote) return { kind: 'pending', label: 'En cola para Inmovilla', title: 'El servidor lo enviará a Inmovilla en breve' }
-  if (remote.state === 'synced' && remote.syncedVersion === r.updatedAt) {
-    const ref = remote.id && !String(remote.id).startsWith('dry-') ? ` · ref. ${remote.id}` : ''
-    return { kind: 'ok', label: `En Inmovilla${ref}`, title: `Enviado a Inmovilla ${new Date(remote.syncedAt).toLocaleString('es-ES')}` }
-  }
-  if (remote.state === 'error') return { kind: 'error', label: 'Error al enviar a Inmovilla', title: remote.error || 'Se reintentará automáticamente' }
-  return { kind: 'pending', label: 'Actualizando en Inmovilla', title: 'Cambios pendientes de enviar al CRM' }
+  if (r.syncError) return { kind: 'error', label: 'Rechazado por Inmovilla', title: r.syncError }
+  if (r.dirty && r.remoteId) return { kind: 'pending', label: 'Cambios por enviar', title: 'Se enviarán a Inmovilla al recuperar la conexión' }
+  if (r.dirty || !r.remoteId) return { kind: 'pending', label: 'Pendiente de enviar', title: 'Guardado en este dispositivo, se enviará a Inmovilla al sincronizar' }
+  return { kind: 'ok', label: `En Inmovilla · ref. ${r.remoteId}`, title: 'Guardado en Inmovilla' }
 })
 </script>
 

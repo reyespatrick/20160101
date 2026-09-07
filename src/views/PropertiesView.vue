@@ -66,10 +66,10 @@ onBeforeUnmount(() => observer?.disconnect())
         <span class="sync-dot" :class="{ pending: local.pendingCount, busy: local.syncing || local.uploading }"></span>
         <template v-if="local.syncing || local.uploading">Sincronizando{{ local.uploading ? ' fotos' : '' }}…</template>
         <template v-else-if="local.pendingCount">{{ local.pendingCount }} cambio{{ local.pendingCount === 1 ? '' : 's' }} pendiente{{ local.pendingCount === 1 ? '' : 's' }} <button type="button" class="link" @click="local.sync()">Sincronizar ahora</button></template>
-        <template v-else-if="local.lastSyncAt">Todo sincronizado</template>
+        <template v-else-if="local.lastSyncAt">Todo en Inmovilla</template>
         <template v-else>Guardado en este dispositivo</template>
       </p>
-      <p v-if="local.needsLogin" class="alert">La sesión ha caducado. Tus propiedades están guardadas en este dispositivo; vuelve a iniciar sesión para sincronizarlas.</p>
+      <p v-if="local.needsLogin" class="alert">Inmovilla rechazó la clave de la API REST. Tus propiedades están guardadas en este dispositivo; vuelve a iniciar sesión con una clave válida para enviarlas.</p>
       <p v-else-if="local.syncError" class="alert">{{ local.syncError }}</p>
 
       <div v-if="local.loading" class="spinner"></div>

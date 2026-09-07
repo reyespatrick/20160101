@@ -9,6 +9,8 @@ const route = useRoute()
 
 const numagencia = ref(auth.numagencia)
 const password = ref('')
+const restToken = ref('')
+const showToken = ref(false)
 const idioma = ref(auth.idioma || 1)
 const remember = ref(true)
 const showKey = ref(false)
@@ -19,13 +21,15 @@ async function submit() {
   error.value = ''
   loading.value = true
   try {
-    await auth.login({ numagencia: numagencia.value, password: password.value, idioma: idioma.value, remember: remember.value })
+    await auth.login({ numagencia: numagencia.value, password: password.value, restToken: restToken.value, idioma: idioma.value, remember: remember.value })
     router.replace(typeof route.query.redirect === 'string' ? route.query.redirect : { name: 'properties' })
   } catch (err) {
-    error.value =
-      err.status === 401
-        ? 'Inmovilla rechazó las credenciales. Revisa el número de agencia y la clave API.'
-        : err.message || 'No se pudo iniciar sesión'
+    if (err.status === 401 || err.status === 403) {
+      error.value =
+        err.field === 'rest'
+          ? 'Inmovilla rechazó la clave de la API REST. Cópiala de Inmovilla › Configuración › Opciones › Token API Rest.'
+          : 'Inmovilla rechazó el número de agencia o la clave web (apiweb).'
+    } else error.value = err.message || 'No se pudo iniciar sesión'
   } finally {
     loading.value = false
   }
@@ -37,7 +41,7 @@ async function submit() {
     <div class="panel">
       <img class="logo" src="/splash.png" alt="ALMA" />
       <h1>Acceso</h1>
-      <p class="muted">Introduce las credenciales de la API de Inmovilla de tu agencia.</p>
+      <p class="muted">Introduce las credenciales de Inmovilla de tu agencia. Se guardan solo en este dispositivo.</p>
 
       <form @submit.prevent="submit">
         <div class="field">
@@ -45,13 +49,23 @@ async function submit() {
           <input id="agency" v-model.trim="numagencia" inputmode="numeric" autocomplete="username" required placeholder="Ej. 1234" />
         </div>
         <div class="field">
-          <label for="key">Clave API</label>
+          <label for="key">Clave web (apiweb) · para el listado</label>
           <div class="key-row">
-            <input id="key" v-model.trim="password" :type="showKey ? 'text' : 'password'" autocomplete="current-password" required placeholder="Clave API de Inmovilla" />
+            <input id="key" v-model.trim="password" :type="showKey ? 'text' : 'password'" autocomplete="current-password" required placeholder="Contraseña de la API web" />
             <button type="button" class="btn btn-ghost toggle" :aria-pressed="showKey" @click="showKey = !showKey">
               {{ showKey ? 'Ocultar' : 'Ver' }}
             </button>
           </div>
+        </div>
+        <div class="field">
+          <label for="rest">Clave API REST · para crear clientes y propiedades</label>
+          <div class="key-row">
+            <input id="rest" v-model.trim="restToken" :type="showToken ? 'text' : 'password'" autocomplete="off" required placeholder="Token API Rest de Inmovilla" />
+            <button type="button" class="btn btn-ghost toggle" :aria-pressed="showToken" @click="showToken = !showToken">
+              {{ showToken ? 'Ocultar' : 'Ver' }}
+            </button>
+          </div>
+          <small class="muted">Inmovilla › Configuración › Opciones › Token API Rest</small>
         </div>
         <div class="field">
           <label for="lang">Idioma de los datos</label>
@@ -66,7 +80,7 @@ async function submit() {
 
         <p v-if="error" class="alert" role="alert">{{ error }}</p>
 
-        <button class="btn submit" type="submit" :disabled="loading || !numagencia || !password">
+        <button class="btn submit" type="submit" :disabled="loading || !numagencia || !password || !restToken">
           <span v-if="loading">Comprobando…</span>
           <span v-else>Entrar</span>
         </button>

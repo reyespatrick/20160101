@@ -77,16 +77,15 @@ export const propertiesDb = {
     await tx('properties', 'readwrite', (s) => promisify(s.put(toRecord(agency, property, true))))
     return { ...JSON.parse(JSON.stringify(property)), dirty: true }
   },
-  async putClean(agency, properties) {
-    await tx('properties', 'readwrite', (s) => Promise.all(properties.map((p) => promisify(s.put(toRecord(agency, p, false))))))
-  },
-  async markClean(agency, entries) {
+  /** Mark a listing as accepted by Inmovilla (optionally recording its remote id). */
+  async markSynced(agency, id, patch = {}) {
     await tx('properties', 'readwrite', async (s) => {
-      for (const { id, updatedAt } of entries) {
-        const rec = await promisify(s.get(key(agency, id)))
-        if (rec && rec.dirty && rec.updatedAt === updatedAt) await promisify(s.put({ ...rec, dirty: false }))
-      }
+      const rec = await promisify(s.get(key(agency, id)))
+      if (rec) await promisify(s.put({ ...rec, ...patch, dirty: false, syncError: '' }))
     })
+  },
+  async remove(agency, id) {
+    await tx('properties', 'readwrite', (s) => promisify(s.delete(key(agency, id))))
   },
 
   // ---- photos ----

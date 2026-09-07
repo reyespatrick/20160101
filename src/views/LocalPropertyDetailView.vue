@@ -19,7 +19,7 @@ const toast = ref(route.query.saved ? 'Propiedad guardada' : '')
 const p = computed(() => store.byId(props.id))
 const status = computed(() => LISTING_STATUSES.find((s) => s.value === p.value?.status) || LISTING_STATUSES[0])
 const photos = computed(() => [...(p.value?.photos || [])].sort((a, b) => a.order - b.order))
-const pendingPhotos = computed(() => photos.value.filter((ph) => store.photoMeta[ph.id] && !store.photoMeta[ph.id].uploaded).length)
+const pendingPhotos = computed(() => store.pendingPhotosOf(p.value))
 const rows = computed(() => {
   const d = p.value || {}
   return [
@@ -97,7 +97,10 @@ async function remove() {
         <span v-if="pendingPhotos" class="pending-photos">· {{ pendingPhotos }} foto{{ pendingPhotos === 1 ? '' : 's' }} por subir</span>
         <span>· ficha {{ completeness(p) }}% completa</span>
       </p>
-      <p v-if="p.remote?.state === 'error'" class="alert">Inmovilla rechazó la ficha: {{ p.remote.error }}. Se reintentará automáticamente; revisa los campos si el error persiste.</p>
+      <p v-if="p.syncError" class="alert">Inmovilla rechazó la ficha: {{ p.syncError }}. Corrige los campos y guarda de nuevo.</p>
+      <p v-else-if="p.remoteId" class="alert alert-info">
+        Esta propiedad ya está en Inmovilla. <RouterLink :to="{ name: 'property', params: { codOfer: p.remoteId } }">Ver la ficha publicada</RouterLink>.
+      </p>
 
       <article class="block">
         <h2>Estado de la ficha</h2>

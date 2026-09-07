@@ -86,18 +86,24 @@ export const clientsDb = {
     return { ...client, dirty: true }
   },
 
-  /** Write records that come from the server (clean). */
-  async putClean(agency, clients) {
-    await tx('clients', 'readwrite', (s) => Promise.all(clients.map((c) => promisify(s.put(toRecord(agency, c, false))))))
+  /** Mark a record as accepted by Inmovilla (optionally recording its remote id). */
+  async markSynced(agency, id, patch = {}) {
+    await tx('clients', 'readwrite', async (s) => {
+      const rec = await promisify(s.get(keyOf(agency, id)))
+      if (rec) await promisify(s.put({ ...rec, ...patch, dirty: false, syncError: '' }))
+    })
   },
 
-  /** Mark ids as synced unless they changed again meanwhile (updatedAt differs). */
-  async markClean(agency, entries) {
+  async remove(agency, id) {
+    await tx('clients', 'readwrite', (s) => promisify(s.delete(keyOf(agency, id))))
+  },
+
+  /** Replace the whole cache of an agency with the merged list. */
+  async replaceAll(agency, clients) {
+    const keys = await tx('clients', 'readonly', (s) => promisify(s.index('agency').getAllKeys(String(agency))))
     await tx('clients', 'readwrite', async (s) => {
-      for (const { id, updatedAt } of entries) {
-        const rec = await promisify(s.get(keyOf(agency, id)))
-        if (rec && rec.dirty && rec.updatedAt === updatedAt) await promisify(s.put({ ...rec, dirty: false }))
-      }
+      for (const k of keys) await promisify(s.delete(k))
+      for (const c of clients) await promisify(s.put(toRecord(agency, c, c.dirty)))
     })
   },
 

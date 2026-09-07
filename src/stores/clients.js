@@ -1,18 +1,14 @@
 import { defineStore } from 'pinia'
-import { syncClients } from '../api/clients'
+import { fromInmovillaClient } from '../api/inmovillaMapping'
+import { createClient, deleteClient, listClients, updateClient } from '../api/inmovillaRest'
 import { clientsDb } from '../db/clientsDb'
 import { emptyClient, matchesClient } from '../models/client'
-import { applyRemoteChanges, pendingChanges } from '../sync/merge'
+import { mergeRemoteList, pendingRecords, planFor } from '../sync/outbox'
 import { useAuthStore } from './auth'
 
 /**
- * Offline-first clients store.
- *
- * - Every read/write goes to IndexedDB first, so the UI works with no network.
- * - Edits are flagged `dirty` and pushed by sync(); the server answers with
- *   everything changed since our last sync (other devices' edits included).
- * - sync() is triggered after each edit, when the app comes back online and
- *   when the clients screen is opened. Failures are silent: data stays local.
+ * Clients live in Inmovilla. This store keeps an offline cache of them in IndexedDB
+ * plus an outbox of local edits, replayed against the REST API when online.
  */
 export const useClientsStore = defineStore('clients', {
   state: () => ({
@@ -30,8 +26,9 @@ export const useClientsStore = defineStore('clients', {
     active: (s) => s.items.filter((c) => !c.deleted),
     pendingCount: (s) => s.items.filter((c) => c.dirty).length,
     filtered(s) {
-      const list = this.active.filter((c) => (!s.statusFilter || c.status === s.statusFilter) && matchesClient(c, s.query))
-      return list.sort((a, b) => b.updatedAt - a.updatedAt)
+      return this.active
+        .filter((c) => (!s.statusFilter || c.status === s.statusFilter) && matchesClient(c, s.query))
+        .sort((a, b) => b.updatedAt - a.updatedAt)
     },
     byId: (s) => (id) => s.items.find((c) => c.id === String(id) && !c.deleted) || null,
   },
@@ -39,7 +36,6 @@ export const useClientsStore = defineStore('clients', {
     agency() {
       return useAuthStore().numagencia
     },
-
     async load() {
       const agency = this.agency()
       if (!agency) return
@@ -54,84 +50,100 @@ export const useClientsStore = defineStore('clients', {
         this.loading = false
       }
     },
-
     async ensureLoaded() {
       if (!this.loaded) await this.load()
     },
-
     async get(id) {
       await this.ensureLoaded()
       return this.byId(id)
     },
 
-    /** Create or update. Always succeeds locally; sync happens in the background. */
+    /** Create or update locally, then push in the background. */
     async save(client) {
-      const agency = this.agency()
-      const record = { ...emptyClient(), ...client, id: client.id, updatedAt: Date.now(), deleted: false }
+      const record = { ...emptyClient(), ...client, id: client.id, updatedAt: Date.now(), deleted: false, syncError: '' }
       if (!record.createdAt) record.createdAt = record.updatedAt
-      const saved = await clientsDb.putLocal(agency, record)
+      const saved = await clientsDb.putLocal(this.agency(), record)
       this.upsertLocal(saved)
       this.sync()
       return saved
     },
-
     async remove(id) {
-      const agency = this.agency()
       const existing = this.items.find((c) => c.id === id)
       if (!existing) return
-      const tombstone = { ...existing, deleted: true, updatedAt: Date.now() }
-      const saved = await clientsDb.putLocal(agency, tombstone)
+      if (!existing.remoteId) {
+        await clientsDb.remove(this.agency(), id)
+        this.items = this.items.filter((c) => c.id !== id)
+        return
+      }
+      const saved = await clientsDb.putLocal(this.agency(), { ...existing, deleted: true, updatedAt: Date.now() })
       this.upsertLocal(saved)
       this.sync()
     },
-
     upsertLocal(client) {
       const i = this.items.findIndex((c) => c.id === client.id)
       if (i >= 0) this.items.splice(i, 1, client)
       else this.items.push(client)
     },
 
-    /** Push dirty records, pull remote changes, merge. Safe to call at any time. */
+    /** Replay the outbox against Inmovilla, then refresh the cache from Inmovilla. */
     async sync() {
       const auth = useAuthStore()
       const agency = auth.numagencia
-      if (!agency || !auth.token || this.syncing) return false
+      if (!agency || !auth.restToken || this.syncing) return false
       if (typeof navigator !== 'undefined' && navigator.onLine === false) return false
       this.syncing = true
       this.syncError = ''
       try {
         await this.ensureLoaded()
-        const changes = pendingChanges(this.items).map(({ dirty, ...c }) => c)
-        let result
-        try {
-          result = await syncClients(auth.token, { since: this.lastSyncAt, changes })
-        } catch (err) {
-          if (err.status === 401 && (await auth.refreshToken())) {
-            result = await syncClients(auth.token, { since: this.lastSyncAt, changes })
-          } else throw err
+        for (const record of pendingRecords(this.items)) {
+          try {
+            await this.pushOne(auth.restToken, agency, record)
+          } catch (err) {
+            if (err.status === 0) return false // offline: keep everything for later
+            if (err.status === 401 || err.status === 403) {
+              this.needsLogin = true
+              return false
+            }
+            const failed = { ...record, syncError: err.message || 'Inmovilla rechazó el cambio' }
+            await clientsDb.putLocal(agency, failed)
+            this.upsertLocal({ ...failed, dirty: true })
+          }
         }
-        const acceptedSet = new Set(result.accepted || [])
-        await clientsDb.markClean(
-          agency,
-          changes.filter((c) => acceptedSet.has(c.id)).map((c) => ({ id: c.id, updatedAt: c.updatedAt })),
-        )
-        const fresh = await clientsDb.all(agency)
-        const { merged, replaced } = applyRemoteChanges(fresh, result.changes || [])
-        if (replaced.length) {
-          const replacedSet = new Set(replaced)
-          await clientsDb.putClean(agency, merged.filter((c) => replacedSet.has(c.id)))
-        }
+        const remote = listMapped(await listClients(auth.restToken))
+        const merged = mergeRemoteList(await clientsDb.all(agency), remote)
+        await clientsDb.replaceAll(agency, merged)
         this.items = merged
-        this.lastSyncAt = Number(result.serverTime) || Date.now()
+        this.lastSyncAt = Date.now()
         await clientsDb.setMeta(`lastSync:${agency}`, this.lastSyncAt)
         this.needsLogin = false
         return true
       } catch (err) {
-        if (err.status === 401) this.needsLogin = true
-        else if (err.status !== 0) this.syncError = err.message || 'Error al sincronizar'
+        if (err.status === 401 || err.status === 403) this.needsLogin = true
+        else if (err.status !== 0) this.syncError = err.message || 'Error al sincronizar con Inmovilla'
         return false
       } finally {
         this.syncing = false
+      }
+    },
+
+    async pushOne(token, agency, record) {
+      const { dirty, syncError, ...payload } = record
+      switch (planFor(record)) {
+        case 'create': {
+          const remoteId = await createClient(token, payload)
+          await clientsDb.markSynced(agency, record.id, { remoteId: remoteId || null })
+          break
+        }
+        case 'update':
+          await updateClient(token, record.remoteId, payload)
+          await clientsDb.markSynced(agency, record.id, {})
+          break
+        case 'delete':
+          await deleteClient(token, record.remoteId)
+          await clientsDb.remove(agency, record.id)
+          break
+        default:
+          await clientsDb.remove(agency, record.id)
       }
     },
 
@@ -140,3 +152,7 @@ export const useClientsStore = defineStore('clients', {
     },
   },
 })
+
+function listMapped(rawList) {
+  return rawList.map(fromInmovillaClient).filter(Boolean)
+}
