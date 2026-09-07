@@ -1,6 +1,7 @@
 <script setup>
 import { computed, onMounted } from 'vue'
 import { LISTING_STATUSES, completeness, labelOf, locationOf, priceOf, titleOf } from '../models/property'
+import InmovillaState from './InmovillaState.vue'
 import { useLocalPropertiesStore } from '../stores/localProperties'
 import { PLACEHOLDER } from '../utils/format'
 
@@ -35,8 +36,8 @@ onMounted(() => store.ensurePhotoUrls(p.value))
       </ul>
       <div class="foot muted">
         <span>Ref. {{ p.ref || '—' }}</span>
-        <span v-if="p.dirty || pendingPhotos" class="pending">● pendiente de sincronizar</span>
-        <span v-else>{{ completeness(p) }}% completa</span>
+        <span v-if="pendingPhotos" class="pending">● {{ pendingPhotos }} foto{{ pendingPhotos === 1 ? '' : 's' }} por subir</span>
+        <InmovillaState v-else :record="p" />
       </div>
     </div>
   </RouterLink>

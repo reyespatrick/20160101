@@ -69,8 +69,10 @@ describe('ClientsStore', () => {
     store.apply('2', [base({ name: 'other agency', updatedAt: 100 })], 1000)
     store.apply('1', [base({ name: 'stale', updatedAt: 50 })], 1000)
     expect(store.list('1')[0].name).toBe('Ana')
-    expect(store.list('1', 100)).toHaveLength(0)
-    expect(store.list('1', 99)).toHaveLength(1)
+    // `since` compares against the server-side timestamp (the `now` passed to apply), so
+    // devices also learn about server-owned changes such as the Inmovilla forwarding state.
+    expect(store.list('1', 1000)).toHaveLength(0)
+    expect(store.list('1', 999)).toHaveLength(1)
     store.apply('1', [base({ deleted: true, updatedAt: 200 })], 1000)
     await store.save()
     const reloaded = new ClientsStore(file)

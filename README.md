@@ -17,16 +17,34 @@ Inmovilla credentials and browse the properties published in the **Inmovilla CRM
 - Installable PWA (manifest + service worker), offline fallback to the last loaded property list, cached photos
 - Small Node/Express proxy that forwards requests to Inmovilla, stores clients and serves the built app
 
-## Why a proxy?
+## Architecture: a gateway to Inmovilla
 
-The Inmovilla API (`https://apiweb.inmovilla.com/apiweb/apiweb.php`) has no CORS headers and
-only accepts requests coming from the **server IP that Inmovilla has authorised for your agency**.
-A browser can't call it directly, so `server/index.js` exposes `POST /api/inmovilla` and relays the
-request. Credentials are supplied by the user on the login screen and are **never stored on the
-server**: they travel with each request and live only in the user's browser storage.
+The app is a mobile front door to the Inmovilla CRM. The Node server in `server/` is the gateway:
 
-Make sure the public IP of the machine running the proxy is whitelisted in Inmovilla, and set
+```
+ phone / PWA  ──►  server/ (gateway)  ──►  Inmovilla apiweb   (read: listings, ficha, types)
+   IndexedDB        outbox + cache      ──►  Inmovilla REST v1 (write: new listings, photos, clients)
+```
+
+- **Reading** goes through `POST /api/inmovilla`, which relays the legacy `apiweb` queries. The browser
+  cannot call Inmovilla directly (no CORS, whitelisted server IPs only).
+- **Writing** (clients, new listings, photos) is stored first on the device, then on the server, then
+  forwarded to Inmovilla's REST API v1 with the agency token (`INMOVILLA_REST_TOKEN`). The server store is
+  only an **outbox and cache**: it lets the app work offline and shows each record's state in Inmovilla
+  (`remote.state`: pending / synced / error). Failed pushes are retried on every sync and every 5 minutes.
+- Credentials typed on the login screen are validated against Inmovilla and never stored server side.
+
+Make sure the public IP of the machine running the gateway is whitelisted in Inmovilla, and set
 `INMOVILLA_DOMAIN` to the domain registered there.
+
+### Confirming the REST contract
+
+The REST v1 endpoint paths and payload field names live in **one file**, `server/inmovillaMapping.js`
+(paths can also be overridden with `INMOVILLA_REST_PATH_*` variables). They mirror the field names of the
+read API (`keyacci`, `precioinmo`, `habitaciones`, `m_cons`…) but must be checked against the official
+documentation at `https://procesos.inmovilla.com/api/v1/apidoc/` once the token is available. Until a token
+is configured the gateway runs in **dry-run** mode: records are marked as sent with a fake id so the whole
+flow can be tested.
 
 ## Run locally
 
@@ -56,13 +74,15 @@ Deploy `server/` + `dist/` to any Node host (Render, Railway, Fly, a VPS…). En
 | `INMOVILLA_API_URL` | `https://apiweb.inmovilla.com/apiweb/apiweb.php` | Upstream endpoint |
 | `INMOVILLA_DOMAIN` | *(empty)* | Sent as `elDominio` |
 | `INMOVILLA_MOCK` | `0` | `1` serves sample data instead of calling Inmovilla |
+| `INMOVILLA_REST_URL` | `https://procesos.inmovilla.com/api/v1` | Inmovilla REST API v1 base URL |
+| `INMOVILLA_REST_TOKEN` | *(empty → dry-run)* | Agency token (Inmovilla: Configuración › Opciones › Token API Rest) |
+| `INMOVILLA_REST_DRY_RUN` | `0` | `1` simulates forwarding without calling Inmovilla |
 | `APP_SECRET` | random per start | Secret for signing session tokens. **Set it in production** |
 | `DATA_DIR` | `./data` | Where `clients.json`, `properties.json` and `photos/` are stored (mount a persistent volume) |
 
 ## New listings module
 
-Inmovilla's web API is read-only, so properties created in the app are kept in this app's own store,
-ready to be copied into the CRM (or pushed automatically once Inmovilla's write API token is available):
+Properties created in the app are forwarded to Inmovilla through the gateway:
 
 1. The form saves the listing to **IndexedDB** immediately; photos are resized to 1600 px JPEG on the device
    and stored as blobs next to it. Everything works offline.
@@ -73,10 +93,13 @@ ready to be copied into the CRM (or pushed automatically once Inmovilla's write 
    and are pruned when removed from the listing or when the listing is deleted.
 4. Only photos referenced by a listing the server knows can be uploaded or read, and every call needs the
    session token.
+5. After each sync the server pushes new or changed listings to Inmovilla (create, then update with the
+   returned id), uploads the photos it holds, and deletes the listing in Inmovilla when it is deleted in the
+   app. The result is shown on the card and the detail screen ("En Inmovilla · ref. …", or the error).
 
 ## Clients module
 
-Clients are not part of Inmovilla's public web API, so the app keeps its own client list:
+Clients follow the same path: device → server outbox → Inmovilla REST (create / update / delete):
 
 1. Every create / edit / delete is written to **IndexedDB** on the device first and flagged as pending.
    The UI never waits for the network.
@@ -116,7 +139,9 @@ Supported `type`s: `paginacion` (list), `ficha` (detail, `where=cod_ofer=123`), 
 ```
 server/          Express app (index.js), Inmovilla param builder (inmovilla.js), sample data (mock.js),
                  session tokens (auth.js), generic per-agency sync store (syncStore.js),
-                 clients store (clientsStore.js), listings + photo files store (propertiesStore.js)
+                 clients store (clientsStore.js), listings + photo files store (propertiesStore.js),
+                 Inmovilla REST client (inmovillaRest.js), field mapping to confirm (inmovillaMapping.js),
+                 forwarder that pushes the outbox to Inmovilla (forwarder.js)
 src/api/         Browser clients for /api/inmovilla, /api/login, /api/clients/sync, /api/properties/*
 src/db/          IndexedDB wrappers: clients, local properties + photo blobs
 src/models/      Client and property models: options, validation, search matching

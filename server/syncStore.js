@@ -49,8 +49,20 @@ export class SyncStore {
     return this.agency(numagencia)[id] || null
   }
 
+  /** Records changed (by a device or by the server, e.g. forwarding state) after `since`. */
   list(numagencia, since = 0) {
-    return Object.values(this.agency(numagencia)).filter((r) => r.updatedAt > since)
+    return Object.values(this.agency(numagencia)).filter((r) => (r.serverUpdatedAt || r.updatedAt) > since)
+  }
+
+  /**
+   * Set a server-owned field (e.g. `remote`) without touching the device-owned
+   * `updatedAt`; bumps `serverUpdatedAt` so devices pick the change up.
+   */
+  setServerField(numagencia, id, field, value, now = Date.now()) {
+    const records = this.agency(numagencia)
+    if (!records[id]) return
+    records[id] = { ...records[id], [field]: value, serverUpdatedAt: now }
+    this.dirty = true
   }
 
   /** Apply a batch of changes. Returns { accepted: ids applied or already up to date, changed: ids whose stored copy changed }. */
@@ -61,9 +73,12 @@ export class SyncStore {
     for (const raw of changes || []) {
       const incoming = this.sanitize(raw, now)
       if (!incoming) continue
-      const winner = mergeRecord(records[incoming.id], incoming)
-      if (winner !== records[incoming.id]) {
-        records[incoming.id] = winner
+      const existing = records[incoming.id]
+      const winner = mergeRecord(existing, incoming)
+      if (winner !== existing) {
+        // `remote` (Inmovilla forwarding state) is server-owned: devices never overwrite it.
+        records[incoming.id] = { ...winner, remote: existing?.remote, serverUpdatedAt: now }
+        if (records[incoming.id].remote === undefined) delete records[incoming.id].remote
         this.dirty = true
         changed.push(incoming.id)
       }

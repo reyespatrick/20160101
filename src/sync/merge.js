@@ -8,7 +8,9 @@ export function pickWinner(local, remote) {
   if (!remote) return local
   if (remote.updatedAt > local.updatedAt) return remote
   if (remote.updatedAt < local.updatedAt) return local
-  return remote.deleted && !local.deleted ? remote : local
+  if (remote.deleted && !local.deleted) return remote
+  // Same version: the server copy may carry server-owned metadata (Inmovilla state); adopt it unless we have unsent edits.
+  return local.dirty ? local : remote
 }
 
 /**

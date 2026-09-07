@@ -1,5 +1,6 @@
 <script setup>
 import { computed } from 'vue'
+import InmovillaState from './InmovillaState.vue'
 import { CLIENT_STATUSES, CLIENT_TYPES, fullName, initials, labelOf } from '../models/client'
 
 const props = defineProps({ client: { type: Object, required: true } })
@@ -11,7 +12,7 @@ const status = computed(() => CLIENT_STATUSES.find((s) => s.value === c.value.st
   <RouterLink :to="{ name: 'client', params: { id: c.id } }" class="client-card">
     <div class="avatar" :style="{ background: status.color }">{{ initials(c) }}</div>
     <div class="info">
-      <div class="name">{{ fullName(c) }} <em v-if="c.dirty" class="pending" title="Pendiente de sincronizar">●</em></div>
+      <div class="name">{{ fullName(c) }} <InmovillaState :record="c" compact /></div>
       <div class="meta muted">
         <span v-if="c.phone">{{ c.phone }}</span>
         <span v-else-if="c.email">{{ c.email }}</span>

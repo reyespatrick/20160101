@@ -2,6 +2,7 @@
 import { computed, onMounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { CONDITIONS, LISTING_STATUSES, activeFeatures, completeness, labelOf, locationOf, priceOf, titleOf } from '../models/property'
+import InmovillaState from '../components/InmovillaState.vue'
 import { useLocalPropertiesStore } from '../stores/localProperties'
 import { PLACEHOLDER, formatDate } from '../utils/format'
 
@@ -92,12 +93,11 @@ async function remove() {
       </header>
 
       <p class="sync muted">
-        <template v-if="p.dirty || pendingPhotos">
-          <span class="dot pending"></span>
-          Pendiente de sincronizar<span v-if="pendingPhotos"> · {{ pendingPhotos }} foto{{ pendingPhotos === 1 ? '' : 's' }} por subir</span>
-        </template>
-        <template v-else><span class="dot"></span> Sincronizada · ficha {{ completeness(p) }}% completa</template>
+        <InmovillaState :record="p" />
+        <span v-if="pendingPhotos" class="pending-photos">· {{ pendingPhotos }} foto{{ pendingPhotos === 1 ? '' : 's' }} por subir</span>
+        <span>· ficha {{ completeness(p) }}% completa</span>
       </p>
+      <p v-if="p.remote?.state === 'error'" class="alert">Inmovilla rechazó la ficha: {{ p.remote.error }}. Se reintentará automáticamente; revisa los campos si el error persiste.</p>
 
       <article class="block">
         <h2>Estado de la ficha</h2>
@@ -113,7 +113,7 @@ async function remove() {
             {{ s.label }}
           </button>
         </div>
-        <p v-if="p.status === 'ready'" class="hint muted">La publicación en Inmovilla requiere su API de escritura; mientras tanto la ficha queda lista para copiarla al CRM.</p>
+        <p class="hint muted">La ficha se envía a Inmovilla automáticamente; «Lista para publicar» la marca como visible en internet.</p>
       </article>
 
       <article v-if="p.description" class="block">
@@ -174,8 +174,7 @@ async function remove() {
 .head p { margin: 0; }
 .price { font-size: 1.5rem; font-weight: 800; color: var(--brand); white-space: nowrap; }
 .sync { display: flex; align-items: center; gap: 0.45rem; font-size: 0.82rem; margin: 0.25rem 0 1rem; }
-.dot { width: 8px; height: 8px; border-radius: 50%; background: #2e7d32; }
-.dot.pending { background: var(--accent); }
+.pending-photos { color: var(--accent); font-weight: 600; }
 .block { background: var(--surface); border-radius: var(--radius); box-shadow: var(--shadow); padding: 1rem 1.2rem; margin-bottom: 0.85rem; }
 .block h2 { margin: 0 0 0.7rem; font-size: 1rem; color: var(--muted); text-transform: uppercase; letter-spacing: 0.04em; }
 .statuses { display: flex; flex-wrap: wrap; gap: 0.45rem; }

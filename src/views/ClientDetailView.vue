@@ -2,6 +2,7 @@
 import { computed, onMounted, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { CLIENT_STATUSES, CLIENT_TYPES, OPERATIONS, fullName, initials, labelOf, whatsappLink } from '../models/client'
+import InmovillaState from '../components/InmovillaState.vue'
 import { useClientsStore } from '../stores/clients'
 import { formatDate } from '../utils/format'
 
@@ -60,10 +61,8 @@ async function remove() {
         <div class="avatar" :style="{ background: status.color }">{{ initials(client) }}</div>
         <div>
           <h1>{{ fullName(client) }}</h1>
-          <p class="muted">
-            {{ labelOf(CLIENT_TYPES, client.type) }}
-            <span v-if="client.dirty" class="pending"> · pendiente de sincronizar</span>
-          </p>
+          <p class="muted">{{ labelOf(CLIENT_TYPES, client.type) }} · <InmovillaState :record="client" /></p>
+          <p v-if="client.remote?.state === 'error'" class="alert">Inmovilla rechazó el contacto: {{ client.remote.error }}. Se reintentará automáticamente.</p>
         </div>
       </header>
 

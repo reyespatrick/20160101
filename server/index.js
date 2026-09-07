@@ -6,6 +6,9 @@ import { mockResponse } from './mock.js'
 import { requireAuth, signToken } from './auth.js'
 import { ClientsStore } from './clientsStore.js'
 import { MAX_PHOTO_BYTES, PropertiesStore } from './propertiesStore.js'
+import { restFromEnv } from './inmovillaRest.js'
+import { Forwarder, startPeriodicForwarding } from './forwarder.js'
+import { readFile } from 'node:fs/promises'
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 const PORT = Number(process.env.PORT || 3000)
@@ -25,13 +28,33 @@ await localProperties.load()
 for (const [agency, id] of localProperties.compact()) await localProperties.pruneOrphanPhotos(agency, id)
 await localProperties.save()
 
+// Gateway to Inmovilla's REST API: everything stored above is forwarded to the CRM.
+const inmovillaRest = restFromEnv()
+const clientsForwarder = new Forwarder({ store: clients, rest: inmovillaRest, kind: 'client' })
+const propertiesForwarder = new Forwarder({
+  store: localProperties,
+  rest: inmovillaRest,
+  kind: 'property',
+  photoLoader: async (agency, propertyId, photoId) => {
+    if (!(await localProperties.photoExists(agency, propertyId, photoId))) return null
+    return readFile(localProperties.photoPath(agency, propertyId, photoId))
+  },
+})
+startPeriodicForwarding([clientsForwarder, propertiesForwarder])
+
+/** Run a forwarder now but never hold the HTTP response for more than `budgetMs`. */
+function forwardSoon(forwarder, agency, budgetMs = 6000) {
+  const run = forwarder.run(agency).catch((err) => console.error(`[forwarder:${forwarder.kind}]`, err.message))
+  return Promise.race([run, new Promise((resolve) => setTimeout(resolve, budgetMs))])
+}
+
 const app = express()
 app.disable('x-powered-by')
 app.set('trust proxy', true)
 app.use(express.json({ limit: '64kb' }))
 
 app.get('/api/health', (_req, res) => {
-  res.json({ ok: true, mock: MOCK })
+  res.json({ ok: true, mock: MOCK, inmovillaRest: inmovillaRest.describe() })
 })
 
 /**
@@ -144,9 +167,10 @@ app.post('/api/clients/sync', requireAuth, async (req, res) => {
     console.error('[clients] save failed:', err.message)
     return res.status(500).json({ error: 'No se pudieron guardar los clientes en el servidor' })
   }
+  await forwardSoon(clientsForwarder, req.agency)
   const sinceTs = Number(since) || 0
   res.set('Cache-Control', 'no-store')
-  res.json({ serverTime: now, accepted, changes: clients.list(req.agency, sinceTs) })
+  res.json({ serverTime: Date.now(), accepted, changes: clients.list(req.agency, sinceTs), inmovilla: inmovillaRest.describe() })
 })
 
 /**
@@ -168,12 +192,13 @@ app.post('/api/properties/sync', requireAuth, async (req, res) => {
     console.error('[properties] save failed:', err.message)
     return res.status(500).json({ error: 'No se pudieron guardar las propiedades en el servidor' })
   }
+  await forwardSoon(propertiesForwarder, req.agency)
   const stored = {}
   for (const p of localProperties.list(req.agency)) {
     if (!p.deleted && p.photos.length) stored[p.id] = await localProperties.storedPhotoIds(req.agency, p.id)
   }
   res.set('Cache-Control', 'no-store')
-  res.json({ serverTime: now, accepted, changes: localProperties.list(req.agency, Number(since) || 0), storedPhotos: stored })
+  res.json({ serverTime: Date.now(), accepted, changes: localProperties.list(req.agency, Number(since) || 0), storedPhotos: stored, inmovilla: inmovillaRest.describe() })
 })
 
 const photoParams = (req, res, next) => {
@@ -198,6 +223,12 @@ app.put(
     try {
       await localProperties.savePhoto(req.agency, req.params.propertyId, req.params.photoId, req.body)
       res.json({ ok: true, size: req.body.length })
+      // The listing may already be in Inmovilla: forward the new photo right away.
+      const record = localProperties.get(req.agency, req.params.propertyId)
+      if (record?.remote?.id) {
+        localProperties.setServerField(req.agency, record.id, 'remote', { ...record.remote, state: 'pending' })
+        forwardSoon(propertiesForwarder, req.agency, 0)
+      }
     } catch (err) {
       console.error('[photos] save failed:', err.message)
       res.status(500).json({ error: 'No se pudo guardar la foto' })
@@ -231,4 +262,5 @@ app.get(/^(?!\/api\/).*/, (_req, res) => {
 
 app.listen(PORT, () => {
   console.log(`[server] listening on http://localhost:${PORT} ${MOCK ? '(MOCK mode)' : `→ ${API_URL}`}`)
+  console.log(`[server] Inmovilla REST gateway: ${inmovillaRest.describe()}`)
 })
