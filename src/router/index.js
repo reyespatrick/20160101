@@ -8,6 +8,11 @@ const routes = [
   { path: '/mis-propiedades/nueva', name: 'local-property-new', component: () => import('../views/LocalPropertyFormView.vue') },
   { path: '/mis-propiedades/:id', name: 'local-property', component: () => import('../views/LocalPropertyDetailView.vue'), props: true },
   { path: '/mis-propiedades/:id/editar', name: 'local-property-edit', component: () => import('../views/LocalPropertyFormView.vue'), props: true },
+  { path: '/agenda', name: 'followups', component: () => import('../views/FollowUpsView.vue') },
+  { path: '/agenda/nuevo', name: 'followup-new', component: () => import('../views/FollowUpFormView.vue') },
+  { path: '/agenda/:id', name: 'followup-edit', component: () => import('../views/FollowUpFormView.vue'), props: true },
+  { path: '/propietario/nuevo', name: 'owner-new', component: () => import('../views/OwnerFormView.vue') },
+  { path: '/propietario/:id/editar', name: 'owner-edit', component: () => import('../views/OwnerFormView.vue'), props: true },
   { path: '/clientes', name: 'clients', component: () => import('../views/ClientsView.vue') },
   { path: '/clientes/nuevo', name: 'client-new', component: () => import('../views/ClientFormView.vue') },
   { path: '/clientes/:id', name: 'client', component: () => import('../views/ClientDetailView.vue'), props: true },
@@ -31,6 +36,14 @@ router.beforeEach((to) => {
   }
   if (to.name === 'login' && auth.isAuthenticated) return { name: 'properties' }
   return true
+})
+
+// A failed lazy chunk (typically right after a deployment) must not leave a blank screen
+router.onError((err, to) => {
+  console.error('[router]', err)
+  if (/Failed to fetch dynamically imported module|Importing a module script failed|Loading chunk/i.test(String(err?.message))) {
+    window.location.assign(to?.fullPath || '/')
+  }
 })
 
 export default router

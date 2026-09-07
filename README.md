@@ -10,6 +10,14 @@ Inmovilla credentials and browse the properties published in the **Inmovilla CRM
   price, location, rooms, surfaces, extras, energy rating, description and owner notes. Photos are resized on
   the device, stored offline and uploaded when there is a connection; edits, reordering and deletions sync
   across devices
+- **Agenda (seguimientos)**: follow-ups linked to a listing and/or a client, list grouped by overdue / today /
+  upcoming / closed or a month calendar, one-tap close, "add to the phone's calendar" (.ics / Google Calendar)
+- **Owners (propietarios)**: read, create, edit and delete the owner of a listing from its ficha, with the
+  owner's other listings
+- **Never blank**: a screen-level error boundary, global error handlers and toasts keep the shell alive; the
+  worst case is a message with "Reintentar"
+- **Over-the-air updates**: the service worker is checked on a timer, on focus and on reconnect; a banner
+  announces the new version and the app reloads itself, with light transitions between screens
 - **Clients**: create contacts, search them instantly (name, phone, email, notes, accent-insensitive),
   update their details and status, call / WhatsApp / email them in one tap
 - **Offline-first clients**: everything is stored in the browser (IndexedDB) and synchronised with the
@@ -57,6 +65,8 @@ The app is a mobile front door to the Inmovilla CRM. **Inmovilla is the only dat
 | Owner | `POST /propietarios/` needs `cod_ofer` | Created/updated after the listing exists |
 | Clients | no list, search by phone/email only, `telefono*` numeric | Device cache of clients created or looked up here; phone/email queries also search Inmovilla; phones sent as digits with `prefijotel*` |
 | Client fields | nombre, apellidos, nif, email, teléfonos, dirección, observacion | Form limited to those fields (no invented status/budget) |
+| Follow-ups | `POST /seguimientos/` creates, same call with `codseg` updates, no delete; `/seguimientos/search/` by creation date; types per agency in `/enums/?tiposeguimiento` | Outbox + cache; pull of the last 120 days at most every 5 min; close = `tareacerrada: 1` + `fechafin`; property labels resolved through apiweb |
+| Owners | `GET /propietarios/?cod_ofer=` (404 when none), `POST` needs `cod_ofer`, `PUT` by `cod_cli`, `DELETE` refused while linked | Owner card on every Inmovilla ficha, looked up at most hourly per listing; cached and editable offline |
 
 ## Run locally
 
@@ -105,6 +115,35 @@ Whitelist the server's public IP in Inmovilla if the agency's account restricts 
 3. A listing already in Inmovilla links to its published ficha in the Inmovilla tab and appears in the normal
    listing.
 
+## Agenda module
+
+1. Follow-ups are cached in IndexedDB and edited offline; the outbox replays `POST /seguimientos/`.
+2. On open (and at most every 5 minutes) the app pulls the follow-ups created in the last 120 days and merges
+   them, keeping unsent local edits. Property labels come from apiweb (`cod_ofer=`), client labels from the
+   local client cache.
+3. List view groups by overdue / today / upcoming / closed; calendar view shows a month with dots per day
+   (red overdue, orange today, blue upcoming, grey closed) and the selected day's items.
+4. "Añadir al calendario" hands the event to the phone's calendar as an `.ics` with a 15-minute alarm, or opens
+   Google Calendar. The PWA cannot write into the native calendar silently; this is the closest the platform allows.
+
+## Owners module
+
+The ficha of any Inmovilla listing shows its owner (`GET /propietarios/?cod_ofer=`), with call / WhatsApp /
+email shortcuts and links to the owner's other listings. Add (`POST` with `cod_ofer`), edit (`PUT`) and delete
+(`DELETE`) go through the same outbox pattern. The quick owner fields of the new-listing form still create the
+propietario right after the listing exists.
+
+## Robustness and updates
+
+- `ErrorBoundary` wraps the current screen: a render or lifecycle error shows a panel with the message and
+  Reintentar / Inicio / Recargar, the header and navigation stay alive.
+- Global `errorHandler`, `window.error` and `unhandledrejection` handlers log and show a toast instead of
+  crashing; a failed lazy chunk after a deployment reloads the route.
+- Every store action is guarded; network failures keep data on the device; a 408 pauses the outbox a minute.
+- The service worker uses `registerType: 'prompt'`: `UpdateBanner` checks for a new version every 30 min, on
+  focus and on reconnect, shows "Nueva versión disponible · actualizando" and reloads once the new worker is
+  active. Old caches are cleaned up.
+
 ## Clients module
 
 1. Clients created or looked up on the device are cached in IndexedDB so search works offline by any field.
@@ -137,11 +176,14 @@ server/          index.js (apiweb relay, REST relay, photo hosting, static), inm
                  mock.js (sample listings), mockRest.js (fake REST following the documentation)
 src/api/         inmovilla.js (apiweb client), inmovillaRest.js (REST client), inmovillaMapping.js (fields + enums)
 src/db/          IndexedDB wrappers: clients cache, listing drafts + photo blobs
-src/models/      Client and property models aligned with Inmovilla's fields
+src/models/      Client, property, follow-up and owner models aligned with Inmovilla's fields
 src/sync/        Outbox helpers
 src/utils/       Formatting helpers and on-device image resizing
-src/stores/      Pinia stores: auth, enums (cached Inmovilla lists), properties (apiweb listing), localProperties, clients
-src/views/       Login, Properties, PropertyDetail, LocalPropertyForm, LocalPropertyDetail, Clients, ClientForm, ClientDetail
+src/stores/      Pinia stores: auth, enums, properties (apiweb listing), localProperties, clients, followUps, owners, notifications
+src/views/       Login, Properties, PropertyDetail, LocalPropertyForm, LocalPropertyDetail, Clients, ClientForm, ClientDetail,
+                 FollowUps (list/calendar), FollowUpForm, OwnerForm
 src/components/  AppHeader, BottomNav, FilterBar, PropertyCard, LocalPropertyCard, PhotoPicker, CityPicker, ClientCard,
-                 ChipGroup, InmovillaState
+                 ChipGroup, InmovillaState, FollowUpCard, MonthCalendar, PropertyPicker, ClientPicker, OwnerCard,
+                 ErrorBoundary, UpdateBanner, Toasts
+src/utils/       format, image (resize), calendar (.ics / Google Calendar)
 ```

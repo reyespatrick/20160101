@@ -116,3 +116,51 @@ export async function hostPhoto(token, blob) {
   if (!res.ok) throw new ApiError(body.error || `Error ${res.status}`, res.status)
   return body.url
 }
+
+// ---- follow-ups (seguimientos) ----
+import { extractCodSeg, toInmovillaDay, toInmovillaFollowUp } from './inmovillaMapping'
+
+export const enumsTiposSeguimiento = (token) => restRequest(token, PATHS.enums, { query: { tiposeguimiento: true } })
+
+/** Create (no codseg) or update (with codseg). Returns the codseg. */
+export async function saveFollowUp(token, followUp) {
+  const body = await restRequest(token, PATHS.followUps, { method: 'POST', json: toInmovillaFollowUp(followUp) })
+  return extractCodSeg(body) || followUp.remoteId || null
+}
+export function getFollowUp(token, codseg) {
+  return restRequest(token, PATHS.followUps, { query: { codseg } })
+}
+/** Follow-ups created between two dates (inclusive). */
+export async function searchFollowUps(token, { from, to }) {
+  try {
+    const body = await restRequest(token, PATHS.followUpSearch, { query: { fechaalta_desde: toInmovillaDay(from), fechaalta_hasta: toInmovillaDay(to) } })
+    return Array.isArray(body) ? body : Array.isArray(body?.data) ? body.data : []
+  } catch (err) {
+    if (err.status === 404) return []
+    throw err
+  }
+}
+
+// ---- owners (propietarios), full records ----
+import { fromInmovillaOwner, toInmovillaOwnerRecord } from './inmovillaMapping'
+
+async function ownerQuery(token, query) {
+  try {
+    return fromInmovillaOwner(await restRequest(token, PATHS.owners, { query }))
+  } catch (err) {
+    if (err.status === 404) return null
+    throw err
+  }
+}
+export const getOwnerByCodOfer = (token, codOfer) => ownerQuery(token, { cod_ofer: codOfer })
+export const getOwnerByCodCli = (token, codCli) => ownerQuery(token, { cod_cli: codCli })
+export async function createOwnerRecord(token, owner) {
+  return extractCodCli(await restRequest(token, PATHS.owners, { method: 'POST', json: toInmovillaOwnerRecord(owner) }))
+}
+export async function updateOwnerRecord(token, owner) {
+  await restRequest(token, PATHS.owners, { method: 'PUT', json: toInmovillaOwnerRecord(owner, { forUpdate: true }) })
+  return owner.remoteId
+}
+export function deleteOwner(token, codCli) {
+  return restRequest(token, `${PATHS.owners}${encodeURIComponent(codCli)}`, { method: 'DELETE' })
+}

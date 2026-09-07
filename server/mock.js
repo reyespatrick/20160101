@@ -67,6 +67,11 @@ function makeProperty(i) {
 
 const PROPERTIES = Array.from({ length: 57 }, (_, i) => makeProperty(i + 1))
 
+/** Does a listing with this cod_ofer exist in the (mock) agency? Used by the mock REST for owner/follow-up links. */
+export function mockPropertyExists(codOfer) {
+  return PROPERTIES.some((p) => String(p.cod_ofer) === String(codOfer))
+}
+
 /**
  * Called by the mock REST when a listing is created/updated so it appears in the
  * apiweb listing like it would in the real Inmovilla.

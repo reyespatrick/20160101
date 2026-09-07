@@ -4,7 +4,7 @@
  * Listings saved here also appear in the mock apiweb listing (server/mock.js).
  */
 import express from 'express'
-import { CITIES, CITY_KEY_BASE, TYPES, ZONES, upsertMockProperty, zoneKey } from './mock.js'
+import { CITIES, CITY_KEY_BASE, TYPES, ZONES, mockPropertyExists, upsertMockProperty, zoneKey } from './mock.js'
 
 const TOKEN = 'demo-token'
 const err = (res, status, codigo, mensaje) => res.status(status).json({ codigo, mensaje })
@@ -50,6 +50,16 @@ export function createMockRest() {
         out[k] = ZONES.map((zona, i) => ({ zona, key_zona: zoneKey(k, i) }))
       }
       return res.json(out)
+    }
+    if ('tiposeguimiento' in req.query) {
+      return res.json([
+        { valor: 39, nombre: 'Llamada - Llamada Propietario' },
+        { valor: 40, nombre: 'Llamada - Llamada Cliente' },
+        { valor: 41, nombre: 'Visita - Visita Concertada' },
+        { valor: 45, nombre: 'Visita - Visita Cancelada' },
+        { valor: 50, nombre: 'Email - Envío de información' },
+        { valor: 52, nombre: 'Tarea - Recoger llaves' },
+      ])
     }
     if ('calidades' in req.query) return res.json([{ campo: 'ascensor', valores: 'true/false' }, { campo: 'terraza', valores: 'true/false' }])
     return err(res, 400, 400008, 'Parámetro incorrecto')
@@ -117,17 +127,38 @@ export function createMockRest() {
   })
 
   // ---- propietarios ----
+  const ownerView = (o) => {
+    const own = [...db.propietarios.values()].filter((x) => x.nif && x.nif === o.nif && x.cod_cli !== o.cod_cli).map((x) => x.cod_ofer)
+    const codes = [o.cod_ofer, ...own].filter(Boolean)
+    const propiedades = codes.map((c) => {
+      const p = [...db.propiedades.values()].find((x) => String(x.cod_ofer) === String(c))
+      return { cod_ofer: String(c), ref: p?.ref || `REF-${c}`, disponible: p ? !p.nodisponible : true }
+    })
+    return { ...o, propiedades }
+  }
   router.get('/propietarios/', (req, res) => {
-    const o = req.query.cod_cli ? db.propietarios.get(String(req.query.cod_cli)) : [...db.propietarios.values()].find((x) => String(x.cod_ofer) === String(req.query.cod_ofer))
-    o ? res.json(o) : err(res, 404, 404001, 'Sin resultados')
+    let o = null
+    if (req.query.cod_cli) o = db.propietarios.get(String(req.query.cod_cli))
+    else if (req.query.cod_ofer) o = [...db.propietarios.values()].find((x) => String(x.cod_ofer) === String(req.query.cod_ofer))
+    else if (req.query.ref) {
+      const p = db.propiedades.get(String(req.query.ref))
+      o = p && [...db.propietarios.values()].find((x) => String(x.cod_ofer) === String(p.cod_ofer))
+    }
+    o ? res.json(ownerView(o)) : err(res, 404, 404001, 'Sin resultados')
+  })
+  router.delete('/propietarios/:cod_cli', (req, res) => {
+    if (!db.propietarios.has(req.params.cod_cli)) return err(res, 406, 406006, `Código ${req.params.cod_cli} no existe`)
+    db.propietarios.delete(req.params.cod_cli)
+    res.json({ codigo: 200, mensaje: 'Propietario eliminado' })
   })
   router.post('/propietarios/', (req, res) => {
     const b = req.body || {}
     if (!b.cod_ofer) return err(res, 406, 406001, 'Campo cod_ofer requerido')
     if (!b.nombre) return err(res, 406, 406001, 'Campo nombre requerido')
-    if (![...db.propiedades.values()].some((p) => String(p.cod_ofer) === String(b.cod_ofer))) return err(res, 404, 404001, 'Sin resultados')
+    if (!mockPropertyExists(b.cod_ofer)) return err(res, 404, 404001, 'Sin resultados')
+    for (const f of ['telefono1', 'telefono2', 'telefono3']) if (!isNumeric(b[f])) return err(res, 406, 406002, `Campo ${f} no válido`)
     const cod_cli = nextId()
-    db.propietarios.set(String(cod_cli), { ...b, cod_cli: String(cod_cli) })
+    db.propietarios.set(String(cod_cli), { ...b, cod_cli: String(cod_cli), altacliente: new Date().toISOString().slice(0, 19).replace('T', ' ') })
     res.status(201).json({ cod_cli, codigo: 201, mensaje: `Propietario creado y vinculado a la propiedad con cod_ofer ${b.cod_ofer}` })
   })
   router.put('/propietarios/', (req, res) => {
@@ -136,6 +167,37 @@ export function createMockRest() {
     if (!existing) return err(res, 406, 406006, `Código ${b.cod_cli} no existe`)
     db.propietarios.set(String(b.cod_cli), { ...existing, ...b })
     res.status(202).json({ cod_cli: Number(b.cod_cli), codigo: 202, mensaje: 'Propietario actualizado' })
+  })
+
+  // ---- seguimientos ----
+  db.seguimientos = new Map()
+  const DATE_RE = /^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}$/
+  router.get('/seguimientos/', (req, res) => {
+    if (!req.query.codseg) return err(res, 400, 400002, 'Faltan parámetros')
+    const s = db.seguimientos.get(String(req.query.codseg))
+    s ? res.json(s) : err(res, 404, 404001, 'Sin resultados')
+  })
+  router.get('/seguimientos/search/', (req, res) => {
+    const from = req.query.fechaalta_desde ? `${req.query.fechaalta_desde} 00:00:00` : ''
+    const to = req.query.fechaalta_hasta ? `${req.query.fechaalta_hasta} 23:59:59` : '9999'
+    res.json([...db.seguimientos.values()].filter((s) => s.fechaalta >= from && s.fechaalta <= to))
+  })
+  router.post('/seguimientos/', (req, res) => {
+    const b = req.body || {}
+    if (!Object.keys(b).length) return err(res, 400, 400002, 'Faltan parámetros')
+    for (const f of ['fechaaviso', 'fechafin']) if (b[f] !== undefined && b[f] !== null && !DATE_RE.test(b[f])) return err(res, 406, 406005, 'Formato de fecha incorrecto')
+    for (const f of ['keyagente', 'keyofe', 'keyprospecto', 'keytiposeg', 'tareacerrada']) if (!isNumeric(b[f])) return err(res, 406, 406004, `Tipo incorrecto en ${f}`)
+    if (b.keyofe && !mockPropertyExists(b.keyofe)) return err(res, 400, 400003, 'Error al guardar: keyofe no existe')
+    if (b.keyprospecto && !db.clientes.has(String(b.keyprospecto)) && !db.propietarios.has(String(b.keyprospecto))) return err(res, 400, 400003, 'Error al guardar: keyprospecto no existe')
+    if (b.codseg) {
+      const existing = db.seguimientos.get(String(b.codseg))
+      if (!existing) return err(res, 404, 404001, 'Sin resultados')
+      db.seguimientos.set(String(b.codseg), { ...existing, ...b, codseg: Number(b.codseg) })
+      return res.status(202).json({ codseg: Number(b.codseg), codigo: 202, mensaje: 'Seguimiento actualizado' })
+    }
+    const codseg = nextId()
+    db.seguimientos.set(String(codseg), { keyagente: 0, keyofe: 0, keyprospecto: 0, keytiposeg: 0, asunto: '', descrip: '', fechaaviso: null, fechafin: null, tareacerrada: 0, ...b, codseg, fechaalta: new Date().toISOString().slice(0, 19).replace('T', ' ') })
+    res.status(201).json({ codseg, codigo: 201, mensaje: 'Seguimiento creado' })
   })
 
   router.use((_req, res) => err(res, 405, 405001, 'Método no permitido'))

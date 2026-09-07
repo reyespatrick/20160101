@@ -1,6 +1,6 @@
 import { defineStore } from 'pinia'
 import { parseCiudades, parseTipos, parseZonas } from '../api/inmovillaMapping'
-import { enumsCiudades, enumsTipos, enumsZonas, isRateLimited } from '../api/inmovillaRest'
+import { enumsCiudades, enumsTipos, enumsTiposSeguimiento, enumsZonas, isRateLimited } from '../api/inmovillaRest'
 import { normalizeText } from '../models/client'
 import { useAuthStore } from './auth'
 
@@ -41,9 +41,10 @@ export const useEnumsStore = defineStore('enums', {
     tipos: {}, // name -> [{ value, label }]
     ciudades: [], // [{ key_loca, ciudad, provincia }]
     zonas: {}, // key_loca -> [{ key_zona, zona }]
-    fetchedAt: { tipos: 0, ciudades: 0 },
+    tiposSeguimiento: [], // [{ value, label }] agency-specific follow-up types
+    fetchedAt: { tipos: 0, ciudades: 0, tiposSeguimiento: 0 },
     zonasFetchedAt: {},
-    loading: { tipos: false, ciudades: false, zonas: false },
+    loading: { tipos: false, ciudades: false, zonas: false, tiposSeguimiento: false },
     error: '',
     restored: false,
   }),
@@ -79,7 +80,8 @@ export const useEnumsStore = defineStore('enums', {
           this.tipos = saved.tipos || {}
           this.ciudades = saved.ciudades || []
           this.zonas = saved.zonas || {}
-          this.fetchedAt = saved.fetchedAt || { tipos: 0, ciudades: 0 }
+          this.tiposSeguimiento = saved.tiposSeguimiento || []
+          this.fetchedAt = { tipos: 0, ciudades: 0, tiposSeguimiento: 0, ...(saved.fetchedAt || {}) }
           this.zonasFetchedAt = saved.zonasFetchedAt || {}
         }
       } catch {
@@ -90,7 +92,7 @@ export const useEnumsStore = defineStore('enums', {
       try {
         localStorage.setItem(
           storageKey(useAuthStore().numagencia),
-          JSON.stringify({ tipos: this.tipos, ciudades: this.ciudades, zonas: this.zonas, fetchedAt: this.fetchedAt, zonasFetchedAt: this.zonasFetchedAt }),
+          JSON.stringify({ tipos: this.tipos, ciudades: this.ciudades, zonas: this.zonas, tiposSeguimiento: this.tiposSeguimiento, fetchedAt: this.fetchedAt, zonasFetchedAt: this.zonasFetchedAt }),
         )
       } catch {
         /* quota */
@@ -155,9 +157,31 @@ export const useEnumsStore = defineStore('enums', {
         this.loading.zonas = false
       }
     },
-    /** Warm the two big lists right after login (uses the minute's two allowed calls). */
+    async ensureTiposSeguimiento() {
+      this.restore()
+      if (this.fresh(this.fetchedAt.tiposSeguimiento) && this.tiposSeguimiento.length) return
+      const auth = useAuthStore()
+      if (!auth.restToken || navigator.onLine === false) return
+      this.loading.tiposSeguimiento = true
+      try {
+        const body = await throttled(() => enumsTiposSeguimiento(auth.restToken))
+        this.tiposSeguimiento = (Array.isArray(body) ? body : []).map((o) => ({ value: o.valor, label: String(o.nombre) })).filter((o) => o.value !== undefined)
+        this.fetchedAt.tiposSeguimiento = Date.now()
+        this.persist()
+      } catch (err) {
+        this.error = err.message
+      } finally {
+        this.loading.tiposSeguimiento = false
+      }
+    },
+    followUpTypeLabel(value) {
+      return this.tiposSeguimiento.find((o) => String(o.value) === String(value))?.label || ''
+    },
+    /** Warm the reference lists right after login (calls are spaced to respect the 2/min limit). */
     warm() {
-      this.ensureTipos().then(() => this.ensureCiudades())
+      this.ensureTipos()
+        .then(() => this.ensureCiudades())
+        .then(() => this.ensureTiposSeguimiento())
     },
     reset() {
       this.$reset()

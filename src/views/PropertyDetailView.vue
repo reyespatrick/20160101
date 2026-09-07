@@ -2,11 +2,17 @@
 import { computed, onMounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { usePropertiesStore } from '../stores/properties'
+import { useFollowUpsStore } from '../stores/followUps'
+import FollowUpCard from '../components/FollowUpCard.vue'
+import OwnerCard from '../components/OwnerCard.vue'
 import { PLACEHOLDER, featuresOf, formatDate, isRent, locationOf, operationLabel, photoOf, priceOf, surfaceOf } from '../utils/format'
 
 const props = defineProps({ codOfer: { type: String, required: true } })
 const store = usePropertiesStore()
+const followUps = useFollowUpsStore()
 const router = useRouter()
+const propertyFollowUps = computed(() => followUps.forProperty(props.codOfer))
+const followUpLabel = computed(() => (p.value ? `Ref. ${p.value.ref} · ${[p.value.nbtipo, p.value.ciudad].filter(Boolean).join(' en ')}` : ''))
 
 const detail = ref(null)
 const loading = ref(true)
@@ -62,6 +68,7 @@ function back() {
 }
 
 onMounted(async () => {
+  followUps.ensureLoaded()
   try {
     detail.value = await store.loadDetail(props.codOfer)
     if (!detail.value && !summary.value) error.value = 'Propiedad no encontrada'
@@ -129,6 +136,17 @@ onMounted(async () => {
         </dl>
       </article>
 
+      <OwnerCard :cod-ofer="codOfer" :ref-code="p.ref" />
+
+      <article class="block">
+        <div class="block-head">
+          <h2>Seguimientos</h2>
+          <RouterLink :to="{ name: 'followup-new', query: { codOfer, propertyLabel: followUpLabel } }" class="btn small">+ Nuevo</RouterLink>
+        </div>
+        <p v-if="!propertyFollowUps.length" class="muted">Sin seguimientos para esta propiedad en este dispositivo.</p>
+        <div v-else class="fu-list"><FollowUpCard v-for="f in propertyFollowUps.slice(0, 5)" :key="f.id" :follow-up="f" compact /></div>
+      </article>
+
       <article v-if="agent.name || agent.phone || agent.email" class="block contact">
         <h2>Contacto</h2>
         <p v-if="agent.name"><strong>{{ agent.name }}</strong><span v-if="p.agencia" class="muted"> · {{ p.agencia }}</span></p>
@@ -165,6 +183,10 @@ onMounted(async () => {
 .rows dt { color: var(--muted); }
 .rows dd { margin: 0; font-weight: 600; }
 .contact .actions { display: flex; gap: 0.5rem; margin-top: 0.75rem; }
+.block-head { display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.6rem; }
+.block-head h2 { margin: 0; }
+.small { padding: 0.4rem 0.8rem; font-size: 0.9rem; }
+.fu-list { display: flex; flex-direction: column; gap: 0.5rem; }
 @media (max-width: 520px) {
   .head { flex-direction: column; }
 }

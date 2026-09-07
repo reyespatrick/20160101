@@ -6,19 +6,23 @@ import { usePropertiesStore } from '../stores/properties'
 import { useClientsStore } from '../stores/clients'
 import { useLocalPropertiesStore } from '../stores/localProperties'
 import { useEnumsStore } from '../stores/enums'
+import { useFollowUpsStore } from '../stores/followUps'
+import { useOwnersStore } from '../stores/owners'
 
 const auth = useAuthStore()
 const properties = usePropertiesStore()
 const clients = useClientsStore()
 const localProperties = useLocalPropertiesStore()
+const followUps = useFollowUpsStore()
+const owners = useOwnersStore()
 const router = useRouter()
 const confirming = ref(false)
-const pending = computed(() => clients.pendingCount + localProperties.pendingCount)
+const pending = computed(() => clients.pendingCount + localProperties.pendingCount + followUps.pendingCount + owners.pendingCount)
 
 async function logout() {
   if (pending.value && !confirming.value) {
     // Try to flush first; if changes are still pending, ask before leaving them behind.
-    await Promise.all([clients.sync(), localProperties.sync()])
+    await Promise.all([clients.sync(), localProperties.sync(), followUps.sync({ pull: false }), owners.sync()])
     if (pending.value) {
       confirming.value = true
       return
@@ -29,6 +33,8 @@ async function logout() {
   properties.reset()
   clients.reset()
   localProperties.reset()
+  followUps.reset()
+  owners.reset()
   useEnumsStore().reset()
   router.replace({ name: 'login' })
 }

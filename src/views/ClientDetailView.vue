@@ -4,11 +4,15 @@ import { useRoute, useRouter } from 'vue-router'
 import InmovillaState from '../components/InmovillaState.vue'
 import { fullName, initials, primaryPhone, whatsappLink } from '../models/client'
 import { useClientsStore } from '../stores/clients'
+import { useFollowUpsStore } from '../stores/followUps'
+import FollowUpCard from '../components/FollowUpCard.vue'
 import { formatDate } from '../utils/format'
 
 const props = defineProps({ id: { type: String, required: true } })
 const store = useClientsStore()
+const followUps = useFollowUpsStore()
 const router = useRouter()
+const clientFollowUps = computed(() => (client.value?.remoteId ? followUps.forClient(client.value.remoteId) : []))
 const route = useRoute()
 
 const loading = ref(true)
@@ -23,6 +27,7 @@ const address = computed(() => {
 
 onMounted(async () => {
   await store.ensureLoaded()
+  followUps.ensureLoaded()
   loading.value = false
   store.refresh(props.id)
   if (toast.value) setTimeout(() => (toast.value = ''), 2500)
@@ -72,6 +77,16 @@ async function remove() {
         </dl>
       </article>
 
+      <article class="block">
+        <div class="block-head">
+          <h2>Seguimientos</h2>
+          <RouterLink v-if="client.remoteId" :to="{ name: 'followup-new', query: { clientId: client.remoteId, clientLabel: fullName(client) } }" class="btn small">+ Nuevo</RouterLink>
+        </div>
+        <p v-if="!client.remoteId" class="muted">Los seguimientos se podrán añadir cuando el cliente esté en Inmovilla.</p>
+        <p v-else-if="!clientFollowUps.length" class="muted">Sin seguimientos para este cliente en este dispositivo.</p>
+        <div v-else class="fu-list"><FollowUpCard v-for="f in clientFollowUps.slice(0, 5)" :key="f.id" :follow-up="f" compact /></div>
+      </article>
+
       <article v-if="client.notes" class="block">
         <h2>Observaciones</h2>
         <p class="notes">{{ client.notes }}</p>
@@ -105,6 +120,10 @@ async function remove() {
 .action .icon { font-size: 1.4rem; }
 .block { background: var(--surface); border-radius: var(--radius); box-shadow: var(--shadow); padding: 1rem 1.2rem; margin-bottom: 0.85rem; }
 .block h2 { margin: 0 0 0.7rem; font-size: 1rem; color: var(--muted); text-transform: uppercase; letter-spacing: 0.04em; }
+.block-head { display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.6rem; }
+.block-head h2 { margin: 0; }
+.small { padding: 0.4rem 0.8rem; font-size: 0.9rem; }
+.fu-list { display: flex; flex-direction: column; gap: 0.5rem; }
 .rows { display: grid; grid-template-columns: max-content 1fr; gap: 0.5rem 1.25rem; margin: 0; }
 .rows dt { color: var(--muted); }
 .rows dd { margin: 0; font-weight: 600; overflow-wrap: anywhere; }

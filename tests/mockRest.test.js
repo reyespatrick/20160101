@@ -68,3 +68,32 @@ describe('mock REST (documented contract)', () => {
     expect((await json('/propietarios/', { method: 'POST', body: JSON.stringify({ cod_ofer: 1, nombre: 'Luis' }) })).status).toBe(404)
   })
 })
+
+describe('mock REST: seguimientos and propietarios lookups', () => {
+  it('serves follow-up types, creates, updates and searches follow-ups', async () => {
+    const tipos = (await json('/enums/?tiposeguimiento')).body
+    expect(tipos[0]).toMatchObject({ valor: 39 })
+    const created = await json('/seguimientos/', { method: 'POST', body: JSON.stringify({ keytiposeg: 40, asunto: 'Llamar', fechaaviso: '2026-06-25 10:00:00' }) })
+    expect(created.status).toBe(201)
+    expect(created.body.codseg).toBeGreaterThan(0)
+    expect((await json('/seguimientos/', { method: 'POST', body: JSON.stringify({ asunto: 'x', fechaaviso: 'mañana' }) })).body.codigo).toBe(406005)
+    expect((await json('/seguimientos/', { method: 'POST', body: JSON.stringify({ asunto: 'x', keyprospecto: 999999 }) })).body.codigo).toBe(400003)
+    const upd = await json('/seguimientos/', { method: 'POST', body: JSON.stringify({ codseg: created.body.codseg, tareacerrada: 1, fechafin: '2026-06-25 11:00:00' }) })
+    expect(upd.status).toBe(202)
+    expect((await json(`/seguimientos/?codseg=${created.body.codseg}`)).body).toMatchObject({ asunto: 'Llamar', tareacerrada: 1 })
+    const today = new Date().toISOString().slice(0, 10)
+    expect((await json(`/seguimientos/search/?fechaalta_desde=${today}&fechaalta_hasta=${today}`)).body.length).toBeGreaterThan(0)
+    expect((await json('/seguimientos/search/?fechaalta_desde=2000-01-01&fechaalta_hasta=2000-01-02')).body).toEqual([])
+  })
+  it('looks owners up by property and lists their properties', async () => {
+    await json('/propiedades/', { method: 'POST', body: JSON.stringify({ ref: 'OWN-1', keyacci: 1, key_tipo: 1, key_loca: 31001, precioinmo: 1000 }) })
+    const prop = (await json('/propiedades/?ref=OWN-1')).body
+    expect((await json(`/propietarios/?cod_ofer=${prop.cod_ofer}`)).status).toBe(404)
+    const owner = await json('/propietarios/', { method: 'POST', body: JSON.stringify({ cod_ofer: prop.cod_ofer, nombre: 'Luis', telefono2: 600000000 }) })
+    const byProp = (await json(`/propietarios/?cod_ofer=${prop.cod_ofer}`)).body
+    expect(byProp).toMatchObject({ nombre: 'Luis' })
+    expect(byProp.propiedades).toEqual([{ cod_ofer: String(prop.cod_ofer), ref: 'OWN-1', disponible: true }])
+    expect((await json('/propietarios/?ref=OWN-1')).body.cod_cli).toBe(String(owner.body.cod_cli))
+    expect((await json(`/propietarios/${owner.body.cod_cli}`, { method: 'DELETE' })).body.codigo).toBe(200)
+  })
+})

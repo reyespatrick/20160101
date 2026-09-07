@@ -1,62 +1,80 @@
 <script setup>
-import { onMounted, ref } from 'vue'
+import { computed, onMounted, ref } from 'vue'
 import { RouterView } from 'vue-router'
 import AppHeader from './components/AppHeader.vue'
 import BottomNav from './components/BottomNav.vue'
+import ErrorBoundary from './components/ErrorBoundary.vue'
+import Toasts from './components/Toasts.vue'
+import UpdateBanner from './components/UpdateBanner.vue'
 import { useAuthStore } from './stores/auth'
 import { useClientsStore } from './stores/clients'
-import { useLocalPropertiesStore } from './stores/localProperties'
 import { useEnumsStore } from './stores/enums'
+import { useFollowUpsStore } from './stores/followUps'
+import { useLocalPropertiesStore } from './stores/localProperties'
+import { useOwnersStore } from './stores/owners'
 
 const auth = useAuthStore()
 const clients = useClientsStore()
 const localProperties = useLocalPropertiesStore()
+const followUps = useFollowUpsStore()
+const owners = useOwnersStore()
 const enums = useEnumsStore()
 const online = ref(navigator.onLine)
 
+const syncing = computed(() => clients.syncing || localProperties.syncing || localProperties.uploading > 0 || followUps.syncing || followUps.pulling || owners.syncing)
+
 function syncAll() {
-  clients.sync()
-  localProperties.sync()
+  if (!auth.isAuthenticated) return
+  clients.sync().catch(() => {})
+  localProperties.sync().catch(() => {})
+  followUps.sync().catch(() => {})
+  owners.sync().catch(() => {})
 }
 
 onMounted(() => {
   auth.restore()
   window.addEventListener('online', () => {
     online.value = true
-    syncAll() // flush edits made while offline
+    syncAll()
   })
   window.addEventListener('offline', () => (online.value = false))
-  document.addEventListener('visibilitychange', () => {
-    if (document.visibilityState === 'visible' && auth.isAuthenticated) syncAll()
-  })
+  document.addEventListener('visibilitychange', () => document.visibilityState === 'visible' && syncAll())
   if (auth.isAuthenticated) {
     enums.restore()
-    clients.load().then(() => clients.sync())
-    localProperties.load().then(() => localProperties.sync())
+    Promise.all([clients.load(), localProperties.load(), followUps.load()]).then(syncAll).catch(() => {})
   }
 })
 </script>
 
 <template>
   <div class="app">
+    <UpdateBanner />
     <AppHeader v-if="auth.isAuthenticated" />
     <div v-if="!online" class="offline-bar">Sin conexión · los cambios se guardan en este dispositivo</div>
+    <div class="sync-bar" :class="{ on: syncing }" aria-hidden="true"></div>
     <main>
-      <RouterView />
+      <ErrorBoundary>
+        <RouterView v-slot="{ Component, route }">
+          <Transition name="screen" mode="out-in">
+            <component :is="Component" :key="route.path" />
+          </Transition>
+        </RouterView>
+      </ErrorBoundary>
     </main>
     <BottomNav v-if="auth.isAuthenticated" />
+    <Toasts />
   </div>
 </template>
 
 <style scoped>
 .app { min-height: 100dvh; display: flex; flex-direction: column; }
 main { flex: 1; }
-.offline-bar {
-  background: var(--accent);
-  color: #fff;
-  text-align: center;
-  font-size: 0.85rem;
-  padding: 0.35rem;
-  font-weight: 600;
-}
+.offline-bar { background: var(--accent); color: #fff; text-align: center; font-size: 0.85rem; padding: 0.35rem; font-weight: 600; }
+.sync-bar { height: 3px; background: transparent; position: sticky; top: 0; z-index: 11; }
+.sync-bar.on { background: linear-gradient(90deg, transparent, var(--brand), transparent); background-size: 40% 100%; animation: slide 1.1s linear infinite; }
+@keyframes slide { from { background-position: -40% 0; } to { background-position: 140% 0; } }
+.screen-enter-active { transition: opacity 0.18s ease, transform 0.18s ease; }
+.screen-leave-active { transition: opacity 0.12s ease; }
+.screen-enter-from { opacity: 0; transform: translateY(8px); }
+.screen-leave-to { opacity: 0; }
 </style>

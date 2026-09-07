@@ -5,11 +5,15 @@ import InmovillaState from '../components/InmovillaState.vue'
 import { LISTING_STATUSES, activeFeatures, completeness, locationOf, priceOf, titleOf } from '../models/property'
 import { useEnumsStore } from '../stores/enums'
 import { useLocalPropertiesStore } from '../stores/localProperties'
+import { useFollowUpsStore } from '../stores/followUps'
+import FollowUpCard from '../components/FollowUpCard.vue'
 import { PLACEHOLDER, formatDate } from '../utils/format'
 
 const props = defineProps({ id: { type: String, required: true } })
 const store = useLocalPropertiesStore()
+const followUps = useFollowUpsStore()
 const enums = useEnumsStore()
+const propertyFollowUps = computed(() => (p.value?.codOfer ? followUps.forProperty(p.value.codOfer) : []))
 const router = useRouter()
 const route = useRoute()
 
@@ -45,6 +49,7 @@ const rows = computed(() => {
 
 onMounted(async () => {
   await store.ensureLoaded()
+  followUps.ensureLoaded()
   enums.restore()
   if (p.value) await store.ensurePhotoUrls(p.value)
   loading.value = false
@@ -130,6 +135,15 @@ async function reactivate() {
         </dl>
       </article>
 
+      <article v-if="p.codOfer" class="block">
+        <div class="block-head">
+          <h2>Seguimientos</h2>
+          <RouterLink :to="{ name: 'followup-new', query: { codOfer: p.codOfer, propertyLabel: `Ref. ${p.ref} · ${titleOf(p)}` } }" class="btn small">+ Nuevo</RouterLink>
+        </div>
+        <p v-if="!propertyFollowUps.length" class="muted">Sin seguimientos todavía.</p>
+        <div v-else class="fu-list"><FollowUpCard v-for="f in propertyFollowUps.slice(0, 5)" :key="f.id" :follow-up="f" compact /></div>
+      </article>
+
       <article v-if="p.ownerName || p.ownerPhone || p.notes" class="block">
         <h2>Propietario y notas</h2>
         <dl class="rows">
@@ -178,6 +192,10 @@ async function reactivate() {
 .pending-photos { color: var(--accent); font-weight: 600; }
 .link { border: 0; background: none; color: var(--brand); font-weight: 600; padding: 0; text-decoration: underline; font-size: inherit; }
 .block { background: var(--surface); border-radius: var(--radius); box-shadow: var(--shadow); padding: 1rem 1.2rem; margin-bottom: 0.85rem; }
+.block-head { display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.6rem; }
+.block-head h2 { margin: 0; }
+.small { padding: 0.4rem 0.8rem; font-size: 0.9rem; }
+.fu-list { display: flex; flex-direction: column; gap: 0.5rem; }
 .block h2 { margin: 0 0 0.7rem; font-size: 1rem; color: var(--muted); text-transform: uppercase; letter-spacing: 0.04em; }
 .description { white-space: pre-line; margin: 0; line-height: 1.55; }
 .notes { margin-top: 0.6rem; }
