@@ -1,15 +1,29 @@
 <script setup>
+import { ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { useAuthStore } from '../stores/auth'
 import { usePropertiesStore } from '../stores/properties'
+import { useClientsStore } from '../stores/clients'
 
 const auth = useAuthStore()
 const properties = usePropertiesStore()
+const clients = useClientsStore()
 const router = useRouter()
+const confirming = ref(false)
 
-function logout() {
+async function logout() {
+  if (clients.pendingCount && !confirming.value) {
+    // Try to flush first; if changes are still pending, ask before leaving them behind.
+    await clients.sync()
+    if (clients.pendingCount) {
+      confirming.value = true
+      return
+    }
+  }
+  confirming.value = false
   auth.logout()
   properties.reset()
+  clients.reset()
   router.replace({ name: 'login' })
 }
 </script>
@@ -25,6 +39,11 @@ function logout() {
       <button class="btn btn-ghost small" type="button" @click="logout">Salir</button>
     </div>
   </header>
+  <div v-if="confirming" class="confirm-bar" role="alertdialog">
+    <span>Hay {{ clients.pendingCount }} cambios de clientes sin sincronizar. Se conservan en este dispositivo, pero no estarán en otros hasta que vuelvas a entrar.</span>
+    <button class="btn small" type="button" @click="logout">Salir igualmente</button>
+    <button class="btn btn-ghost small" type="button" @click="confirming = false">Cancelar</button>
+  </div>
 </template>
 
 <style scoped>
@@ -45,4 +64,10 @@ function logout() {
 .agency { font-size: 0.85rem; }
 .small { padding: 0.4rem 0.8rem; }
 @media (max-width: 420px) { .agency { display: none; } }
+.confirm-bar {
+  display: flex; flex-wrap: wrap; gap: 0.5rem; align-items: center;
+  background: #fdefd9; color: #7a4a00; padding: 0.6rem 1rem; font-size: 0.85rem;
+  border-bottom: 1px solid #f5d8a8;
+}
+.confirm-bar span { flex: 1 1 240px; }
 </style>

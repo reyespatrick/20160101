@@ -5,6 +5,10 @@ const routes = [
   { path: '/login', name: 'login', component: () => import('../views/LoginView.vue'), meta: { public: true } },
   { path: '/', name: 'properties', component: () => import('../views/PropertiesView.vue') },
   { path: '/propiedad/:codOfer', name: 'property', component: () => import('../views/PropertyDetailView.vue'), props: true },
+  { path: '/clientes', name: 'clients', component: () => import('../views/ClientsView.vue') },
+  { path: '/clientes/nuevo', name: 'client-new', component: () => import('../views/ClientFormView.vue') },
+  { path: '/clientes/:id', name: 'client', component: () => import('../views/ClientDetailView.vue'), props: true },
+  { path: '/clientes/:id/editar', name: 'client-edit', component: () => import('../views/ClientFormView.vue'), props: true },
   { path: '/:pathMatch(.*)*', redirect: '/' },
 ]
 

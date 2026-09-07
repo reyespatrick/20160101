@@ -6,8 +6,12 @@ Inmovilla credentials and browse the properties published in the **Inmovilla CRM
 - Login screen (agency number + API key, language, "remember me")
 - Property list with search, sale/rent toggle, type filter, ordering and infinite scroll
 - Property detail with photo gallery, description, features and agent contact
-- Installable PWA (manifest + service worker), offline fallback to the last loaded list, cached photos
-- Small Node/Express proxy that forwards requests to Inmovilla and serves the built app
+- **Clients**: create contacts, search them instantly (name, phone, email, notes, accent-insensitive),
+  update their details and status, call / WhatsApp / email them in one tap
+- **Offline-first clients**: everything is stored in the browser (IndexedDB) and synchronised with the
+  server whenever there is a connection, so the app keeps working with no signal
+- Installable PWA (manifest + service worker), offline fallback to the last loaded property list, cached photos
+- Small Node/Express proxy that forwards requests to Inmovilla, stores clients and serves the built app
 
 ## Why a proxy?
 
@@ -48,6 +52,27 @@ Deploy `server/` + `dist/` to any Node host (Render, Railway, Fly, a VPS…). En
 | `INMOVILLA_API_URL` | `https://apiweb.inmovilla.com/apiweb/apiweb.php` | Upstream endpoint |
 | `INMOVILLA_DOMAIN` | *(empty)* | Sent as `elDominio` |
 | `INMOVILLA_MOCK` | `0` | `1` serves sample data instead of calling Inmovilla |
+| `APP_SECRET` | random per start | Secret for signing session tokens. **Set it in production** |
+| `DATA_DIR` | `./data` | Where `clients.json` is stored (mount a persistent volume) |
+
+## Clients module
+
+Clients are not part of Inmovilla's public web API, so the app keeps its own client list:
+
+1. Every create / edit / delete is written to **IndexedDB** on the device first and flagged as pending.
+   The UI never waits for the network.
+2. `POST /api/clients/sync` pushes pending changes and pulls everything that changed on the server since
+   the last sync (edits made on other devices included). Conflicts are resolved by **last write wins**
+   on `updatedAt`; deletions are kept as tombstones so other devices learn about them.
+3. Sync runs after each edit, when the browser fires `online`, when the app becomes visible again, and
+   when the clients screen is opened. Pending changes are shown with an orange dot and a badge on the
+   Clients tab.
+4. Server-side data lives in `DATA_DIR/clients.json`, one bucket per agency number, written atomically.
+   Access requires the session token issued by `POST /api/login` (signed with `APP_SECRET`).
+
+The login screen validates the agency number + API key against Inmovilla and receives that token.
+If the token expires (30 days, or a server restart without `APP_SECRET`), the app refreshes it silently
+with the stored credentials; local data is never lost.
 
 ## Tests
 
@@ -70,10 +95,14 @@ Supported `type`s: `paginacion` (list), `ficha` (detail, `where=cod_ofer=123`), 
 ## Project layout
 
 ```
-server/          Express proxy (index.js), param builder (inmovilla.js), sample data (mock.js)
-src/api/         Browser client for /api/inmovilla
-src/stores/      Pinia stores: auth (credentials) and properties (list, filters, detail cache)
-src/views/       LoginView, PropertiesView, PropertyDetailView
-src/components/  AppHeader, FilterBar, PropertyCard
+server/          Express app (index.js), Inmovilla param builder (inmovilla.js), sample data (mock.js),
+                 session tokens (auth.js), clients JSON store with merge rules (clientsStore.js)
+src/api/         Browser clients for /api/inmovilla and /api/login + /api/clients/sync
+src/db/          IndexedDB wrapper for clients
+src/models/      Client model: types, statuses, validation, search matching
+src/sync/        Pure merge rules shared conceptually with the server
+src/stores/      Pinia stores: auth, properties, clients (offline-first)
+src/views/       Login, Properties, PropertyDetail, Clients, ClientForm, ClientDetail
+src/components/  AppHeader, BottomNav, FilterBar, PropertyCard, ClientCard, ChipGroup
 scripts/         generate-icons.mjs (PWA icons from screen/splash.png)
 ```
