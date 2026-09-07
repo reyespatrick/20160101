@@ -1,21 +1,24 @@
 <script setup>
-import { ref } from 'vue'
+import { computed, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { useAuthStore } from '../stores/auth'
 import { usePropertiesStore } from '../stores/properties'
 import { useClientsStore } from '../stores/clients'
+import { useLocalPropertiesStore } from '../stores/localProperties'
 
 const auth = useAuthStore()
 const properties = usePropertiesStore()
 const clients = useClientsStore()
+const localProperties = useLocalPropertiesStore()
 const router = useRouter()
 const confirming = ref(false)
+const pending = computed(() => clients.pendingCount + localProperties.pendingCount)
 
 async function logout() {
-  if (clients.pendingCount && !confirming.value) {
+  if (pending.value && !confirming.value) {
     // Try to flush first; if changes are still pending, ask before leaving them behind.
-    await clients.sync()
-    if (clients.pendingCount) {
+    await Promise.all([clients.sync(), localProperties.sync()])
+    if (pending.value) {
       confirming.value = true
       return
     }
@@ -24,6 +27,7 @@ async function logout() {
   auth.logout()
   properties.reset()
   clients.reset()
+  localProperties.reset()
   router.replace({ name: 'login' })
 }
 </script>
@@ -40,7 +44,7 @@ async function logout() {
     </div>
   </header>
   <div v-if="confirming" class="confirm-bar" role="alertdialog">
-    <span>Hay {{ clients.pendingCount }} cambios de clientes sin sincronizar. Se conservan en este dispositivo, pero no estarán en otros hasta que vuelvas a entrar.</span>
+    <span>Hay {{ pending }} cambios sin sincronizar. Se conservan en este dispositivo, pero no estarán en otros hasta que vuelvas a entrar.</span>
     <button class="btn small" type="button" @click="logout">Salir igualmente</button>
     <button class="btn btn-ghost small" type="button" @click="confirming = false">Cancelar</button>
   </div>

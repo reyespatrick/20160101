@@ -6,6 +6,10 @@ Inmovilla credentials and browse the properties published in the **Inmovilla CRM
 - Login screen (agency number + API key, language, "remember me")
 - Property list with search, sale/rent toggle, type filter, ordering and infinite scroll
 - Property detail with photo gallery, description, features and agent contact
+- **New listings ("Mis propiedades")**: create a property from the phone with photos (gallery or camera),
+  price, location, rooms, surfaces, extras, energy rating, description and owner notes. Photos are resized on
+  the device, stored offline and uploaded when there is a connection; edits, reordering and deletions sync
+  across devices
 - **Clients**: create contacts, search them instantly (name, phone, email, notes, accent-insensitive),
   update their details and status, call / WhatsApp / email them in one tap
 - **Offline-first clients**: everything is stored in the browser (IndexedDB) and synchronised with the
@@ -53,7 +57,22 @@ Deploy `server/` + `dist/` to any Node host (Render, Railway, Fly, a VPS…). En
 | `INMOVILLA_DOMAIN` | *(empty)* | Sent as `elDominio` |
 | `INMOVILLA_MOCK` | `0` | `1` serves sample data instead of calling Inmovilla |
 | `APP_SECRET` | random per start | Secret for signing session tokens. **Set it in production** |
-| `DATA_DIR` | `./data` | Where `clients.json` is stored (mount a persistent volume) |
+| `DATA_DIR` | `./data` | Where `clients.json`, `properties.json` and `photos/` are stored (mount a persistent volume) |
+
+## New listings module
+
+Inmovilla's web API is read-only, so properties created in the app are kept in this app's own store,
+ready to be copied into the CRM (or pushed automatically once Inmovilla's write API token is available):
+
+1. The form saves the listing to **IndexedDB** immediately; photos are resized to 1600 px JPEG on the device
+   and stored as blobs next to it. Everything works offline.
+2. `POST /api/properties/sync` exchanges listing metadata exactly like clients (last write wins, tombstones)
+   and returns which photo ids the server already holds.
+3. Missing photos are then uploaded one by one with `PUT /api/properties/:id/photos/:photoId` (binary body);
+   other devices download them on demand with the matching `GET`. Files live in `DATA_DIR/photos/<agency>/<id>/`
+   and are pruned when removed from the listing or when the listing is deleted.
+4. Only photos referenced by a listing the server knows can be uploaded or read, and every call needs the
+   session token.
 
 ## Clients module
 
@@ -96,13 +115,17 @@ Supported `type`s: `paginacion` (list), `ficha` (detail, `where=cod_ofer=123`), 
 
 ```
 server/          Express app (index.js), Inmovilla param builder (inmovilla.js), sample data (mock.js),
-                 session tokens (auth.js), clients JSON store with merge rules (clientsStore.js)
-src/api/         Browser clients for /api/inmovilla and /api/login + /api/clients/sync
-src/db/          IndexedDB wrapper for clients
-src/models/      Client model: types, statuses, validation, search matching
+                 session tokens (auth.js), generic per-agency sync store (syncStore.js),
+                 clients store (clientsStore.js), listings + photo files store (propertiesStore.js)
+src/api/         Browser clients for /api/inmovilla, /api/login, /api/clients/sync, /api/properties/*
+src/db/          IndexedDB wrappers: clients, local properties + photo blobs
+src/models/      Client and property models: options, validation, search matching
 src/sync/        Pure merge rules shared conceptually with the server
-src/stores/      Pinia stores: auth, properties, clients (offline-first)
-src/views/       Login, Properties, PropertyDetail, Clients, ClientForm, ClientDetail
-src/components/  AppHeader, BottomNav, FilterBar, PropertyCard, ClientCard, ChipGroup
+src/utils/       Formatting helpers and on-device image resizing
+src/stores/      Pinia stores: auth, properties (Inmovilla), localProperties, clients (offline-first)
+src/views/       Login, Properties, PropertyDetail, LocalPropertyForm, LocalPropertyDetail,
+                 Clients, ClientForm, ClientDetail
+src/components/  AppHeader, BottomNav, FilterBar, PropertyCard, LocalPropertyCard, PhotoPicker,
+                 ClientCard, ChipGroup
 scripts/         generate-icons.mjs (PWA icons from screen/splash.png)
 ```

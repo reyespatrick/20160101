@@ -1,5 +1,5 @@
 <script setup>
-import { computed, onMounted, reactive, ref } from 'vue'
+import { computed, onMounted, reactive, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import ChipGroup from '../components/ChipGroup.vue'
 import { CLIENT_STATUSES, CLIENT_TYPES, OPERATIONS, emptyClient, validateClient } from '../models/client'
@@ -14,6 +14,16 @@ const route = useRoute()
 
 const form = reactive(emptyClient())
 const errors = ref({})
+// Once the user fixes a field, drop its error without waiting for the next submit.
+watch(
+  form,
+  () => {
+    if (!Object.keys(errors.value).length) return
+    const fresh = validateClient(form)
+    errors.value = Object.fromEntries(Object.entries(errors.value).filter(([k]) => k === 'form' || fresh[k]))
+  },
+  { deep: true },
+)
 const saving = ref(false)
 const notFound = ref(false)
 const zoneInput = ref('')

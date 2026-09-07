@@ -1,6 +1,8 @@
 <script setup>
 import { useClientsStore } from '../stores/clients'
+import { useLocalPropertiesStore } from '../stores/localProperties'
 const clients = useClientsStore()
+const localProperties = useLocalPropertiesStore()
 </script>
 
 <template>
@@ -8,6 +10,7 @@ const clients = useClientsStore()
     <RouterLink :to="{ name: 'properties' }" class="tab" active-class="active" :class="{ active: $route.name === 'property' }">
       <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 11 12 3l9 8v10h-6v-6H9v6H3z" /></svg>
       <span>Propiedades</span>
+      <em v-if="localProperties.pendingCount" class="dot" :title="`${localProperties.pendingCount} cambios pendientes de sincronizar`">{{ localProperties.pendingCount }}</em>
     </RouterLink>
     <RouterLink :to="{ name: 'clients' }" class="tab" active-class="active" :class="{ active: String($route.name).startsWith('client') }">
       <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 12a4 4 0 1 0 0-8 4 4 0 0 0 0 8zm0 2c-4 0-8 2-8 5v2h16v-2c0-3-4-5-8-5z" /></svg>

@@ -5,22 +5,32 @@ import AppHeader from './components/AppHeader.vue'
 import BottomNav from './components/BottomNav.vue'
 import { useAuthStore } from './stores/auth'
 import { useClientsStore } from './stores/clients'
+import { useLocalPropertiesStore } from './stores/localProperties'
 
 const auth = useAuthStore()
 const clients = useClientsStore()
+const localProperties = useLocalPropertiesStore()
 const online = ref(navigator.onLine)
+
+function syncAll() {
+  clients.sync()
+  localProperties.sync()
+}
 
 onMounted(() => {
   auth.restore()
   window.addEventListener('online', () => {
     online.value = true
-    clients.sync() // flush edits made while offline
+    syncAll() // flush edits made while offline
   })
   window.addEventListener('offline', () => (online.value = false))
   document.addEventListener('visibilitychange', () => {
-    if (document.visibilityState === 'visible' && auth.isAuthenticated) clients.sync()
+    if (document.visibilityState === 'visible' && auth.isAuthenticated) syncAll()
   })
-  if (auth.isAuthenticated) clients.load().then(() => clients.sync())
+  if (auth.isAuthenticated) {
+    clients.load().then(() => clients.sync())
+    localProperties.load().then(() => localProperties.sync())
+  }
 })
 </script>
 

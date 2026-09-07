@@ -145,7 +145,7 @@ onMounted(async () => {
 .detail { padding-bottom: 3rem; }
 .back { margin-bottom: 0.75rem; }
 .gallery { position: relative; border-radius: var(--radius); overflow: hidden; background: #e6e7f5; }
-.gallery > img { width: 100%; aspect-ratio: 16 / 10; object-fit: cover; display: block; }
+.gallery > img { width: 100%; aspect-ratio: 16 / 10; max-height: 60vh; object-fit: cover; display: block; }
 .gallery .badge { position: absolute; top: 0.75rem; left: 0.75rem; }
 .thumbs { display: flex; gap: 0.4rem; padding: 0.5rem; overflow-x: auto; background: var(--surface); }
 .thumbs button { flex: 0 0 72px; height: 54px; border: 2px solid transparent; border-radius: 8px; padding: 0; overflow: hidden; background: none; }

@@ -5,6 +5,7 @@ import { buildFormBody, normalizeRequest, parseApiResponse } from './inmovilla.j
 import { mockResponse } from './mock.js'
 import { requireAuth, signToken } from './auth.js'
 import { ClientsStore } from './clientsStore.js'
+import { MAX_PHOTO_BYTES, PropertiesStore } from './propertiesStore.js'
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 const PORT = Number(process.env.PORT || 3000)
@@ -18,6 +19,11 @@ const clients = new ClientsStore(path.join(DATA_DIR, 'clients.json'))
 await clients.load()
 clients.compact()
 await clients.save()
+
+const localProperties = new PropertiesStore(path.join(DATA_DIR, 'properties.json'), path.join(DATA_DIR, 'photos'))
+await localProperties.load()
+for (const [agency, id] of localProperties.compact()) await localProperties.pruneOrphanPhotos(agency, id)
+await localProperties.save()
 
 const app = express()
 app.disable('x-powered-by')
@@ -141,6 +147,72 @@ app.post('/api/clients/sync', requireAuth, async (req, res) => {
   const sinceTs = Number(since) || 0
   res.set('Cache-Control', 'no-store')
   res.json({ serverTime: now, accepted, changes: clients.list(req.agency, sinceTs) })
+})
+
+/**
+ * POST /api/properties/sync  (Bearer token)
+ * Same protocol as clients. Photo binaries are exchanged separately, see below.
+ * The response also lists, per property, which photo ids the server already holds
+ * so the device knows what to upload.
+ */
+app.post('/api/properties/sync', requireAuth, async (req, res) => {
+  const { since, changes } = req.body || {}
+  if (changes !== undefined && !Array.isArray(changes)) return res.status(400).json({ error: 'changes must be an array' })
+  if (Array.isArray(changes) && changes.length > 200) return res.status(400).json({ error: 'Too many changes in one batch' })
+  const now = Date.now()
+  const { accepted, changed } = localProperties.apply(req.agency, changes || [], now)
+  try {
+    await localProperties.save()
+    for (const id of changed) await localProperties.pruneOrphanPhotos(req.agency, id)
+  } catch (err) {
+    console.error('[properties] save failed:', err.message)
+    return res.status(500).json({ error: 'No se pudieron guardar las propiedades en el servidor' })
+  }
+  const stored = {}
+  for (const p of localProperties.list(req.agency)) {
+    if (!p.deleted && p.photos.length) stored[p.id] = await localProperties.storedPhotoIds(req.agency, p.id)
+  }
+  res.set('Cache-Control', 'no-store')
+  res.json({ serverTime: now, accepted, changes: localProperties.list(req.agency, Number(since) || 0), storedPhotos: stored })
+})
+
+const photoParams = (req, res, next) => {
+  const { propertyId, photoId } = req.params
+  if (!/^[A-Za-z0-9_-]{6,64}$/.test(propertyId) || !/^[A-Za-z0-9_-]{6,64}$/.test(photoId)) {
+    return res.status(400).json({ error: 'Invalid id' })
+  }
+  if (!localProperties.hasPhotoRef(req.agency, propertyId, photoId)) {
+    return res.status(404).json({ error: 'La propiedad no referencia esta foto; sincroniza primero' })
+  }
+  next()
+}
+
+/** PUT /api/properties/:propertyId/photos/:photoId  body: image/jpeg binary */
+app.put(
+  '/api/properties/:propertyId/photos/:photoId',
+  requireAuth,
+  photoParams,
+  express.raw({ type: ['image/jpeg', 'image/png', 'image/webp', 'application/octet-stream'], limit: MAX_PHOTO_BYTES }),
+  async (req, res) => {
+    if (!Buffer.isBuffer(req.body) || req.body.length === 0) return res.status(400).json({ error: 'Empty photo' })
+    try {
+      await localProperties.savePhoto(req.agency, req.params.propertyId, req.params.photoId, req.body)
+      res.json({ ok: true, size: req.body.length })
+    } catch (err) {
+      console.error('[photos] save failed:', err.message)
+      res.status(500).json({ error: 'No se pudo guardar la foto' })
+    }
+  },
+)
+
+/** GET /api/properties/:propertyId/photos/:photoId → image/jpeg */
+app.get('/api/properties/:propertyId/photos/:photoId', requireAuth, photoParams, async (req, res) => {
+  if (!(await localProperties.photoExists(req.agency, req.params.propertyId, req.params.photoId))) {
+    return res.status(404).json({ error: 'Foto todavía no subida' })
+  }
+  res.set('Cache-Control', 'private, max-age=86400')
+  res.type('image/jpeg')
+  res.sendFile(localProperties.photoPath(req.agency, req.params.propertyId, req.params.photoId))
 })
 
 app.get('/api/clients', requireAuth, (req, res) => {
