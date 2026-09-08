@@ -23,7 +23,7 @@ const LANGUAGES = [
   { value: 7, label: 'Nederlands' },
   { value: 8, label: 'Русский' },
 ]
-const form = ref({ name: auth.agency?.name || '', numagencia: auth.agency?.numagencia || '', apiwebPassword: '', restToken: '', idioma: auth.agency?.idioma || 1 })
+const form = ref({ name: auth.agency?.name || '', numagencia: auth.agency?.numagencia || '', apiwebPassword: '', restToken: '', anthropicKey: '', idioma: auth.agency?.idioma || 1 })
 const info = ref(null)
 const show = ref(false)
 const saving = ref(false)
@@ -49,10 +49,12 @@ async function submit() {
       numagencia: form.value.numagencia,
       apiwebPassword: form.value.apiwebPassword || undefined,
       restToken: form.value.restToken || undefined,
+      anthropicKey: form.value.anthropicKey || undefined,
       idioma: form.value.idioma,
     })
     form.value.apiwebPassword = ''
     form.value.restToken = ''
+    form.value.anthropicKey = ''
     notifications.notify(t('keys.saved'), { kind: 'success' })
     usePropertiesStore().reset()
     useEnumsStore().warm()
@@ -86,13 +88,18 @@ async function submit() {
         <input id="rest" v-model.trim="form.restToken" :type="show ? 'text' : 'password'" autocomplete="off" :placeholder="info?.hasRest ? t('keys.keep') : ''" />
         <small class="muted">{{ t('keys.restHint') }}</small>
       </div>
+      <div class="field">
+        <label for="anthropic">{{ t('keys.anthropic') }} <span class="state" :class="{ ok: info?.hasAnthropic }">{{ info?.hasAnthropic ? t('keys.configured') : t('keys.notConfigured') }}</span></label>
+        <input id="anthropic" v-model.trim="form.anthropicKey" :type="show ? 'text' : 'password'" autocomplete="off" :placeholder="info?.hasAnthropic ? t('keys.keep') : 'sk-ant-…'" />
+        <small class="muted">{{ t('keys.anthropicHint') }}</small>
+      </div>
       <label class="show"><input v-model="show" type="checkbox" /> {{ t('common.show') }}</label>
       <div class="field">
         <label for="lang">{{ t('keys.dataLanguage') }}</label>
         <select id="lang" v-model.number="form.idioma"><option v-for="l in LANGUAGES" :key="l.value" :value="l.value">{{ l.label }}</option></select>
       </div>
       <p v-if="error" class="alert">{{ error }}</p>
-      <button type="submit" class="btn" :disabled="saving || !form.numagencia">{{ saving ? t('auth.checking') : t('keys.verifyAndSave') }}</button>
+      <button type="submit" class="btn" :disabled="saving || (!form.numagencia && !form.anthropicKey)">{{ saving ? t('auth.checking') : t('keys.verifyAndSave') }}</button>
     </form>
   </section>
 </template>

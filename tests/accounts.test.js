@@ -13,7 +13,10 @@ beforeAll(async () => {
   accounts = await import('../server/accounts.js')
   db.openDb(dir)
   const app = express()
-  app.use('/api/account', accounts.createAccountsRouter({ verifyInmovillaKeys: async (c) => { if (c.restToken !== 'good') throw Object.assign(new Error('bad key'), { status: 401 }) } }))
+  app.use('/api/account', accounts.createAccountsRouter({
+    verifyInmovillaKeys: async (c) => { if (c.restToken !== 'good') throw Object.assign(new Error('bad key'), { status: 401 }) },
+    verifyAnthropicKey: async (k) => { if (!k.startsWith('sk-ant-')) throw Object.assign(new Error('bad anthropic key'), { status: 401 }) },
+  }))
   await new Promise((r) => (server = app.listen(0, r)))
   base = `http://localhost:${server.address().port}/api/account`
 })
@@ -57,11 +60,25 @@ describe('accounts API', () => {
     expect(bad.status).toBe(401)
     const ok = await call('/agency', { method: 'PUT', body: JSON.stringify({ numagencia: '1234', apiwebPassword: 'demo', restToken: 'good', idioma: 4 }) }, adminToken)
     expect(ok.status).toBe(200)
-    expect(ok.body.agency).toMatchObject({ hasKeys: true, numagencia: '1234', idioma: 4 })
+    expect(ok.body.agency).toMatchObject({ hasKeys: true, numagencia: '1234', idioma: 4, hasAnthropic: false })
     expect(JSON.stringify(ok.body)).not.toContain('good')
     const creds = db.agencyCredentials(ok.body.agency.id)
     expect(creds).toMatchObject({ numagencia: '1234', password: 'demo', restToken: 'good', idioma: 4 })
     expect(db.getAgency(ok.body.agency.id).rest_token).not.toContain('good') // encrypted at rest
+  })
+  it('stores the Anthropic key encrypted, verified, admin only, and can remove it', async () => {
+    const bad = await call('/agency', { method: 'PUT', body: JSON.stringify({ anthropicKey: 'nope' }) }, adminToken)
+    expect(bad.status).toBe(401)
+    const ok = await call('/agency', { method: 'PUT', body: JSON.stringify({ anthropicKey: 'sk-ant-secret' }) }, adminToken)
+    expect(ok.status).toBe(200)
+    expect(ok.body.agency).toMatchObject({ hasAnthropic: true, hasKeys: true })
+    expect(JSON.stringify(ok.body)).not.toContain('sk-ant-secret')
+    expect(db.agencyCredentials(ok.body.agency.id).anthropicKey).toBe('sk-ant-secret')
+    expect(db.getAgency(ok.body.agency.id).anthropic_key).not.toContain('sk-ant')
+    expect((await call('/me', {}, adminToken)).body.agency.hasAnthropic).toBe(true)
+    const removed = await call('/agency', { method: 'PUT', body: JSON.stringify({ anthropicKey: null }) }, adminToken)
+    expect(removed.body.agency.hasAnthropic).toBe(false)
+    expect(db.agencyCredentials(ok.body.agency.id).restToken).toBe('good') // other keys untouched
   })
   it('manages users with roles and protects the last admin', async () => {
     const created = await call('/users', { method: 'POST', body: JSON.stringify({ name: 'Bea', email: 'bea@demo.com', password: 'password2', role: 'agent' }) }, adminToken)

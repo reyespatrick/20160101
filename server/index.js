@@ -4,6 +4,7 @@
  *  - /api/account/*        accounts: agency setup, login, profile, Inmovilla keys (admin), users (admin)
  *  - POST /api/inmovilla   relays apiweb queries (read) with the agency's keys, for logged-in users
  *  - ANY  /api/rest/*      relays Inmovilla REST v1 (write) with the agency's token; roles enforced
+ *  - POST /api/estimate    values a property with Claude (agency's Anthropic key, admin-managed); write roles only
  *  - PUT  /api/photos      hosts a listing photo (public URL for Inmovilla to download); write roles only
  *  - GET  /photos/:id.jpg  serves it
  *  - serves the built PWA
@@ -19,6 +20,7 @@ import { fileURLToPath } from 'node:url'
 import { createAccountsRouter } from './accounts.js'
 import { canDelete, canWrite, requireUser } from './auth.js'
 import * as db from './db.js'
+import { estimateProperty, verifyAnthropicKey } from './estimate.js'
 import { buildFormBody, normalizeRequest, parseApiResponse } from './inmovilla.js'
 import { mockResponse } from './mock.js'
 import { createMockRest } from './mockRest.js'
@@ -101,7 +103,10 @@ async function verifyInmovillaKeys(creds) {
   if (r.status === 401 || r.status === 403) throw Object.assign(new Error('Inmovilla rechazó la clave de la API REST'), { status: 401 })
 }
 
-app.use('/api/account', createAccountsRouter({ verifyInmovillaKeys }))
+/** Mock mode accepts any Anthropic key (the estimate itself is simulated); otherwise the key must list models. */
+const checkAnthropicKey = MOCK ? async () => {} : verifyAnthropicKey
+
+app.use('/api/account', createAccountsRouter({ verifyInmovillaKeys, verifyAnthropicKey: checkAnthropicKey }))
 
 /** Loads the agency's Inmovilla credentials or answers 409 when the admin has not set them. */
 function requireKeys(req, res, next) {
@@ -145,6 +150,24 @@ app.use('/api/rest', requireUser, requireKeys, express.raw({ type: () => true, l
     res.status(r.status).set('Cache-Control', 'no-store').type(r.type).send(r.body)
   } catch (err) {
     res.status(err.status || 502).json({ error: err.message })
+  }
+})
+
+// ---------------------------------------------------------------------------
+// Valuation with Claude — write roles only, needs the agency's Anthropic key
+// ---------------------------------------------------------------------------
+app.post('/api/estimate', requireUser, requireKeys, express.json({ limit: '256kb' }), async (req, res) => {
+  if (!canWrite(req.user.role)) return res.status(403).json({ error: 'Tu cuenta es de solo lectura', code: 'role' })
+  if (!req.creds.anthropicKey) return res.status(409).json({ error: 'La agencia aún no tiene configurada la clave de Anthropic', code: 'anthropic' })
+  const { property, locale } = req.body || {}
+  if (!property || typeof property !== 'object') return res.status(400).json({ error: 'Falta la propiedad' })
+  res.set('Cache-Control', 'no-store')
+  try {
+    const query = (creds, requests) => apiwebQuery(creds, requests.map(normalizeRequest), req.ip)
+    res.json(await estimateProperty({ apiwebQuery: query, creds: req.creds, input: property, locale: ['es', 'fr', 'en'].includes(locale) ? locale : 'es', mock: MOCK }))
+  } catch (err) {
+    console.error('[estimate]', err.message)
+    res.status(err.status || 502).json({ error: err.message || 'La valoración ha fallado', code: err.code })
   }
 })
 

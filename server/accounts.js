@@ -8,7 +8,7 @@ import * as db from './db.js'
 const SIGNUP_CODE = process.env.SIGNUP_CODE || ''
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
 
-export function createAccountsRouter({ verifyInmovillaKeys }) {
+export function createAccountsRouter({ verifyInmovillaKeys, verifyAnthropicKey = async () => {} }) {
   const router = express.Router()
   router.use(express.json({ limit: '64kb' }))
 
@@ -20,7 +20,7 @@ export function createAccountsRouter({ verifyInmovillaKeys }) {
   }
   const sessionPayload = (user) => {
     const agency = db.getAgency(user.agency_id)
-    return { ...signSession(user), user: db.publicUser(user), agency: { id: agency.id, name: agency.name, numagencia: agency.numagencia, idioma: agency.idioma, hasKeys: agency.hasKeys } }
+    return { ...signSession(user), user: db.publicUser(user), agency: { id: agency.id, name: agency.name, numagencia: agency.numagencia, idioma: agency.idioma, hasKeys: agency.hasKeys, hasAnthropic: agency.hasAnthropic } }
   }
 
   /** Whether the server still has no users (first start). */
@@ -65,11 +65,9 @@ export function createAccountsRouter({ verifyInmovillaKeys }) {
     res.json({ user: db.publicUser(user) })
   })
 
-  /** Agency settings (admin): name, Inmovilla keys. Keys are verified against Inmovilla before being saved. */
-  router.get('/agency', requireUser, (req, res) => {
-    const a = db.getAgency(req.user.agency_id)
-    res.json({ agency: { id: a.id, name: a.name, numagencia: a.numagencia, idioma: a.idioma, hasKeys: a.hasKeys, hasApiweb: Boolean(a.apiweb_password), hasRest: Boolean(a.rest_token) } })
-  })
+  /** Agency settings (admin): name, Inmovilla keys, Anthropic key. Keys are verified against their provider before being saved. */
+  const agencyView = (a) => ({ id: a.id, name: a.name, numagencia: a.numagencia, idioma: a.idioma, hasKeys: a.hasKeys, hasApiweb: Boolean(a.apiweb_password), hasRest: Boolean(a.rest_token), hasAnthropic: a.hasAnthropic })
+  router.get('/agency', requireUser, (req, res) => res.json({ agency: agencyView(db.getAgency(req.user.agency_id)) }))
   router.put('/agency', requireUser, requireRole('admin'), async (req, res) => {
     const b = req.body || {}
     const current = db.agencyCredentials(req.user.agency_id)
@@ -87,10 +85,19 @@ export function createAccountsRouter({ verifyInmovillaKeys }) {
         return bad(res, err.message || 'Inmovilla rechazó las claves', err.status === 401 || err.status === 403 ? 401 : 502)
       }
     }
-    db.setAgencyKeys(req.user.agency_id, { numagencia: candidate.numagencia, apiwebPassword: b.apiwebPassword, restToken: b.restToken, idioma: candidate.idioma })
+    let anthropicKey
+    if (b.anthropicKey === null || b.anthropicKey === '') anthropicKey = b.anthropicKey === null ? null : undefined
+    else if (b.anthropicKey) {
+      anthropicKey = String(b.anthropicKey).trim()
+      try {
+        await verifyAnthropicKey(anthropicKey)
+      } catch (err) {
+        return bad(res, err.message || 'Anthropic rechazó la clave', err.status === 401 ? 401 : 502)
+      }
+    }
+    db.setAgencyKeys(req.user.agency_id, { numagencia: candidate.numagencia, apiwebPassword: b.apiwebPassword, restToken: b.restToken, anthropicKey, idioma: candidate.idioma })
     if (b.name) db.updateAgency(req.user.agency_id, { name: String(b.name).trim() })
-    const a = db.getAgency(req.user.agency_id)
-    res.json({ agency: { id: a.id, name: a.name, numagencia: a.numagencia, idioma: a.idioma, hasKeys: a.hasKeys, hasApiweb: Boolean(a.apiweb_password), hasRest: Boolean(a.rest_token) } })
+    res.json({ agency: agencyView(db.getAgency(req.user.agency_id)) })
   })
 
   /** Users of the agency (admin). */

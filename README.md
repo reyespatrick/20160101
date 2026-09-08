@@ -51,21 +51,34 @@ Inmovilla has to download.
   resized photo to `PUT /api/photos` (token checked against Inmovilla, cached one hour) and receives a public
   URL under `/photos/<random>.jpg`, which is what gets sent in the listing. Files are purged after
   `PHOTO_TTL_DAYS`. `PUBLIC_URL` must be the address Inmovilla can reach.
-- **Accounts.** Users sign in with email + password (`/api/account/*`). The agency's Inmovilla keys are set once
-  by an administrator in the profile, verified against Inmovilla, encrypted with `APP_SECRET` and stored in
-  `DATA_DIR/immoba.sqlite` (SQLite through `node:sqlite`, no native dependency). The relay injects them; the
-  phone only knows whether they exist.
+- **Accounts.** Users sign in with email + password (`/api/account/*`). The agency's Inmovilla keys and its
+  Anthropic key are set once by an administrator in the profile, verified against their provider, encrypted
+  with `APP_SECRET` and stored in `DATA_DIR/immoba.sqlite` (SQLite through `node:sqlite`, no native
+  dependency). The relay injects them; the phone only knows whether they exist.
+- **Valuations.** `POST /api/estimate` gathers comparables through apiweb, computes peer statistics and asks
+  Claude for a structured estimate with the agency's Anthropic key (see *Valuation module*).
 - **Offline**: every edit is written to IndexedDB first and flagged as pending; when online the app replays
   the outbox against Inmovilla. Cards and detail screens show each record's state: pending, "En Inmovilla",
   or the error Inmovilla returned. A 408 (rate limit) pauses the outbox for a minute and retries.
 
+#### What is stored where
+
+| Data | Where | How |
+| --- | --- | --- |
+| Users: email, name, role, active flag | `DATA_DIR/immoba.sqlite`, table `users` | plain columns; passwords as **scrypt** hashes with a random salt (never recoverable) |
+| Agency: name, agency number, apiweb key, REST token, Anthropic key | `DATA_DIR/immoba.sqlite`, table `agencies` | keys **AES-256-GCM encrypted** with a key derived from `APP_SECRET` (or `DATA_DIR/secret.key`) |
+| Session | phone `localStorage` (`immoba.session`) | HMAC-signed token (30 days) + public user/agency info (role, `hasKeys`, `hasAnthropic`); never a key |
+| Business data (listings, clients, owners, follow-ups) | Inmovilla | the phone keeps an IndexedDB cache + outbox |
+| Photos waiting for Inmovilla | `PHOTOS_DIR` | purged after `PHOTO_TTL_DAYS` |
+| Last valuations | phone `localStorage` (`immoba.estimates`) | so the page reopens instantly, even offline |
+
 #### Roles
 
-| Role | Inmovilla reads | Create / edit | Delete | Keys & users |
-| --- | --- | --- | --- | --- |
-| `admin` | yes | yes | yes | yes |
-| `agent` | yes | yes | no (`DELETE` refused by the relay) | no |
-| `readonly` | yes | no (any non-GET refused, photo upload refused) | no | no |
+| Role | Inmovilla reads | Create / edit | Delete | Valuations | Keys & users |
+| --- | --- | --- | --- | --- | --- |
+| `admin` | yes | yes | yes | yes | yes |
+| `agent` | yes | yes | no (`DELETE` refused by the relay) | yes | no |
+| `readonly` | yes | no (any non-GET refused, photo upload refused) | no | no | no |
 
 The relay checks the session on every call (`Authorization: Bearer`), reloads the user from the database so a
 deactivation or a role change applies immediately, and answers `401 code=session`, `403 code=role` or
@@ -143,6 +156,29 @@ Whitelist the server's public IP in Inmovilla if the agency's account restricts 
 3. A listing already in Inmovilla links to its published ficha in the Inmovilla tab and appears in the normal
    listing.
 
+## Valuation module (Claude)
+
+Every property (Inmovilla ficha or listing created in the app) has an **Estimar valor** button for `admin`
+and `agent` users. It needs an **Anthropic API key**, added by an administrator in *Perfil › Claves* next to
+the Inmovilla keys (verified with a free `models.list` call, encrypted at rest, billed to the agency's account).
+
+`POST /api/estimate` (`server/estimate.js`):
+
+1. the phone sends the normalised property (`src/utils/estimateInput.js`: price, type, city, surfaces, extras,
+   description…);
+2. the relay fetches **comparables** through apiweb: same operation and type in the same city, or across the
+   agency when the city has fewer than 5; computes price-per-m² statistics (min, quartiles, median, max, the
+   property's percentile);
+3. Claude (`claude-opus-5`, structured output validated with zod, server-side refusal fallbacks) returns the
+   estimated value, a range, confidence, verdict, summary, strengths, weaknesses, adjustments and a suggested
+   price, in the user's language.
+
+The result page shows the hero value and range, asking vs recommended price, the €/m² meter, a range chart
+(estimate band + asking / median / recommended markers) and a dot histogram of the comparables with hover
+tooltips and a table view. Chart colours were validated for colour-blind separation and contrast in both
+themes. The last result is cached on the device; *Recalcular* asks again. In `INMOVILLA_MOCK=1` mode any key
+is accepted and the estimate is simulated from the statistics, so the flow works without network.
+
 ## Agenda module
 
 1. Follow-ups are cached in IndexedDB and edited offline; the outbox replays `POST /seguimientos/`.
@@ -200,23 +236,25 @@ and the fake server in `server/mockRest.js` follows the same contract.
 ## Project layout
 
 ```
-server/          index.js (relay: apiweb + REST with the agency keys, roles, photo hosting, static), db.js (SQLite accounts,
-                 encryption, password hashing), auth.js (sessions, roles), accounts.js (setup, login, keys, users),
-                 inmovilla.js (apiweb param builder), mock.js (sample listings), mockRest.js (fake REST)
-src/api/         inmovilla.js (apiweb client), inmovillaRest.js (REST client), inmovillaMapping.js (fields + enums)
+server/          index.js (relay: apiweb + REST with the agency keys, roles, photo hosting, valuations, static), db.js (SQLite
+                 accounts, encryption, password hashing), auth.js (sessions, roles), accounts.js (setup, login, keys, users),
+                 estimate.js (comparables, statistics, Claude structured output, mock), inmovilla.js (apiweb param builder),
+                 mock.js (sample listings), mockRest.js (fake REST)
+src/api/         inmovilla.js (apiweb client), inmovillaRest.js (REST client), inmovillaMapping.js (fields + enums), estimate.js
 src/db/          IndexedDB wrappers: clients cache, listing drafts + photo blobs
 src/models/      Client, property, follow-up and owner models aligned with Inmovilla's fields
 src/sync/        Outbox helpers
 src/utils/       Formatting helpers and on-device image resizing
 src/stores/      Pinia stores: auth (session, role, agency), settings (language, theme), enums, properties (apiweb listing),
-                 localProperties, clients, followUps, owners, notifications
+                 localProperties, clients, followUps, owners, estimates (last valuations), notifications
 src/i18n/        vue-i18n setup and the es / fr / en dictionaries
 src/views/       Login, Setup, Profile, AgencyKeys (admin), Users (admin), Properties, PropertyDetail, LocalPropertyForm,
-                 LocalPropertyDetail, Clients, ClientForm, ClientDetail, FollowUps (list/calendar), FollowUpForm, OwnerForm
+                 LocalPropertyDetail, Estimate (valuation), Clients, ClientForm, ClientDetail, FollowUps (list/calendar),
+                 FollowUpForm, OwnerForm
 src/components/  AppHeader, BottomNav, FilterBar, PropertyCard, LocalPropertyCard, PhotoPicker, CityPicker, ClientCard,
                  ChipGroup, InmovillaState, FollowUpCard, MonthCalendar, PropertyPicker, ClientPicker, OwnerCard,
-                 ErrorBoundary, UpdateBanner, Toasts
-src/utils/       format, image (resize), calendar (.ics / Google Calendar)
+                 ErrorBoundary, UpdateBanner, Toasts, charts/ (ValueRangeChart, PeerDistributionChart — plain SVG)
+src/utils/       format, image (resize), calendar (.ics / Google Calendar), estimateInput (property → valuation payload)
 ```
 
 ## Branding

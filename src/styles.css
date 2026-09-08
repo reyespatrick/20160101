@@ -16,6 +16,9 @@
   --radius: 14px;
   --shadow: 0 2px 10px rgba(30, 33, 100, 0.08);
   --nav-height: 64px;
+  --chart-peer: #2a78d6;
+  --chart-asking: #eb6834;
+  --chart-estimate: #4a3aa7;
   color-scheme: light;
 }
 :root[data-theme='dark'] {
@@ -34,6 +37,9 @@
   --ok-bg: #1f3324;
   --danger-bg: #3a2320;
   --shadow: 0 2px 12px rgba(0, 0, 0, 0.35);
+  --chart-peer: #3987e5;
+  --chart-asking: #d95926;
+  --chart-estimate: #9085e9;
   color-scheme: dark;
 }
 :root[data-theme='dark'] .btn { color: #12131f; }

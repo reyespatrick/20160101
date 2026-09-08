@@ -9,6 +9,7 @@ const routes = [
   { path: '/perfil/usuarios', name: 'users', component: () => import('../views/UsersView.vue'), meta: { admin: true } },
   { path: '/', name: 'properties', component: () => import('../views/PropertiesView.vue') },
   { path: '/propiedad/:codOfer', name: 'property', component: () => import('../views/PropertyDetailView.vue'), props: true },
+  { path: '/valoracion/:source(inmovilla|local)/:id', name: 'estimate', meta: { write: true }, component: () => import('../views/EstimateView.vue'), props: true },
   { path: '/mis-propiedades/nueva', name: 'local-property-new', meta: { write: true }, component: () => import('../views/LocalPropertyFormView.vue') },
   { path: '/mis-propiedades/:id', name: 'local-property', component: () => import('../views/LocalPropertyDetailView.vue'), props: true },
   { path: '/mis-propiedades/:id/editar', name: 'local-property-edit', meta: { write: true }, component: () => import('../views/LocalPropertyFormView.vue'), props: true },

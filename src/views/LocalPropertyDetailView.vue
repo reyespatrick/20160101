@@ -113,6 +113,10 @@ async function reactivate() {
         <span v-if="pendingPhotos" class="pending-photos">· {{ t('props.detail.photosToUpload', pendingPhotos) }}</span>
         <span>· {{ t('props.form.complete', { n: completeness(p) }) }}</span>
       </p>
+      <div v-if="auth.canWrite && (Number(p.operation) === 2 ? p.priceRent : p.price)" class="estimate-cta">
+        <RouterLink v-if="auth.hasAnthropic" :to="{ name: 'estimate', params: { source: 'local', id } }" class="btn">✦ {{ t('estimate.button') }}</RouterLink>
+        <RouterLink v-else-if="auth.isAdmin" :to="{ name: 'agency-keys' }" class="btn btn-ghost">✦ {{ t('estimate.buttonSetup') }}</RouterLink>
+      </div>
       <p v-if="p.syncError" class="alert">{{ t('props.detail.rejected', { msg: p.syncError }) }}</p>
       <p v-else-if="p.status === 'unavailable'" class="alert alert-info">
         {{ t('props.detail.unavailable') }} <button v-if="auth.canWrite" type="button" class="link" @click="reactivate">{{ t('props.detail.reactivate') }}</button>
@@ -192,6 +196,8 @@ async function reactivate() {
 .head h1 { margin: 0 0 0.2rem; font-size: 1.4rem; }
 .head p { margin: 0; }
 .price { font-size: 1.5rem; font-weight: 800; color: var(--brand); white-space: nowrap; }
+.estimate-cta { margin: 0 0 0.85rem; }
+.estimate-cta .btn { width: 100%; }
 .sync { display: flex; flex-wrap: wrap; align-items: center; gap: 0.45rem; font-size: 0.82rem; margin: 0.25rem 0 1rem; }
 .pending-photos { color: var(--accent); font-weight: 600; }
 .link { border: 0; background: none; color: var(--brand); font-weight: 600; padding: 0; text-decoration: underline; font-size: inherit; }

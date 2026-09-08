@@ -116,6 +116,11 @@ onMounted(async () => {
         <li v-if="surfaceOf(p)"><strong>{{ surfaceOf(p) }}</strong></li>
       </ul>
 
+      <div v-if="auth.canWrite" class="estimate-cta">
+        <RouterLink v-if="auth.hasAnthropic" :to="{ name: 'estimate', params: { source: 'inmovilla', id: codOfer } }" class="btn">✦ {{ t('estimate.button') }}</RouterLink>
+        <RouterLink v-else-if="auth.isAdmin" :to="{ name: 'agency-keys' }" class="btn btn-ghost">✦ {{ t('estimate.buttonSetup') }}</RouterLink>
+      </div>
+
       <div v-if="loading" class="spinner" :aria-label="t('common.loading')"></div>
 
       <article v-if="description" class="block">
@@ -178,6 +183,8 @@ onMounted(async () => {
 .head p { margin: 0; }
 .price { font-size: 1.5rem; font-weight: 800; color: var(--brand); white-space: nowrap; }
 .quick { display: flex; gap: 1.25rem; list-style: none; padding: 0; margin: 0.5rem 0 1rem; color: var(--muted); }
+.estimate-cta { margin: 0 0 1rem; }
+.estimate-cta .btn { width: 100%; }
 .block { background: var(--surface); border-radius: var(--radius); box-shadow: var(--shadow); padding: 1rem 1.25rem; margin-bottom: 1rem; }
 .block h2 { margin: 0 0 0.75rem; font-size: 1.05rem; }
 .description { white-space: pre-line; margin: 0; line-height: 1.55; }

@@ -36,6 +36,7 @@ export const useAuthStore = defineStore('auth', {
     canWrite: (s) => s.user?.role === 'admin' || s.user?.role === 'agent',
     canDelete: (s) => s.user?.role === 'admin',
     hasKeys: (s) => Boolean(s.agency?.hasKeys),
+    hasAnthropic: (s) => Boolean(s.agency?.hasAnthropic),
     numagencia: (s) => s.agency?.numagencia || (s.agency ? `agency-${s.agency.id}` : ''),
     idioma: (s) => s.agency?.idioma || 1,
   },

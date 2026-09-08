@@ -43,8 +43,15 @@ export function openDb(dataDir) {
     );
     CREATE INDEX IF NOT EXISTS users_agency ON users(agency_id);
   `)
+  migrate()
   secretKey = loadSecret(dataDir)
   return db
+}
+
+/** Columns added after the first release (SQLite has no IF NOT EXISTS for columns). */
+function migrate() {
+  const cols = new Set(db.prepare('PRAGMA table_info(agencies)').all().map((c) => c.name))
+  if (!cols.has('anthropic_key')) db.exec("ALTER TABLE agencies ADD COLUMN anthropic_key TEXT NOT NULL DEFAULT ''")
 }
 
 /** Encryption key: APP_SECRET, or a generated secret persisted in DATA_DIR so restarts keep decrypting. */
@@ -104,21 +111,23 @@ export function createAgency({ name }) {
 }
 export function getAgency(id) {
   const row = db.prepare('SELECT * FROM agencies WHERE id = ?').get(id)
-  return row ? { ...row, hasKeys: Boolean(row.numagencia && row.apiweb_password && row.rest_token) } : null
+  return row ? { ...row, hasKeys: Boolean(row.numagencia && row.apiweb_password && row.rest_token), hasAnthropic: Boolean(row.anthropic_key) } : null
 }
 /** Decrypted Inmovilla credentials of an agency (server side only). */
 export function agencyCredentials(id) {
   const a = getAgency(id)
   if (!a) return null
-  return { numagencia: a.numagencia, password: decrypt(a.apiweb_password), restToken: decrypt(a.rest_token), idioma: a.idioma || 1 }
+  return { numagencia: a.numagencia, password: decrypt(a.apiweb_password), restToken: decrypt(a.rest_token), anthropicKey: decrypt(a.anthropic_key), idioma: a.idioma || 1 }
 }
-export function setAgencyKeys(id, { numagencia, apiwebPassword, restToken, idioma }) {
+/** Any key left undefined/empty is kept; anthropicKey === null removes it. */
+export function setAgencyKeys(id, { numagencia, apiwebPassword, restToken, anthropicKey, idioma }) {
   const a = getAgency(id)
   if (!a) return null
-  db.prepare('UPDATE agencies SET numagencia = ?, apiweb_password = ?, rest_token = ?, idioma = ? WHERE id = ?').run(
+  db.prepare('UPDATE agencies SET numagencia = ?, apiweb_password = ?, rest_token = ?, anthropic_key = ?, idioma = ? WHERE id = ?').run(
     numagencia !== undefined ? String(numagencia).trim() : a.numagencia,
     apiwebPassword ? encrypt(apiwebPassword) : a.apiweb_password,
     restToken ? encrypt(restToken) : a.rest_token,
+    anthropicKey === null ? '' : anthropicKey ? encrypt(anthropicKey) : a.anthropic_key,
     Number(idioma) || a.idioma || 1,
     id,
   )

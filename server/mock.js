@@ -23,7 +23,10 @@ export const TYPES = [
 function rng(seed) {
   let s = seed % 2147483647
   if (s <= 0) s += 2147483646
-  return () => (s = (s * 16807) % 2147483647) / 2147483647
+  const next = () => (s = (s * 16807) % 2147483647) / 2147483647
+  // the first draws of a small seed are tiny: discard them so types/cities spread out
+  for (let k = 0; k < 4; k++) next()
+  return next
 }
 
 function makeProperty(i) {
@@ -146,6 +149,8 @@ function applyWhere(list, where) {
     const q = like[1].toLowerCase()
     out = out.filter((p) => p.ref.toLowerCase().includes(q) || p.ciudad.toLowerCase().includes(q))
   }
+  const city = where.match(/ciudad\s*=\s*'([^']+)'/i)
+  if (city) out = out.filter((p) => p.ciudad.toLowerCase() === city[1].toLowerCase())
   const cod = where.match(/cod_ofer\s*=\s*(\d+)/)
   if (cod) out = out.filter((p) => p.cod_ofer === Number(cod[1]))
   const ref = where.match(/(?:^|\s|\()ref\s*=\s*'([^']+)'/)
