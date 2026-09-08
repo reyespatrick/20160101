@@ -56,6 +56,11 @@ export function createData(env, client = createSupabase(env)) {
     async getAgency(id) {
       return agencyView(await client.select('agencies', { eq: { id }, single: true }))
     },
+    /** Another tenant already using this Inmovilla account, if any. */
+    async agencyByNumagencia(numagencia) {
+      const rows = await client.select('agencies', { eq: { numagencia: String(numagencia).trim() } })
+      return rows.map(agencyView)
+    },
     /** Decrypted Inmovilla + Anthropic credentials. Server side only. */
     async agencyCredentials(id) {
       const row = await client.select('agencies', { eq: { id }, single: true })

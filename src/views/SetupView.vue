@@ -7,7 +7,7 @@ import { useAuthStore } from '../stores/auth'
 const { t } = useI18n()
 const auth = useAuthStore()
 const router = useRouter()
-const form = ref({ agencyName: '', name: '', email: '', password: '', signupCode: '' })
+const form = ref({ name: '', email: '', password: '', signupCode: '' })
 const needsCode = ref(false)
 const loading = ref(false)
 const error = ref('')
@@ -38,7 +38,6 @@ async function submit() {
       <h1>{{ t('auth.setupTitle') }}</h1>
       <p class="muted">{{ t('auth.setupIntro') }}</p>
       <form @submit.prevent="submit">
-        <div class="field"><label for="agency">{{ t('auth.agencyName') }}</label><input id="agency" v-model.trim="form.agencyName" required /></div>
         <div class="field"><label for="name">{{ t('auth.yourName') }}</label><input id="name" v-model.trim="form.name" autocomplete="name" /></div>
         <div class="field"><label for="email">{{ t('auth.email') }}</label><input id="email" v-model.trim="form.email" type="email" autocomplete="username" required /></div>
         <div class="field">
@@ -47,7 +46,7 @@ async function submit() {
         </div>
         <div v-if="needsCode" class="field"><label for="code">{{ t('auth.signupCode') }}</label><input id="code" v-model.trim="form.signupCode" required /></div>
         <p v-if="error" class="alert" role="alert">{{ error }}</p>
-        <button class="btn submit" type="submit" :disabled="loading || !form.agencyName || !form.email || form.password.length < 8">{{ loading ? t('common.saving') : t('auth.create') }}</button>
+        <button class="btn submit" type="submit" :disabled="loading || !form.email || form.password.length < 8">{{ loading ? t('common.saving') : t('auth.create') }}</button>
       </form>
       <p class="alt"><RouterLink :to="{ name: 'login' }">{{ t('auth.haveAccount') }}</RouterLink></p>
     </div>

@@ -147,6 +147,10 @@ export function updateAgency(id, { name, idioma }) {
   db.prepare('UPDATE agencies SET name = COALESCE(?, name), idioma = COALESCE(?, idioma) WHERE id = ?').run(name ?? null, idioma ?? null, id)
   return getAgency(id)
 }
+/** Other tenants already using this Inmovilla account. */
+export function agenciesByNumagencia(numagencia) {
+  return db.prepare('SELECT * FROM agencies WHERE numagencia = ?').all(String(numagencia).trim())
+}
 export function countUsers() {
   return db.prepare('SELECT COUNT(*) AS n FROM users').get().n
 }

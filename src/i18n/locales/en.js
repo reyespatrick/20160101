@@ -47,6 +47,7 @@ export default {
     title: 'Inmovilla keys', intro: 'They are stored encrypted on the server and never sent to phones. Inmovilla checks them before they are saved.',
     numagencia: 'Agency number', apiweb: 'Web key (apiweb) · listing', rest: 'REST API key · writing', restHint: 'Inmovilla › Ajustes › Opciones › Token para API Rest',
     numagenciaHint: 'The full Inmovilla USUARIO_API. It may carry a suffix, for example 123_244_ext.',
+    fromInmovilla: 'as Inmovilla spells it',
     keep: 'Leave blank to keep the current one', dataLanguage: 'Data language', configured: 'Configured', notConfigured: 'Not configured', verifyAndSave: 'Verify and save',
     saved: 'Keys verified and saved', agencyName: 'Agency name',
     anthropic: 'Anthropic API key · valuations with Claude', anthropicHint: 'console.anthropic.com › API keys. Needed for the “Estimate value” button. Billed to the agency’s account.',

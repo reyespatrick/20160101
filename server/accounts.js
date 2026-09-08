@@ -33,11 +33,11 @@ export function createAccountsRouter({ verifyInmovillaKeys, verifyAnthropicKey =
     const b = req.body || {}
     const first = db.countUsers() === 0
     if (!first && SIGNUP_CODE && b.signupCode !== SIGNUP_CODE) return bad(res, 'Código de alta incorrecto', 403)
-    if (!String(b.agencyName || '').trim()) return bad(res, 'Indica el nombre de la agencia')
     const err = validAccount(b)
     if (err) return bad(res, err)
     if (db.getUserByEmail(b.email)) return bad(res, 'Ya existe una cuenta con ese email', 409)
-    const agency = db.createAgency({ name: b.agencyName })
+    // Unnamed on purpose: Inmovilla owns the name and it is read from there once the keys are set.
+    const agency = db.createAgency({ name: '' })
     const user = db.createUser({ agencyId: agency.id, email: b.email, name: b.name, password: b.password, role: 'admin' })
     db.touchLogin(user.id)
     res.status(201).json(sessionPayload(user))
@@ -77,10 +77,14 @@ export function createAccountsRouter({ verifyInmovillaKeys, verifyAnthropicKey =
       restToken: b.restToken ? String(b.restToken).trim() : current.restToken,
       idioma: Number(b.idioma) || current.idioma || 1,
     }
+    let discovered = ''
     if (b.numagencia !== undefined || b.apiwebPassword || b.restToken) {
       if (!candidate.numagencia || !candidate.password || !candidate.restToken) return bad(res, 'Faltan el número de agencia, la clave web o la clave REST')
+      if (db.agenciesByNumagencia(candidate.numagencia).some((a) => a.id !== req.user.agency_id)) {
+        return bad(res, 'Otra cuenta de este servidor ya usa esa agencia de Inmovilla', 409)
+      }
       try {
-        await verifyInmovillaKeys(candidate, req.ip)
+        discovered = (await verifyInmovillaKeys(candidate, req.ip))?.agencyName || ''
       } catch (err) {
         return bad(res, err.message || 'Inmovilla rechazó las claves', err.status === 401 || err.status === 403 ? 401 : 502)
       }
@@ -97,7 +101,9 @@ export function createAccountsRouter({ verifyInmovillaKeys, verifyAnthropicKey =
     }
     if (b.readOnly !== undefined) db.setAgencyReadOnly(req.user.agency_id, Boolean(b.readOnly))
     db.setAgencyKeys(req.user.agency_id, { numagencia: candidate.numagencia, apiwebPassword: b.apiwebPassword, restToken: b.restToken, anthropicKey, idioma: candidate.idioma })
-    if (b.name) db.updateAgency(req.user.agency_id, { name: String(b.name).trim() })
+    // Inmovilla is the source of truth for the name; an explicit rename still wins.
+    const name = b.name || discovered
+    if (name) db.updateAgency(req.user.agency_id, { name: String(name).trim() })
     res.json({ agency: agencyView(db.getAgency(req.user.agency_id)) })
   })
 

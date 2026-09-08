@@ -103,9 +103,23 @@ async function restRelay(token, method, urlPath, contentType, body) {
 /** Used when an admin saves keys: both must be accepted by Inmovilla. */
 async function verifyInmovillaKeys(creds, clientIp = '') {
   // apiweb refuses a call that carries no visitor IP, so verification needs it too.
-  await apiwebQuery(creds, [normalizeRequest({ type: 'paginacion', pos: 1, num: 1 })], clientIp)
+  const listing = await apiwebQuery(creds, [normalizeRequest({ type: 'paginacion', pos: 1, num: 1 })], clientIp)
   const r = await restRelay(creds.restToken, 'GET', '/clientes/buscar/?telefono=000000000', null, null)
   if (r.status === 401 || r.status === 403) throw Object.assign(new Error('Inmovilla rechazó la clave de la API REST'), { status: 401 })
+  return { agencyName: await inmovillaAgencyName(creds, listing, clientIp) }
+}
+
+/** The agency's name as Inmovilla spells it. Cosmetic: never blocks saving the keys. */
+async function inmovillaAgencyName(creds, listing, clientIp) {
+  try {
+    const first = Array.isArray(listing?.paginacion) ? listing.paginacion[1] : null
+    if (!first?.cod_ofer) return ''
+    const detail = await apiwebQuery(creds, [normalizeRequest({ type: 'ficha', pos: 1, num: 1, where: `cod_ofer=${Number(first.cod_ofer)}` })], clientIp)
+    const items = Array.isArray(detail?.ficha) ? detail.ficha.slice(1) : []
+    return String(items[0]?.agencia || '').trim().slice(0, 120)
+  } catch {
+    return ''
+  }
 }
 
 /** Mock mode accepts any Anthropic key (the estimate itself is simulated); otherwise the key must list models. */

@@ -23,8 +23,9 @@ const LANGUAGES = [
   { value: 7, label: 'Nederlands' },
   { value: 8, label: 'Русский' },
 ]
-const form = ref({ name: auth.agency?.name || '', numagencia: auth.agency?.numagencia || '', apiwebPassword: '', restToken: '', anthropicKey: '', idioma: auth.agency?.idioma || 1 })
+const form = ref({ numagencia: auth.agency?.numagencia || '', apiwebPassword: '', restToken: '', anthropicKey: '', idioma: auth.agency?.idioma || 1 })
 const info = ref(null)
+const touched = ref({ idioma: false })
 const show = ref(false)
 const saving = ref(false)
 const error = ref('')
@@ -48,9 +49,9 @@ async function toggleLock() {
 onMounted(async () => {
   try {
     info.value = await auth.refreshAgency()
-    form.value.name = info.value.name
-    form.value.numagencia = info.value.numagencia
-    form.value.idioma = info.value.idioma
+    // The refresh can land after the user has started typing: never overwrite their input.
+    if (!form.value.numagencia) form.value.numagencia = info.value.numagencia
+    if (!touched.value.idioma) form.value.idioma = info.value.idioma
   } catch {
     /* offline: show what we know */
   }
@@ -61,7 +62,6 @@ async function submit() {
   saving.value = true
   try {
     info.value = await auth.saveAgencyKeys({
-      name: form.value.name,
       numagencia: form.value.numagencia,
       apiwebPassword: form.value.apiwebPassword || undefined,
       restToken: form.value.restToken || undefined,
@@ -108,7 +108,7 @@ async function submit() {
     </section>
 
     <form class="block form" @submit.prevent="submit">
-      <div class="field"><label for="aname">{{ t('keys.agencyName') }}</label><input id="aname" v-model.trim="form.name" /></div>
+      <p v-if="info?.name" class="agency-name">{{ info.name }} <span class="muted">· {{ t('keys.fromInmovilla') }}</span></p>
       <div class="field">
         <label for="num">{{ t('keys.numagencia') }}</label>
         <input id="num" v-model.trim="form.numagencia" autocapitalize="off" autocorrect="off" spellcheck="false" required />
@@ -131,7 +131,7 @@ async function submit() {
       <label class="show"><input v-model="show" type="checkbox" /> {{ t('common.show') }}</label>
       <div class="field">
         <label for="lang">{{ t('keys.dataLanguage') }}</label>
-        <select id="lang" v-model.number="form.idioma"><option v-for="l in LANGUAGES" :key="l.value" :value="l.value">{{ l.label }}</option></select>
+        <select id="lang" v-model.number="form.idioma" @change="touched.idioma = true"><option v-for="l in LANGUAGES" :key="l.value" :value="l.value">{{ l.label }}</option></select>
       </div>
       <p v-if="error" class="alert">{{ error }}</p>
       <button type="submit" class="btn" :disabled="saving || (!form.numagencia && !form.anthropicKey)">{{ saving ? t('auth.checking') : t('keys.verifyAndSave') }}</button>
@@ -144,6 +144,8 @@ async function submit() {
 .head { display: flex; align-items: center; gap: 0.75rem; margin-bottom: 0.5rem; }
 .head h1 { margin: 0; font-size: 1.35rem; }
 .intro { margin: 0 0 1rem; }
+.agency-name { margin: 0 0 0.4rem; font-weight: 700; font-size: 1.05rem; }
+.agency-name .muted { font-weight: 400; font-size: 0.8rem; }
 .block { background: var(--surface); border-radius: var(--radius); box-shadow: var(--shadow); padding: 1rem 1.2rem; }
 .form { display: flex; flex-direction: column; gap: 0.9rem; }
 .lock { margin-bottom: 1rem; border-left: 4px solid var(--ok); }

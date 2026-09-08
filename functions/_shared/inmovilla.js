@@ -77,7 +77,24 @@ export async function rest(env, token, method, path, contentType, body) {
  * ("NECESITAMOS RECIBIR LA IP"), so verification would always fail otherwise.
  */
 export async function verifyKeys(env, creds, { clientIp = '' } = {}) {
-  await apiweb(env, creds, [{ type: 'paginacion', pos: 1, num: 1 }], { clientIp })
+  const listing = await apiweb(env, creds, [{ type: 'paginacion', pos: 1, num: 1 }], { clientIp })
   const r = await rest(env, creds.restToken, 'GET', '/clientes/buscar/?telefono=000000000', null, null)
   if (r.status === 401 || r.status === 403) throw Object.assign(new Error('Inmovilla rechazó la clave de la API REST'), { status: 401 })
+  return { agencyName: await agencyName(env, creds, listing, { clientIp }) }
+}
+
+/**
+ * The agency's name as Inmovilla spells it, so nobody has to retype what the CRM already knows.
+ * Purely cosmetic: any failure returns an empty string and never blocks saving the keys.
+ */
+async function agencyName(env, creds, listing, { clientIp }) {
+  try {
+    const first = Array.isArray(listing?.paginacion) ? listing.paginacion[1] : null
+    if (!first?.cod_ofer) return ''
+    const detail = await apiweb(env, creds, [{ type: 'ficha', pos: 1, num: 1, where: `cod_ofer=${Number(first.cod_ofer)}` }], { clientIp })
+    const items = Array.isArray(detail?.ficha) ? detail.ficha.slice(1) : []
+    return String(items[0]?.agencia || '').trim().slice(0, 120)
+  } catch {
+    return ''
+  }
 }

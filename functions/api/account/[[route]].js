@@ -36,7 +36,6 @@ export const onRequest = guard(async (context) => {
     const b = await readJson(request)
     const first = (await data.countUsers()) === 0
     if (!first && env.SIGNUP_CODE && b.signupCode !== env.SIGNUP_CODE) return fail('Código de alta incorrecto', 403)
-    if (!String(b.agencyName || '').trim()) return fail('Indica el nombre de la agencia')
     const invalid = validAccount(b)
     if (invalid) return fail(invalid)
 
@@ -49,7 +48,9 @@ export const onRequest = guard(async (context) => {
     // The agency must exist before the profile that references it; roll the account back if it fails.
     let agency
     try {
-      agency = await data.createAgency({ name: b.agencyName })
+      // Unnamed on purpose: Inmovilla owns the agency's name, and it is read from there
+      // as soon as the keys are verified.
+      agency = await data.createAgency({ name: '' })
       await data.createProfile({ id: authUser.id, agencyId: agency.id, email: b.email, name: b.name, role: 'admin' })
     } catch (err) {
       await data.client.auth.deleteUser(authUser.id).catch(() => {})
@@ -99,6 +100,7 @@ export const onRequest = guard(async (context) => {
     if (denied) return denied
     const b = await readJson(request)
     const current = await data.agencyCredentials(agency.id)
+    let discovered = ''
     const candidate = {
       numagencia: b.numagencia !== undefined ? String(b.numagencia).trim() : current.numagencia,
       password: b.apiwebPassword ? String(b.apiwebPassword).trim() : current.password,
@@ -107,10 +109,13 @@ export const onRequest = guard(async (context) => {
     }
     if (b.numagencia !== undefined || b.apiwebPassword || b.restToken) {
       if (!candidate.numagencia || !candidate.password || !candidate.restToken) return fail('Faltan el número de agencia, la clave web o la clave REST')
+      const taken = (await data.agencyByNumagencia(candidate.numagencia)).filter((a) => a.id !== agency.id)
+      if (taken.length) return fail('Otra cuenta de este servidor ya usa esa agencia de Inmovilla', 409)
       const clientIp = request.headers.get('cf-connecting-ip') || ''
-      await verifyKeys(env, candidate, { clientIp }).catch((err) => {
+      const verified = await verifyKeys(env, candidate, { clientIp }).catch((err) => {
         throw Object.assign(new Error(err.message || 'Inmovilla rechazó las claves'), { status: err.status === 401 || err.status === 403 ? 401 : 502 })
       })
+      discovered = verified.agencyName
     }
     if (b.readOnly !== undefined) await data.setAgencyReadOnly(agency.id, b.readOnly)
     await data.setAgencyKeys(agency.id, {
@@ -120,7 +125,9 @@ export const onRequest = guard(async (context) => {
       anthropicKey: b.anthropicKey === null ? null : b.anthropicKey || undefined,
       idioma: candidate.idioma,
     })
-    if (b.name) await data.updateAgency(agency.id, { name: b.name })
+    // Inmovilla is the source of truth for the name; an explicit rename still wins.
+    const name = b.name || discovered
+    if (name) await data.updateAgency(agency.id, { name })
     return json({ agency: await data.getAgency(agency.id) })
   }
 
