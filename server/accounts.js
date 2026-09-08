@@ -20,7 +20,7 @@ export function createAccountsRouter({ verifyInmovillaKeys, verifyAnthropicKey =
   }
   const sessionPayload = (user) => {
     const agency = db.getAgency(user.agency_id)
-    return { ...signSession(user), user: db.publicUser(user), agency: { id: agency.id, name: agency.name, numagencia: agency.numagencia, idioma: agency.idioma, hasKeys: agency.hasKeys, hasAnthropic: agency.hasAnthropic } }
+    return { ...signSession(user), user: db.publicUser(user), agency: { id: agency.id, name: agency.name, numagencia: agency.numagencia, idioma: agency.idioma, hasKeys: agency.hasKeys, hasAnthropic: agency.hasAnthropic, readOnly: agency.readOnly } }
   }
 
   /** Whether the server still has no users (first start). */
@@ -66,7 +66,7 @@ export function createAccountsRouter({ verifyInmovillaKeys, verifyAnthropicKey =
   })
 
   /** Agency settings (admin): name, Inmovilla keys, Anthropic key. Keys are verified against their provider before being saved. */
-  const agencyView = (a) => ({ id: a.id, name: a.name, numagencia: a.numagencia, idioma: a.idioma, hasKeys: a.hasKeys, hasApiweb: Boolean(a.apiweb_password), hasRest: Boolean(a.rest_token), hasAnthropic: a.hasAnthropic })
+  const agencyView = (a) => ({ id: a.id, name: a.name, numagencia: a.numagencia, idioma: a.idioma, hasKeys: a.hasKeys, hasApiweb: Boolean(a.apiweb_password), hasRest: Boolean(a.rest_token), hasAnthropic: a.hasAnthropic, readOnly: a.readOnly })
   router.get('/agency', requireUser, (req, res) => res.json({ agency: agencyView(db.getAgency(req.user.agency_id)) }))
   router.put('/agency', requireUser, requireRole('admin'), async (req, res) => {
     const b = req.body || {}
@@ -95,6 +95,7 @@ export function createAccountsRouter({ verifyInmovillaKeys, verifyAnthropicKey =
         return bad(res, err.message || 'Anthropic rechazó la clave', err.status === 401 ? 401 : 502)
       }
     }
+    if (b.readOnly !== undefined) db.setAgencyReadOnly(req.user.agency_id, Boolean(b.readOnly))
     db.setAgencyKeys(req.user.agency_id, { numagencia: candidate.numagencia, apiwebPassword: b.apiwebPassword, restToken: b.restToken, anthropicKey, idioma: candidate.idioma })
     if (b.name) db.updateAgency(req.user.agency_id, { name: String(b.name).trim() })
     res.json({ agency: agencyView(db.getAgency(req.user.agency_id)) })

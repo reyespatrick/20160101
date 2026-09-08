@@ -52,6 +52,8 @@ export function openDb(dataDir) {
 function migrate() {
   const cols = new Set(db.prepare('PRAGMA table_info(agencies)').all().map((c) => c.name))
   if (!cols.has('anthropic_key')) db.exec("ALTER TABLE agencies ADD COLUMN anthropic_key TEXT NOT NULL DEFAULT ''")
+  // Write lock, on by default: existing agencies are locked by the migration too, on purpose.
+  if (!cols.has('read_only')) db.exec('ALTER TABLE agencies ADD COLUMN read_only INTEGER NOT NULL DEFAULT 1')
 }
 
 /** Encryption key: APP_SECRET, or a generated secret persisted in DATA_DIR so restarts keep decrypting. */
@@ -111,7 +113,7 @@ export function createAgency({ name }) {
 }
 export function getAgency(id) {
   const row = db.prepare('SELECT * FROM agencies WHERE id = ?').get(id)
-  return row ? { ...row, hasKeys: Boolean(row.numagencia && row.apiweb_password && row.rest_token), hasAnthropic: Boolean(row.anthropic_key) } : null
+  return row ? { ...row, hasKeys: Boolean(row.numagencia && row.apiweb_password && row.rest_token), hasAnthropic: Boolean(row.anthropic_key), readOnly: row.read_only !== 0 } : null
 }
 /** Decrypted Inmovilla credentials of an agency (server side only). */
 export function agencyCredentials(id) {
@@ -131,6 +133,14 @@ export function setAgencyKeys(id, { numagencia, apiwebPassword, restToken, anthr
     Number(idioma) || a.idioma || 1,
     id,
   )
+  return getAgency(id)
+}
+/**
+ * Agency-wide write lock. While it is on, the relay refuses every call that would create,
+ * modify or delete anything in Inmovilla, whatever the user's role. On for new agencies.
+ */
+export function setAgencyReadOnly(id, readOnly) {
+  db.prepare('UPDATE agencies SET read_only = ? WHERE id = ?').run(readOnly ? 1 : 0, id)
   return getAgency(id)
 }
 export function updateAgency(id, { name, idioma }) {

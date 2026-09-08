@@ -66,11 +66,23 @@ Inmovilla has to download.
 | Data | Where | How |
 | --- | --- | --- |
 | Users: email, name, role, active flag | `DATA_DIR/immoba.sqlite`, table `users` | plain columns; passwords as **scrypt** hashes with a random salt (never recoverable) |
-| Agency: name, agency number, apiweb key, REST token, Anthropic key | `DATA_DIR/immoba.sqlite`, table `agencies` | keys **AES-256-GCM encrypted** with a key derived from `APP_SECRET` (or `DATA_DIR/secret.key`) |
+| Agency: name, agency number, apiweb key, REST token, Anthropic key, write lock | `DATA_DIR/immoba.sqlite`, table `agencies` | keys **AES-256-GCM encrypted** with a key derived from `APP_SECRET` (or `DATA_DIR/secret.key`) |
 | Session | phone `localStorage` (`immoba.session`) | HMAC-signed token (30 days) + public user/agency info (role, `hasKeys`, `hasAnthropic`); never a key |
 | Business data (listings, clients, owners, follow-ups) | Inmovilla | the phone keeps an IndexedDB cache + outbox |
 | Photos waiting for Inmovilla | `PHOTOS_DIR` | purged after `PHOTO_TTL_DAYS` |
 | Last valuations | phone `localStorage` (`immoba.estimates`) | so the page reopens instantly, even offline |
+
+#### Write lock (read-only mode)
+
+Every agency starts **locked**: the relay refuses every call that would create, modify or delete anything in
+Inmovilla (`POST`/`PUT`/`DELETE` on `/api/rest/*`, and photo upload), for **every user including
+administrators**, answering `403 code=locked`. Only an administrator can lift it, in *Perfil › Claves*.
+Reading and valuations keep working, because neither writes to Inmovilla.
+
+The check sits in the relay, before the role checks, and an agency the server cannot resolve counts as
+locked — so a write can never slip through by accident. The app mirrors the state (`auth.writesLocked`):
+while it is on, every create/edit/delete control is hidden, the outbox stops pushing, and a banner says why.
+An old session that predates the flag also counts as locked until it refreshes.
 
 #### Roles
 

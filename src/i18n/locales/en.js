@@ -34,6 +34,15 @@ export default {
     keys: 'Inmovilla keys', users: 'Agency users', changePassword: 'Change password', currentPassword: 'Current password', newPassword: 'New password',
     saved: 'Saved', name: 'Name', role: 'Role', agency: 'Agency', adminOnly: 'Administrators only',
   },
+  lock: {
+    title: 'Read-only mode', bar: 'Read-only mode: nothing will be sent to Inmovilla', manage: 'Manage',
+    onBody: 'Nobody can create, change or delete anything in Inmovilla, whatever their role. Browsing and valuations still work.',
+    offBody: 'Writing to Inmovilla is allowed. Agent and administrator accounts can create and edit listings, clients, follow-ups and owners.',
+    lock: 'Turn on read-only mode', unlock: 'Allow writing to Inmovilla',
+    nowLocked: 'Read-only mode on: nothing will be sent to Inmovilla', nowUnlocked: 'Writing allowed: changes will be sent to Inmovilla',
+    note: 'On by default, and only an administrator can turn it off. The server refuses every write while it is on, even if the app tries.',
+    blocked: 'The agency is in read-only mode: the change is saved on this device but will not be sent to Inmovilla.',
+  },
   keys: {
     title: 'Inmovilla keys', intro: 'They are stored encrypted on the server and never sent to phones. Inmovilla checks them before they are saved.',
     numagencia: 'Agency number', apiweb: 'Web key (apiweb) · listing', rest: 'REST API key · writing', restHint: 'Inmovilla › Ajustes › Opciones › Token para API Rest',

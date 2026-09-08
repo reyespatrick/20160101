@@ -28,6 +28,22 @@ const info = ref(null)
 const show = ref(false)
 const saving = ref(false)
 const error = ref('')
+const unlocking = ref(false)
+const lockError = ref('')
+
+/** The write lock is agency-wide and enforced by the server; the switch only asks it to change. */
+async function toggleLock() {
+  lockError.value = ''
+  unlocking.value = true
+  try {
+    info.value = { ...info.value, ...(await auth.setReadOnly(!auth.writesLocked)) }
+    notifications.notify(auth.writesLocked ? t('lock.nowLocked') : t('lock.nowUnlocked'), { kind: auth.writesLocked ? 'success' : 'info' })
+  } catch (err) {
+    lockError.value = err.message
+  } finally {
+    unlocking.value = false
+  }
+}
 
 onMounted(async () => {
   try {
@@ -76,6 +92,21 @@ async function submit() {
     <p class="muted intro">{{ t('keys.intro') }}</p>
     <p v-if="route.query.first" class="alert alert-info">{{ t('auth.noKeysAdmin') }}</p>
 
+    <section class="block lock" :class="{ on: auth.writesLocked }">
+      <div class="lock-head">
+        <span class="shield" aria-hidden="true">{{ auth.writesLocked ? '🔒' : '🔓' }}</span>
+        <div>
+          <h2>{{ t('lock.title') }}</h2>
+          <p class="muted">{{ auth.writesLocked ? t('lock.onBody') : t('lock.offBody') }}</p>
+        </div>
+      </div>
+      <p v-if="lockError" class="alert">{{ lockError }}</p>
+      <button type="button" class="btn" :class="{ 'btn-ghost': !auth.writesLocked }" :disabled="unlocking" @click="toggleLock">
+        {{ unlocking ? t('common.saving') : auth.writesLocked ? t('lock.unlock') : t('lock.lock') }}
+      </button>
+      <p class="muted note">{{ t('lock.note') }}</p>
+    </section>
+
     <form class="block form" @submit.prevent="submit">
       <div class="field"><label for="aname">{{ t('keys.agencyName') }}</label><input id="aname" v-model.trim="form.name" /></div>
       <div class="field"><label for="num">{{ t('keys.numagencia') }}</label><input id="num" v-model.trim="form.numagencia" inputmode="numeric" required /></div>
@@ -111,6 +142,14 @@ async function submit() {
 .intro { margin: 0 0 1rem; }
 .block { background: var(--surface); border-radius: var(--radius); box-shadow: var(--shadow); padding: 1rem 1.2rem; }
 .form { display: flex; flex-direction: column; gap: 0.9rem; }
+.lock { margin-bottom: 1rem; border-left: 4px solid var(--ok); }
+.lock.on { border-left-color: var(--accent); }
+.lock-head { display: flex; gap: 0.75rem; align-items: flex-start; margin-bottom: 0.8rem; }
+.lock-head h2 { margin: 0 0 0.2rem; font-size: 1.05rem; }
+.lock-head p { margin: 0; font-size: 0.88rem; line-height: 1.45; }
+.shield { font-size: 1.5rem; line-height: 1; }
+.lock .btn { width: 100%; }
+.note { font-size: 0.78rem; margin: 0.6rem 0 0; }
 .state { font-size: 0.75rem; font-weight: 700; color: var(--accent); margin-left: 0.4rem; }
 .state.ok { color: var(--ok); }
 .show { display: flex; align-items: center; gap: 0.4rem; font-size: 0.85rem; color: var(--muted); }

@@ -33,8 +33,22 @@ export const useAuthStore = defineStore('auth', {
     isAuthenticated: (s) => Boolean(s.token && s.user),
     role: (s) => s.user?.role || 'readonly',
     isAdmin: (s) => s.user?.role === 'admin',
-    canWrite: (s) => s.user?.role === 'admin' || s.user?.role === 'agent',
-    canDelete: (s) => s.user?.role === 'admin',
+    roleCanWrite: (s) => s.user?.role === 'admin' || s.user?.role === 'agent',
+    /**
+     * Agency-wide write lock, on by default and enforced by the relay. Unknown (old session,
+     * offline restore) counts as locked so the app never offers a write it cannot make.
+     */
+    writesLocked: (s) => s.agency?.readOnly !== false,
+    canWrite() {
+      return this.roleCanWrite && !this.writesLocked
+    },
+    canDelete() {
+      return this.user?.role === 'admin' && !this.writesLocked
+    },
+    /** Valuations only read from Inmovilla, so the write lock does not apply to them. */
+    canEstimate() {
+      return this.roleCanWrite
+    },
     hasKeys: (s) => Boolean(s.agency?.hasKeys),
     hasAnthropic: (s) => Boolean(s.agency?.hasAnthropic),
     numagencia: (s) => s.agency?.numagencia || (s.agency ? `agency-${s.agency.id}` : ''),
@@ -125,6 +139,13 @@ export const useAuthStore = defineStore('auth', {
       const { agency } = await updateAgency(data)
       this.agency = { ...this.agency, ...agency }
       setDataLanguage(this.idioma)
+      this.persist()
+      return agency
+    },
+    /** Admin only: turn the agency's write lock on or off. */
+    async setReadOnly(readOnly) {
+      const { agency } = await updateAgency({ readOnly: Boolean(readOnly) })
+      this.agency = { ...this.agency, ...agency }
       this.persist()
       return agency
     },

@@ -116,7 +116,7 @@ onMounted(async () => {
         <li v-if="surfaceOf(p)"><strong>{{ surfaceOf(p) }}</strong></li>
       </ul>
 
-      <div v-if="auth.canWrite" class="estimate-cta">
+      <div v-if="auth.canEstimate" class="estimate-cta">
         <RouterLink v-if="auth.hasAnthropic" :to="{ name: 'estimate', params: { source: 'inmovilla', id: codOfer } }" class="btn">✦ {{ t('estimate.button') }}</RouterLink>
         <RouterLink v-else-if="auth.isAdmin" :to="{ name: 'agency-keys' }" class="btn btn-ghost">✦ {{ t('estimate.buttonSetup') }}</RouterLink>
       </div>

@@ -3,7 +3,7 @@
  *
  *  - /api/account/*        accounts: agency setup, login, profile, Inmovilla keys (admin), users (admin)
  *  - POST /api/inmovilla   relays apiweb queries (read) with the agency's keys, for logged-in users
- *  - ANY  /api/rest/*      relays Inmovilla REST v1 (write) with the agency's token; roles enforced
+ *  - ANY  /api/rest/*      relays Inmovilla REST v1 (write) with the agency's token; roles + write lock enforced
  *  - POST /api/estimate    values a property with Claude (agency's Anthropic key, admin-managed); write roles only
  *  - PUT  /api/photos      hosts a listing photo (public URL for Inmovilla to download); write roles only
  *  - GET  /photos/:id.jpg  serves it
@@ -108,6 +108,17 @@ const checkAnthropicKey = MOCK ? async () => {} : verifyAnthropicKey
 
 app.use('/api/account', createAccountsRouter({ verifyInmovillaKeys, verifyAnthropicKey: checkAnthropicKey }))
 
+/**
+ * Agency-wide write lock (on by default). While it is on, nothing can be created, modified or
+ * deleted in Inmovilla by anyone, whatever their role. Only an admin can lift it, in the profile.
+ * Reading and valuations stay available: they never write to Inmovilla.
+ */
+function locked(req) {
+  return db.getAgency(req.user.agency_id)?.readOnly !== false
+}
+const lockedResponse = (res) =>
+  res.status(403).json({ error: 'La agencia está en modo solo lectura. Un administrador debe desactivarlo en el perfil.', code: 'locked' })
+
 /** Loads the agency's Inmovilla credentials or answers 409 when the admin has not set them. */
 function requireKeys(req, res, next) {
   const creds = db.agencyCredentials(req.user.agency_id)
@@ -143,6 +154,7 @@ app.post('/api/inmovilla', requireUser, requireKeys, express.json({ limit: '64kb
 // ---------------------------------------------------------------------------
 app.use('/api/rest', requireUser, requireKeys, express.raw({ type: () => true, limit: MAX_BODY }), async (req, res) => {
   const method = req.method.toUpperCase()
+  if (method !== 'GET' && locked(req)) return lockedResponse(res)
   if (method !== 'GET' && !canWrite(req.user.role)) return res.status(403).json({ error: 'Tu cuenta es de solo lectura', code: 'role' })
   if (method === 'DELETE' && !canDelete(req.user.role)) return res.status(403).json({ error: 'Solo un administrador puede eliminar en Inmovilla', code: 'role' })
   try {
@@ -172,9 +184,10 @@ app.post('/api/estimate', requireUser, requireKeys, express.json({ limit: '256kb
 })
 
 // ---------------------------------------------------------------------------
-// Photo hosting for Inmovilla to fetch — write roles only
+// Photo hosting for Inmovilla to fetch — write roles only, blocked by the write lock
 // ---------------------------------------------------------------------------
 app.put('/api/photos', requireUser, express.raw({ type: ['image/jpeg', 'image/png', 'image/webp', 'application/octet-stream'], limit: MAX_PHOTO_BYTES }), async (req, res) => {
+  if (locked(req)) return lockedResponse(res)
   if (!canWrite(req.user.role)) return res.status(403).json({ error: 'Tu cuenta es de solo lectura', code: 'role' })
   if (!Buffer.isBuffer(req.body) || req.body.length === 0) return res.status(400).json({ error: 'Foto vacía' })
   const id = crypto.randomBytes(16).toString('hex')

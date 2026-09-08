@@ -34,6 +34,15 @@ export default {
     keys: 'Claves de Inmovilla', users: 'Usuarios de la agencia', changePassword: 'Cambiar contraseña', currentPassword: 'Contraseña actual', newPassword: 'Nueva contraseña',
     saved: 'Guardado', name: 'Nombre', role: 'Rol', agency: 'Agencia', adminOnly: 'Solo administradores',
   },
+  lock: {
+    title: 'Modo solo lectura', bar: 'Modo solo lectura: no se enviará nada a Inmovilla', manage: 'Gestionar',
+    onBody: 'Nadie puede crear, modificar ni eliminar nada en Inmovilla, sea cual sea su rol. Consultar y valorar sigue funcionando.',
+    offBody: 'La escritura en Inmovilla está permitida. Los usuarios con rol de agente o administrador pueden crear y modificar fichas, clientes, seguimientos y propietarios.',
+    lock: 'Activar el modo solo lectura', unlock: 'Permitir la escritura en Inmovilla',
+    nowLocked: 'Modo solo lectura activado: nada se enviará a Inmovilla', nowUnlocked: 'Escritura permitida: los cambios se enviarán a Inmovilla',
+    note: 'Se activa por defecto y solo un administrador puede desactivarlo. El servidor rechaza toda escritura mientras esté activo, aunque la aplicación la intente.',
+    blocked: 'La agencia está en modo solo lectura: el cambio se ha guardado en este dispositivo pero no se enviará a Inmovilla.',
+  },
   keys: {
     title: 'Claves de Inmovilla', intro: 'Se guardan cifradas en el servidor y nunca se envían a los teléfonos. Inmovilla las comprueba antes de guardarlas.',
     numagencia: 'Número de agencia', apiweb: 'Clave web (apiweb) · listado', rest: 'Clave API REST · escritura', restHint: 'Inmovilla › Ajustes › Opciones › Token para API Rest',

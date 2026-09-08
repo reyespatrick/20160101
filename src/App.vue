@@ -68,6 +68,10 @@ onMounted(() => {
       <span>{{ auth.isAdmin ? t('auth.noKeysAdmin') : t('auth.noKeysAgent') }}</span>
       <RouterLink v-if="auth.isAdmin" :to="{ name: 'agency-keys' }" class="btn small">{{ t('auth.goKeys') }}</RouterLink>
     </div>
+    <div v-if="auth.isAuthenticated && auth.writesLocked && auth.hasKeys && $route.name !== 'agency-keys'" class="lock-bar">
+      <span>🔒 {{ t('lock.bar') }}</span>
+      <RouterLink v-if="auth.isAdmin" :to="{ name: 'agency-keys' }" class="btn small">{{ t('lock.manage') }}</RouterLink>
+    </div>
     <div class="sync-bar" :class="{ on: syncing }" aria-hidden="true"></div>
     <main>
       <ErrorBoundary>
@@ -88,6 +92,8 @@ onMounted(() => {
 main { flex: 1; }
 .keys-bar { display: flex; flex-wrap: wrap; gap: 0.5rem; align-items: center; justify-content: center; background: var(--surface-2); color: var(--brand-dark); font-size: 0.85rem; padding: 0.5rem 1rem; text-align: center; }
 .keys-bar .small { padding: 0.35rem 0.7rem; font-size: 0.85rem; }
+.lock-bar { display: flex; flex-wrap: wrap; gap: 0.5rem; align-items: center; justify-content: center; background: var(--accent); color: #fff; font-size: 0.85rem; font-weight: 600; padding: 0.4rem 1rem; text-align: center; }
+.lock-bar .btn { background: rgba(255, 255, 255, 0.22); color: #fff; padding: 0.25rem 0.6rem; font-size: 0.8rem; }
 .offline-bar { background: var(--accent); color: #fff; text-align: center; font-size: 0.85rem; padding: 0.35rem; font-weight: 600; }
 .sync-bar { height: 3px; background: transparent; position: sticky; top: 0; z-index: 11; }
 .sync-bar.on { background: linear-gradient(90deg, transparent, var(--brand), transparent); background-size: 40% 100%; animation: slide 1.1s linear infinite; }

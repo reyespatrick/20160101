@@ -113,7 +113,7 @@ async function reactivate() {
         <span v-if="pendingPhotos" class="pending-photos">· {{ t('props.detail.photosToUpload', pendingPhotos) }}</span>
         <span>· {{ t('props.form.complete', { n: completeness(p) }) }}</span>
       </p>
-      <div v-if="auth.canWrite && (Number(p.operation) === 2 ? p.priceRent : p.price)" class="estimate-cta">
+      <div v-if="auth.canEstimate && (Number(p.operation) === 2 ? p.priceRent : p.price)" class="estimate-cta">
         <RouterLink v-if="auth.hasAnthropic" :to="{ name: 'estimate', params: { source: 'local', id } }" class="btn">✦ {{ t('estimate.button') }}</RouterLink>
         <RouterLink v-else-if="auth.isAdmin" :to="{ name: 'agency-keys' }" class="btn btn-ghost">✦ {{ t('estimate.buttonSetup') }}</RouterLink>
       </div>

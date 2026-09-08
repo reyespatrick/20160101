@@ -80,6 +80,18 @@ describe('accounts API', () => {
     expect(removed.body.agency.hasAnthropic).toBe(false)
     expect(db.agencyCredentials(ok.body.agency.id).restToken).toBe('good') // other keys untouched
   })
+  it('locks writes by default and lets only an admin lift the lock', async () => {
+    const agencyId = db.getUserByEmail('ana@demo.com').agency_id
+    expect(db.getAgency(agencyId).readOnly).toBe(true) // on for a brand new agency
+    expect((await call('/agency', {}, adminToken)).body.agency.readOnly).toBe(true)
+    const off = await call('/agency', { method: 'PUT', body: JSON.stringify({ readOnly: false }) }, adminToken)
+    expect(off.body.agency).toMatchObject({ readOnly: false, hasKeys: true })
+    expect(db.getAgency(agencyId).readOnly).toBe(false)
+    expect((await call('/me', {}, adminToken)).body.agency.readOnly).toBe(false)
+    // toggling the lock alone must not touch the stored keys
+    expect(db.agencyCredentials(agencyId)).toMatchObject({ numagencia: '1234', password: 'demo', restToken: 'good' })
+    expect(db.setAgencyReadOnly(agencyId, true).readOnly).toBe(true)
+  })
   it('manages users with roles and protects the last admin', async () => {
     const created = await call('/users', { method: 'POST', body: JSON.stringify({ name: 'Bea', email: 'bea@demo.com', password: 'password2', role: 'agent' }) }, adminToken)
     expect(created.status).toBe(201)

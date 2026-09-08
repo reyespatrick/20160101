@@ -34,6 +34,15 @@ export default {
     keys: 'Clés Inmovilla', users: "Utilisateurs de l'agence", changePassword: 'Changer le mot de passe', currentPassword: 'Mot de passe actuel', newPassword: 'Nouveau mot de passe',
     saved: 'Enregistré', name: 'Nom', role: 'Rôle', agency: 'Agence', adminOnly: 'Administrateurs seulement',
   },
+  lock: {
+    title: 'Mode lecture seule', bar: 'Mode lecture seule : rien ne sera envoyé à Inmovilla', manage: 'Gérer',
+    onBody: 'Personne ne peut créer, modifier ni supprimer quoi que ce soit dans Inmovilla, quel que soit son rôle. La consultation et les estimations restent disponibles.',
+    offBody: 'L’écriture dans Inmovilla est autorisée. Les utilisateurs agent ou administrateur peuvent créer et modifier annonces, clients, suivis et propriétaires.',
+    lock: 'Activer le mode lecture seule', unlock: 'Autoriser l’écriture dans Inmovilla',
+    nowLocked: 'Mode lecture seule activé : rien ne sera envoyé à Inmovilla', nowUnlocked: 'Écriture autorisée : les modifications seront envoyées à Inmovilla',
+    note: 'Activé par défaut, et seul un administrateur peut le désactiver. Le serveur refuse toute écriture tant qu’il est actif, même si l’application essaie.',
+    blocked: 'L’agence est en mode lecture seule : la modification est enregistrée sur cet appareil mais ne sera pas envoyée à Inmovilla.',
+  },
   keys: {
     title: 'Clés Inmovilla', intro: "Elles sont chiffrées sur le serveur et ne sont jamais envoyées aux téléphones. Inmovilla les vérifie avant l'enregistrement.",
     numagencia: "Numéro d'agence", apiweb: 'Clé web (apiweb) · listing', rest: 'Clé API REST · écriture', restHint: 'Inmovilla › Ajustes › Opciones › Token para API Rest',
