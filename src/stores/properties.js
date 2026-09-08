@@ -2,7 +2,7 @@ import { defineStore } from 'pinia'
 import { buildWhere, fetchProperties, fetchProperty, ORDER_OPTIONS } from '../api/inmovilla'
 import { useAuthStore } from './auth'
 
-const CACHE_KEY = 'alma.properties.cache'
+const CACHE_KEY = 'immoba.properties.cache'
 const PAGE_SIZE = 20
 
 function readCache() {

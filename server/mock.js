@@ -35,7 +35,7 @@ function makeProperty(i) {
   const photoSeed = 100 + i
   return {
     cod_ofer: 10_000 + i,
-    ref: `ALMA-${String(i).padStart(4, '0')}`,
+    ref: `IMB-${String(i).padStart(4, '0')}`,
     keyacci: rent ? 2 : 1,
     precioinmo: rent ? 0 : price,
     precioalq: rent ? price : 0,
@@ -60,7 +60,7 @@ function makeProperty(i) {
     altitud: -0.48 + r(),
     nombreagente: 'Ana',
     apellidosagente: 'García',
-    emailagente: 'ana@alma-demo.example',
+    emailagente: 'ana@immoba-demo.example',
     telefono1agente: 600000000 + i,
   }
 }
@@ -128,9 +128,9 @@ function detailFor(p) {
     antiguedad: 15,
     nbconservacion: 'Buen estado',
     energialetra: 'E',
-    agencia: 'ALMA Demo Inmobiliaria',
+    agencia: 'Immoba Demo Inmobiliaria',
     telefono: '965 000 000',
-    email: 'info@alma-demo.example',
+    email: 'info@immoba-demo.example',
   }
 }
 

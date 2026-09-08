@@ -8,7 +8,7 @@
  *   meta        keyPath "key"
  */
 
-const DB_NAME = 'alma-properties'
+const DB_NAME = 'immoba-properties'
 const DB_VERSION = 1
 
 let dbPromise

@@ -1,6 +1,6 @@
 {
-  "name": "alma-inmovilla-pwa",
-  "version": "0.1.0",
+  "name": "immoba",
+  "version": "0.3.0",
   "private": true,
   "type": "module",
   "description": "Vue 3 PWA that lists properties from the Inmovilla CRM through a small proxy server",

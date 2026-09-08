@@ -11,7 +11,7 @@ import { useAuthStore } from './auth'
  */
 const TTL_MS = 7 * 24 * 60 * 60 * 1000
 const MIN_GAP_MS = 31_000
-const storageKey = (agency) => `alma.enums.${agency}`
+const storageKey = (agency) => `immoba.enums.${agency}`
 
 let lastCallAt = 0
 let queue = Promise.resolve()

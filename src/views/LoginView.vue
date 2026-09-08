@@ -41,7 +41,7 @@ async function submit() {
 <template>
   <section class="login">
     <div class="panel">
-      <img class="logo" src="/splash.png" alt="ALMA" />
+      <img class="logo" src="/splash.png" alt="Immoba" />
       <h1>Acceso</h1>
       <p class="muted">Introduce las credenciales de Inmovilla de tu agencia. Se guardan solo en este dispositivo.</p>
 

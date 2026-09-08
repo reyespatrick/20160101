@@ -2,7 +2,7 @@ import { defineStore } from 'pinia'
 import { callInmovilla } from '../api/inmovilla'
 import { verifyToken } from '../api/inmovillaRest'
 
-const STORAGE_KEY = 'alma.session'
+const STORAGE_KEY = 'immoba.session'
 
 export const LANGUAGES = [
   { value: 1, label: 'Español' },

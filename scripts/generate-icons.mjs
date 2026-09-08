@@ -1,4 +1,4 @@
-// Generates PWA icons from screen/splash.png (the ALMA artwork).
+// Generates PWA icons from screen/splash.png (the Immoba logo).
 import sharp from 'sharp'
 import { mkdir, copyFile } from 'node:fs/promises'
 

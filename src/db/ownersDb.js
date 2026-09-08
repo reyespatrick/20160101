@@ -1,2 +1,2 @@
 import { createSimpleDb } from './simpleDb'
-export const ownersDb = createSimpleDb('alma-owners', 'owners')
+export const ownersDb = createSimpleDb('immoba-owners', 'owners')

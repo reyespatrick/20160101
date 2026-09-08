@@ -44,7 +44,7 @@ async function logout() {
   <header class="header">
     <RouterLink to="/" class="brand">
       <img src="/icons/favicon-64.png" alt="" width="32" height="32" />
-      <span>ALMA</span>
+      <span>immoba</span>
     </RouterLink>
     <div class="right">
       <span class="agency muted">Agencia {{ auth.numagencia }}</span>

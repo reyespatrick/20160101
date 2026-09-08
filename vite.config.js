@@ -9,9 +9,9 @@ export default defineConfig({
       registerType: 'prompt',
       includeAssets: ['icons/*.png', 'splash.png'],
       manifest: {
-        name: 'ALMA · Propiedades Inmovilla',
-        short_name: 'ALMA',
-        description: 'Listado de propiedades del CRM Inmovilla',
+        name: 'Immoba · Inmovilla',
+        short_name: 'Immoba',
+        description: 'Propiedades, clientes, agenda y propietarios del CRM Inmovilla',
         lang: 'es',
         start_url: '/',
         display: 'standalone',

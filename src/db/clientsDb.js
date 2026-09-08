@@ -8,7 +8,7 @@
  * Every record keeps a `dirty` flag meaning "changed locally, not yet confirmed by the server".
  */
 
-const DB_NAME = 'alma-clients'
+const DB_NAME = 'immoba-clients'
 const DB_VERSION = 1
 
 let dbPromise

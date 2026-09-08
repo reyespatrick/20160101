@@ -6,13 +6,13 @@ import { BUCKETS, startOfDay } from '../models/followUp'
 import { useFollowUpsStore } from '../stores/followUps'
 
 const store = useFollowUpsStore()
-const mode = ref(localStorage.getItem('alma.agenda.mode') === 'calendar' ? 'calendar' : 'list')
+const mode = ref(localStorage.getItem('immoba.agenda.mode') === 'calendar' ? 'calendar' : 'list')
 const selectedDay = ref(startOfDay())
 
 function setMode(m) {
   mode.value = m
   try {
-    localStorage.setItem('alma.agenda.mode', m)
+    localStorage.setItem('immoba.agenda.mode', m)
   } catch {
     /* ignore */
   }

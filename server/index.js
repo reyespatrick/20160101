@@ -1,5 +1,5 @@
 /**
- * Stateless gateway for the ALMA PWA.
+ * Stateless gateway for the Immoba PWA.
  *
  *  - POST /api/inmovilla  → relays queries to Inmovilla's legacy "apiweb" (read: listings, fichas, types).
  *  - ANY  /api/rest/*     → relays to Inmovilla's REST API v1 with the user's token (write: clients,
@@ -72,7 +72,7 @@ app.post('/api/inmovilla', express.json({ limit: '64kb' }), async (req, res) => 
   try {
     const upstream = await fetch(API_URL, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/x-www-form-urlencoded', Accept: 'application/json', 'User-Agent': 'alma-inmovilla-pwa/0.2' },
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded', Accept: 'application/json', 'User-Agent': 'immoba/0.3' },
       body: buildFormBody(credentials, normalized, { clientIp: req.ip, domain: DOMAIN }),
       signal: controller.signal,
     })
@@ -102,7 +102,7 @@ if (MOCK) {
     const controller = new AbortController()
     const timer = setTimeout(() => controller.abort(), UPSTREAM_TIMEOUT_MS)
     try {
-      const headers = { Token: token, Accept: 'application/json', 'User-Agent': 'alma-inmovilla-pwa/0.2' }
+      const headers = { Token: token, Accept: 'application/json', 'User-Agent': 'immoba/0.3' }
       const hasBody = !['GET', 'HEAD'].includes(req.method) && Buffer.isBuffer(req.body) && req.body.length > 0
       if (hasBody) headers['Content-Type'] = req.get('content-type') || 'application/json'
       const upstream = await fetch(target, { method: req.method, headers, body: hasBody ? req.body : undefined, signal: controller.signal })

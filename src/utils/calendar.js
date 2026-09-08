@@ -21,9 +21,9 @@ export function followUpToIcs(f, { durationMin = 30 } = {}) {
   return [
     'BEGIN:VCALENDAR',
     'VERSION:2.0',
-    'PRODID:-//ALMA//Inmovilla PWA//ES',
+    'PRODID:-//Immoba//Inmovilla PWA//ES',
     'BEGIN:VEVENT',
-    `UID:alma-${f.remoteId || f.id}@alma-inmovilla`,
+    `UID:immoba-${f.remoteId || f.id}@immoba`,
     `DTSTAMP:${icsUtc(Date.now())}`,
     `DTSTART:${icsUtc(start)}`,
     `DTEND:${icsUtc(end)}`,
@@ -60,7 +60,7 @@ export function addToNativeCalendar(f) {
   try {
     const a = document.createElement('a')
     a.href = icsDataUrl(f)
-    a.download = `seguimiento-${(f.subject || 'alma').replace(/[^\w-]+/g, '_').slice(0, 40)}.ics`
+    a.download = `seguimiento-${(f.subject || 'immoba').replace(/[^\w-]+/g, '_').slice(0, 40)}.ics`
     document.body.appendChild(a)
     a.click()
     a.remove()

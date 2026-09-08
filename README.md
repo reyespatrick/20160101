@@ -1,4 +1,4 @@
-# ALMA · Inmovilla properties PWA
+# Immoba · Inmovilla mobile app (PWA)
 
 Progressive Web App built with **Vue 3 + Vite + Pinia** that lets an agency log in with its
 Inmovilla credentials and browse the properties published in the **Inmovilla CRM**.
@@ -187,3 +187,10 @@ src/components/  AppHeader, BottomNav, FilterBar, PropertyCard, LocalPropertyCar
                  ErrorBoundary, UpdateBanner, Toasts
 src/utils/       format, image (resize), calendar (.ics / Google Calendar)
 ```
+
+## Branding
+
+The name "Immoba" lives in `index.html`, `vite.config.js` (manifest), `src/components/AppHeader.vue` and the
+storage keys (`immoba.*`, IndexedDB `immoba-*`). The logo is rendered from an SVG by
+`node scripts/generate-logo.mjs` into `screen/splash.png`, and `node scripts/generate-icons.mjs` derives the PWA
+icons from it. The original ALMA artwork is kept as `screen/splash-alma-original.png`.
