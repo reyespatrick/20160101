@@ -3,6 +3,8 @@
  * Types (keytiposeg) are agency-specific and come from /enums/?tiposeguimiento.
  */
 
+import { intlLocale, t } from '../i18n'
+
 export function newId() {
   if (globalThis.crypto?.randomUUID) return globalThis.crypto.randomUUID()
   return `s_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 10)}`
@@ -66,9 +68,9 @@ export function fromLocalInput(s) {
 
 export function validateFollowUp(f) {
   const errors = {}
-  if (!String(f.subject || '').trim()) errors.subject = 'Escribe un asunto'
-  if (!f.remindAt) errors.remindAt = 'Indica fecha y hora'
-  if (f.closed && !f.doneAt) errors.doneAt = 'Indica cuándo se cerró'
+  if (!String(f.subject || '').trim()) errors.subject = t('agenda.valid.subject')
+  if (!f.remindAt) errors.remindAt = t('agenda.valid.remind')
+  if (f.closed && !f.doneAt) errors.doneAt = t('agenda.valid.done')
   return errors
 }
 
@@ -89,10 +91,10 @@ export function bucketOf(f, now = Date.now()) {
 }
 
 export const BUCKETS = [
-  { value: 'overdue', label: 'Vencidos', color: '#c0392b' },
-  { value: 'today', label: 'Hoy', color: '#f39200' },
-  { value: 'upcoming', label: 'Próximos', color: '#2e3192' },
-  { value: 'closed', label: 'Cerrados', color: '#6b6e85' },
+  { value: 'overdue', labelKey: 'agenda.overdue', color: '#c0392b' },
+  { value: 'today', labelKey: 'agenda.today', color: '#f39200' },
+  { value: 'upcoming', labelKey: 'agenda.upcoming', color: '#2e3192' },
+  { value: 'closed', labelKey: 'agenda.closed', color: '#6b6e85' },
 ]
 
 export function formatWhen(ts, now = Date.now()) {
@@ -100,11 +102,12 @@ export function formatWhen(ts, now = Date.now()) {
   const d = new Date(ts)
   const today = startOfDay(now)
   const day = startOfDay(ts)
-  const time = d.toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' })
-  if (day === today) return `Hoy · ${time}`
-  if (day === today + DAY) return `Mañana · ${time}`
-  if (day === today - DAY) return `Ayer · ${time}`
-  return `${d.toLocaleDateString('es-ES', { weekday: 'short', day: '2-digit', month: 'short' })} · ${time}`
+  const loc = intlLocale()
+  const time = d.toLocaleTimeString(loc, { hour: '2-digit', minute: '2-digit' })
+  if (day === today) return `${t('agenda.today')} · ${time}`
+  if (day === today + DAY) return `${t('agenda.tomorrow')} · ${time}`
+  if (day === today - DAY) return `${t('agenda.yesterday')} · ${time}`
+  return `${d.toLocaleDateString(loc, { weekday: 'short', day: '2-digit', month: 'short' })} · ${time}`
 }
 
 export function matchesFollowUp(f, query) {

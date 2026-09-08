@@ -1,4 +1,5 @@
 <script setup>
+import { useI18n } from 'vue-i18n'
 import { computed, onMounted, reactive, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import ClientPicker from '../components/ClientPicker.vue'
@@ -8,6 +9,7 @@ import { emptyFollowUp, fromLocalInput, toLocalInput, validateFollowUp } from '.
 import { useEnumsStore } from '../stores/enums'
 import { useFollowUpsStore } from '../stores/followUps'
 import { addToNativeCalendar, googleCalendarUrl } from '../utils/calendar'
+const { t } = useI18n()
 
 const props = defineProps({ id: { type: String, default: '' } })
 const store = useFollowUpsStore()
@@ -105,7 +107,7 @@ async function submit() {
     await store.save(JSON.parse(JSON.stringify(form)))
     router.replace({ name: 'followups', query: { saved: '1' } })
   } catch (err) {
-    errors.value = { form: err.message || 'No se pudo guardar' }
+    errors.value = { form: err.message || t('common.failed', { where: 'save' }) }
   } finally {
     saving.value = false
   }
@@ -121,72 +123,72 @@ function cancel() {
 <template>
   <section class="container form-view">
     <header class="form-head">
-      <button type="button" class="btn btn-ghost" @click="cancel">Cancelar</button>
-      <h1>{{ isEdit ? 'Seguimiento' : 'Nuevo seguimiento' }}</h1>
+      <button type="button" class="btn btn-ghost" @click="cancel">{{ t('common.cancel') }}</button>
+      <h1>{{ isEdit ? t('agenda.form.editTitle') : t('agenda.form.title') }}</h1>
     </header>
 
-    <p v-if="notFound" class="alert">Este seguimiento ya no existe.</p>
+    <p v-if="notFound" class="alert">{{ t('agenda.form.gone') }}</p>
 
     <form v-else id="fu-form" novalidate @submit.prevent="submit">
-      <p v-if="!online" class="alert alert-info">Sin conexión: se guardará en este dispositivo y se enviará a Inmovilla automáticamente.</p>
+      <p v-if="!online" class="alert alert-info">{{ t('common.offlineForm') }}</p>
       <p v-if="isEdit" class="state"><InmovillaState :record="form" :sent="Boolean(form.remoteId)" :label="form.remoteId ? `nº ${form.remoteId}` : ''" /></p>
-      <p v-if="form.syncError" class="alert">Inmovilla rechazó el seguimiento: {{ form.syncError }}</p>
+      <p v-if="form.syncError" class="alert">{{ t('agenda.form.rejected', { msg: form.syncError }) }}</p>
 
       <fieldset>
-        <legend>Qué y cuándo</legend>
+        <legend>{{ t('agenda.form.whatWhen') }}</legend>
         <div class="field" :class="{ invalid: errors.typeKey }">
-          <label for="type">Tipo <small class="muted">(según la agencia; opcional sin conexión)</small></label>
+          <label for="type">{{ t('agenda.form.type') }} <small class="muted">{{ t('agenda.form.typeHint') }}</small></label>
           <select id="type" :value="form.typeKey ?? ''" @change="onTypeChange">
-            <option value="">{{ enums.tiposSeguimiento.length ? 'Sin tipo' : enums.loading.tiposSeguimiento ? 'Cargando tipos de la agencia…' : 'Sin tipos (se descargan con conexión)' }}</option>
+            <option value="">{{ enums.tiposSeguimiento.length ? t('agenda.form.noType') : enums.loading.tiposSeguimiento ? t('agenda.form.loadingTypes') : t('agenda.form.noTypes') }}</option>
             <option v-for="t in enums.tiposSeguimiento" :key="t.value" :value="t.value">{{ t.label }}</option>
           </select>
           <small v-if="errors.typeKey" class="err">{{ errors.typeKey }}</small>
         </div>
         <div class="field" :class="{ invalid: errors.subject }">
-          <label for="subject">Asunto *</label>
-          <input id="subject" v-model.trim="form.subject" placeholder="Ej. Llamar para concertar visita" maxlength="160" />
+          <label for="subject">{{ t('agenda.form.subject') }} *</label>
+          <input id="subject" v-model.trim="form.subject" :placeholder="t('agenda.form.subjectPh')" maxlength="160" />
           <small v-if="errors.subject" class="err">{{ errors.subject }}</small>
         </div>
         <div class="field" :class="{ invalid: errors.remindAt }">
-          <label for="remind">Fecha y hora del aviso *</label>
+          <label for="remind">{{ t('agenda.form.remind') }} *</label>
           <input id="remind" v-model="remindInput" type="datetime-local" />
           <small v-if="errors.remindAt" class="err">{{ errors.remindAt }}</small>
         </div>
         <div class="field">
-          <label for="desc">Descripción</label>
-          <textarea id="desc" v-model="form.description" rows="4" placeholder="Detalles, resultado de la llamada, próximos pasos…"></textarea>
+          <label for="desc">{{ t('agenda.form.desc') }}</label>
+          <textarea id="desc" v-model="form.description" rows="4" :placeholder="t('agenda.form.descPh')"></textarea>
         </div>
       </fieldset>
 
       <fieldset>
-        <legend>Vinculado a</legend>
+        <legend>{{ t('agenda.form.linked') }}</legend>
         <div class="field">
-          <label>Propiedad</label>
+          <label>{{ t('agenda.form.property') }}</label>
           <PropertyPicker v-model="property" />
         </div>
         <div class="field">
-          <label>Cliente</label>
+          <label>{{ t('agenda.form.client') }}</label>
           <ClientPicker v-model="client" />
         </div>
       </fieldset>
 
       <fieldset v-if="form.remindAt && form.subject">
-        <legend>Agenda del teléfono</legend>
+        <legend>{{ t('agenda.form.phoneCalendar') }}</legend>
         <div class="cal-actions">
-          <button type="button" class="btn btn-ghost" @click="addToNativeCalendar(form)">📅 Añadir al calendario</button>
+          <button type="button" class="btn btn-ghost" @click="addToNativeCalendar(form)">📅 {{ t('agenda.form.addToCalendar') }}</button>
           <a class="btn btn-ghost" :href="googleCalendarUrl(form)" target="_blank" rel="noopener">Google Calendar</a>
         </div>
-        <small class="muted">Crea el evento con un recordatorio 15 minutos antes. La app no puede escribir en el calendario sin tu confirmación.</small>
+        <small class="muted">{{ t('agenda.form.calendarHint') }}</small>
       </fieldset>
 
       <fieldset>
-        <legend>Estado</legend>
+        <legend>{{ t('agenda.form.state') }}</legend>
         <label class="closed-toggle" :class="{ on: form.closed }">
           <input v-model="form.closed" type="checkbox" />
-          <span>{{ form.closed ? 'Cerrado' : 'Abierto · marcar como hecho' }}</span>
+          <span>{{ form.closed ? t('agenda.form.closed') : t('agenda.form.open') }}</span>
         </label>
         <div v-if="form.closed" class="field" :class="{ invalid: errors.doneAt }">
-          <label for="done">Cerrado el</label>
+          <label for="done">{{ t('agenda.form.closedAt') }}</label>
           <input id="done" v-model="doneInput" type="datetime-local" />
           <small v-if="errors.doneAt" class="err">{{ errors.doneAt }}</small>
         </div>
@@ -195,18 +197,18 @@ function cancel() {
       <p v-if="errors.form" class="alert">{{ errors.form }}</p>
 
       <div v-if="isEdit && !form.remoteId" class="danger-zone">
-        <button v-if="!confirmDiscard" type="button" class="btn btn-ghost danger" @click="confirmDiscard = true">Descartar (aún no enviado)</button>
+        <button v-if="!confirmDiscard" type="button" class="btn btn-ghost danger" @click="confirmDiscard = true">{{ t('agenda.form.discard') }}</button>
         <div v-else class="confirm">
-          <span>¿Descartar este seguimiento?</span>
-          <button type="button" class="btn danger-fill" @click="discard">Sí</button>
-          <button type="button" class="btn btn-ghost" @click="confirmDiscard = false">No</button>
+          <span>{{ t('agenda.form.confirmDiscard') }}</span>
+          <button type="button" class="btn danger-fill" @click="discard">{{ t('common.yes') }}</button>
+          <button type="button" class="btn btn-ghost" @click="confirmDiscard = false">{{ t('common.no') }}</button>
         </div>
       </div>
-      <p v-else-if="isEdit" class="muted hint">Inmovilla no permite borrar seguimientos; ciérralo si ya no aplica.</p>
+      <p v-else-if="isEdit" class="muted hint">{{ t('agenda.form.noDelete') }}</p>
     </form>
 
     <div v-if="!notFound" class="save-bar">
-      <button type="submit" form="fu-form" class="btn save" :disabled="saving">{{ saving ? 'Guardando…' : 'Guardar seguimiento' }}</button>
+      <button type="submit" form="fu-form" class="btn save" :disabled="saving">{{ saving ? t('common.saving') : t('agenda.form.save') }}</button>
     </div>
   </section>
 </template>
@@ -227,8 +229,8 @@ legend { float: left; width: 100%; font-weight: 700; margin-bottom: 0.5rem; padd
 .err { color: var(--danger); font-size: 0.8rem; }
 .cal-actions { display: flex; flex-wrap: wrap; gap: 0.5rem; }
 .closed-toggle { display: flex; align-items: center; gap: 0.6rem; border: 1.5px solid var(--border); border-radius: 10px; padding: 0.7rem 0.85rem; font-weight: 600; cursor: pointer; }
-.closed-toggle.on { border-color: #2e7d32; background: #eaf5ea; color: #2e7d32; }
-.closed-toggle input { width: 20px; height: 20px; accent-color: #2e7d32; }
+.closed-toggle.on { border-color: var(--ok); background: var(--ok-bg); color: var(--ok); }
+.closed-toggle input { width: 20px; height: 20px; accent-color: var(--ok); }
 .hint { font-size: 0.8rem; text-align: center; }
 .danger-zone { display: flex; justify-content: center; }
 .danger { color: var(--danger); }

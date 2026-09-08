@@ -1,11 +1,15 @@
 <script setup>
+import { useI18n } from 'vue-i18n'
 import { computed, onMounted, reactive, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { emptyOwner, validateOwner } from '../models/owner'
 import { useOwnersStore } from '../stores/owners'
+import { useAuthStore } from '../stores/auth'
+const { t } = useI18n()
 
 const props = defineProps({ id: { type: String, default: '' } })
 const store = useOwnersStore()
+const auth = useAuthStore()
 const router = useRouter()
 const route = useRoute()
 
@@ -57,7 +61,7 @@ async function submit() {
     await store.save(JSON.parse(JSON.stringify(form)))
     router.replace(backTarget.value)
   } catch (err) {
-    errors.value = { form: err.message || 'No se pudo guardar' }
+    errors.value = { form: err.message || t('common.failed', { where: 'save' }) }
   } finally {
     saving.value = false
   }
@@ -71,85 +75,85 @@ async function remove() {
 <template>
   <section class="container form-view">
     <header class="form-head">
-      <RouterLink :to="backTarget" class="btn btn-ghost">Cancelar</RouterLink>
-      <h1>{{ isEdit ? 'Editar propietario' : 'Nuevo propietario' }}</h1>
+      <RouterLink :to="backTarget" class="btn btn-ghost">{{ t('common.cancel') }}</RouterLink>
+      <h1>{{ isEdit ? t('owner.form.editTitle') : t('owner.form.title') }}</h1>
     </header>
 
-    <p v-if="notFound" class="alert">Este propietario no está en este dispositivo.</p>
+    <p v-if="notFound" class="alert">{{ t('owner.form.gone') }}</p>
 
     <form v-else id="owner-form" novalidate @submit.prevent="submit">
-      <p v-if="!online" class="alert alert-info">Sin conexión: se guardará en este dispositivo y se enviará a Inmovilla automáticamente.</p>
-      <p v-if="!isEdit" class="alert alert-info">Se creará en Inmovilla vinculado a la propiedad <strong>{{ propertyRef || form.codOfer }}</strong>.</p>
+      <p v-if="!online" class="alert alert-info">{{ t('common.offlineForm') }}</p>
+      <p v-if="!isEdit" class="alert alert-info">{{ t('owner.form.willLink') }} <strong>{{ propertyRef || form.codOfer }}</strong>.</p>
       <p v-if="errors.codOfer" class="alert">{{ errors.codOfer }}</p>
 
       <fieldset>
-        <legend>Datos del propietario</legend>
+        <legend>{{ t('owner.form.data') }}</legend>
         <div class="two">
           <div class="field" :class="{ invalid: errors.name }">
-            <label for="name">Nombre *</label>
+            <label for="name">{{ t('owner.form.name') }} *</label>
             <input id="name" v-model.trim="form.name" autocapitalize="words" required />
             <small v-if="errors.name" class="err">{{ errors.name }}</small>
           </div>
-          <div class="field"><label for="surname">Apellidos</label><input id="surname" v-model.trim="form.surname" autocapitalize="words" /></div>
+          <div class="field"><label for="surname">{{ t('owner.form.surname') }}</label><input id="surname" v-model.trim="form.surname" autocapitalize="words" /></div>
         </div>
         <div class="two">
           <div class="field" :class="{ invalid: errors.mobile }">
-            <label for="mobile">Móvil</label>
+            <label for="mobile">{{ t('owner.form.mobile') }}</label>
             <input id="mobile" v-model.trim="form.mobile" type="tel" inputmode="tel" />
             <small v-if="errors.mobile" class="err">{{ errors.mobile }}</small>
           </div>
           <div class="field" :class="{ invalid: errors.phone }">
-            <label for="phone">Teléfono fijo</label>
+            <label for="phone">{{ t('owner.form.phone') }}</label>
             <input id="phone" v-model.trim="form.phone" type="tel" inputmode="tel" />
             <small v-if="errors.phone" class="err">{{ errors.phone }}</small>
           </div>
         </div>
         <div class="two">
           <div class="field" :class="{ invalid: errors.email }">
-            <label for="email">Email</label>
+            <label for="email">{{ t('owner.form.email') }}</label>
             <input id="email" v-model.trim="form.email" type="email" inputmode="email" />
             <small v-if="errors.email" class="err">{{ errors.email }}</small>
           </div>
-          <div class="field"><label for="nif">NIF / DNI</label><input id="nif" v-model.trim="form.nif" autocapitalize="characters" /></div>
+          <div class="field"><label for="nif">{{ t('owner.form.nif') }}</label><input id="nif" v-model.trim="form.nif" autocapitalize="characters" /></div>
         </div>
       </fieldset>
 
       <fieldset>
-        <legend>Dirección</legend>
+        <legend>{{ t('owner.form.address') }}</legend>
         <div class="two">
-          <div class="field"><label for="street">Calle</label><input id="street" v-model.trim="form.street" /></div>
-          <div class="field"><label for="number">Número</label><input id="number" v-model.trim="form.number" /></div>
+          <div class="field"><label for="street">{{ t('owner.form.street') }}</label><input id="street" v-model.trim="form.street" /></div>
+          <div class="field"><label for="number">{{ t('owner.form.number') }}</label><input id="number" v-model.trim="form.number" /></div>
         </div>
         <div class="three">
           <div class="field" :class="{ invalid: errors.postalCode }">
-            <label for="cp">Código postal</label>
+            <label for="cp">{{ t('owner.form.cp') }}</label>
             <input id="cp" v-model.trim="form.postalCode" inputmode="numeric" />
             <small v-if="errors.postalCode" class="err">{{ errors.postalCode }}</small>
           </div>
-          <div class="field"><label for="city">Localidad</label><input id="city" v-model.trim="form.city" /></div>
-          <div class="field"><label for="province">Provincia</label><input id="province" v-model.trim="form.province" /></div>
+          <div class="field"><label for="city">{{ t('owner.form.city') }}</label><input id="city" v-model.trim="form.city" /></div>
+          <div class="field"><label for="province">{{ t('owner.form.province') }}</label><input id="province" v-model.trim="form.province" /></div>
         </div>
       </fieldset>
 
       <fieldset>
-        <legend>Observaciones</legend>
-        <div class="field"><textarea v-model="form.notes" rows="3" placeholder="Llaves, disponibilidad para visitas, acuerdos…"></textarea></div>
+        <legend>{{ t('owner.form.notes') }}</legend>
+        <div class="field"><textarea v-model="form.notes" rows="3" :placeholder="t('owner.form.notesPh')"></textarea></div>
       </fieldset>
 
       <p v-if="errors.form" class="alert">{{ errors.form }}</p>
 
-      <div v-if="isEdit" class="danger-zone">
-        <button v-if="!confirmDelete" type="button" class="btn btn-ghost danger" @click="confirmDelete = true">Eliminar propietario</button>
+      <div v-if="isEdit && auth.canDelete" class="danger-zone">
+        <button v-if="!confirmDelete" type="button" class="btn btn-ghost danger" @click="confirmDelete = true">{{ t('owner.form.delete') }}</button>
         <div v-else class="confirm">
-          <span>¿Eliminar este propietario en Inmovilla? Inmovilla lo rechazará si sigue vinculado a alguna propiedad.</span>
-          <button type="button" class="btn danger-fill" @click="remove">Sí, eliminar</button>
-          <button type="button" class="btn btn-ghost" @click="confirmDelete = false">No</button>
+          <span>{{ t('owner.form.confirm') }}</span>
+          <button type="button" class="btn danger-fill" @click="remove">{{ t('common.yes') }}</button>
+          <button type="button" class="btn btn-ghost" @click="confirmDelete = false">{{ t('common.no') }}</button>
         </div>
       </div>
     </form>
 
     <div v-if="!notFound" class="save-bar">
-      <button type="submit" form="owner-form" class="btn save" :disabled="saving">{{ saving ? 'Guardando…' : 'Guardar propietario' }}</button>
+      <button type="submit" form="owner-form" class="btn save" :disabled="saving">{{ saving ? t('common.saving') : t('owner.form.save') }}</button>
     </div>
   </section>
 </template>

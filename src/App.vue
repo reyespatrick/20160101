@@ -1,6 +1,7 @@
 <script setup>
-import { computed, onMounted, ref } from 'vue'
-import { RouterView } from 'vue-router'
+import { computed, onMounted, ref, watch } from 'vue'
+import { useI18n } from 'vue-i18n'
+import { RouterView, useRoute, useRouter } from 'vue-router'
 import AppHeader from './components/AppHeader.vue'
 import BottomNav from './components/BottomNav.vue'
 import ErrorBoundary from './components/ErrorBoundary.vue'
@@ -19,7 +20,18 @@ const localProperties = useLocalPropertiesStore()
 const followUps = useFollowUpsStore()
 const owners = useOwnersStore()
 const enums = useEnumsStore()
+const { t } = useI18n()
+const router = useRouter()
+const route = useRoute()
 const online = ref(navigator.onLine)
+
+// When the server rejects the session (expired, deactivated), go back to the login screen
+watch(
+  () => auth.isAuthenticated,
+  (ok) => {
+    if (!ok && !route.meta.public) router.replace({ name: 'login' })
+  },
+)
 
 const syncing = computed(() => clients.syncing || localProperties.syncing || localProperties.uploading > 0 || followUps.syncing || followUps.pulling || owners.syncing)
 
@@ -41,6 +53,7 @@ onMounted(() => {
   document.addEventListener('visibilitychange', () => document.visibilityState === 'visible' && syncAll())
   if (auth.isAuthenticated) {
     enums.restore()
+    auth.refresh() // role or keys may have changed since last time
     Promise.all([clients.load(), localProperties.load(), followUps.load()]).then(syncAll).catch(() => {})
   }
 })
@@ -50,7 +63,11 @@ onMounted(() => {
   <div class="app">
     <UpdateBanner />
     <AppHeader v-if="auth.isAuthenticated" />
-    <div v-if="!online" class="offline-bar">Sin conexión · los cambios se guardan en este dispositivo</div>
+    <div v-if="!online" class="offline-bar">{{ t('common.offlineBar') }}</div>
+    <div v-if="auth.isAuthenticated && !auth.hasKeys && $route.name !== 'agency-keys'" class="keys-bar">
+      <span>{{ auth.isAdmin ? t('auth.noKeysAdmin') : t('auth.noKeysAgent') }}</span>
+      <RouterLink v-if="auth.isAdmin" :to="{ name: 'agency-keys' }" class="btn small">{{ t('auth.goKeys') }}</RouterLink>
+    </div>
     <div class="sync-bar" :class="{ on: syncing }" aria-hidden="true"></div>
     <main>
       <ErrorBoundary>
@@ -69,6 +86,8 @@ onMounted(() => {
 <style scoped>
 .app { min-height: 100dvh; display: flex; flex-direction: column; }
 main { flex: 1; }
+.keys-bar { display: flex; flex-wrap: wrap; gap: 0.5rem; align-items: center; justify-content: center; background: var(--surface-2); color: var(--brand-dark); font-size: 0.85rem; padding: 0.5rem 1rem; text-align: center; }
+.keys-bar .small { padding: 0.35rem 0.7rem; font-size: 0.85rem; }
 .offline-bar { background: var(--accent); color: #fff; text-align: center; font-size: 0.85rem; padding: 0.35rem; font-weight: 600; }
 .sync-bar { height: 3px; background: transparent; position: sticky; top: 0; z-index: 11; }
 .sync-bar.on { background: linear-gradient(90deg, transparent, var(--brand), transparent); background-size: 40% 100%; animation: slide 1.1s linear infinite; }

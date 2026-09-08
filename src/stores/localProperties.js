@@ -110,7 +110,7 @@ export const useLocalPropertiesStore = defineStore('localProperties', {
       const local = this.items.find((p) => p.id !== ownId && !p.deleted && p.ref === ref)
       if (local) return false
       try {
-        const found = await findByRef(auth.credentials, ref)
+        const found = await findByRef(ref)
         if (!found) return true
         const own = this.items.find((p) => p.id === ownId)
         return Boolean(own && own.status !== 'draft' && own.ref === ref)
@@ -162,7 +162,7 @@ export const useLocalPropertiesStore = defineStore('localProperties', {
     async sync() {
       const auth = useAuthStore()
       const agency = auth.numagencia
-      if (!agency || !auth.restToken || this.syncing) return false
+      if (!agency || !auth.hasKeys || !auth.canWrite || this.syncing) return false
       if (typeof navigator !== 'undefined' && navigator.onLine === false) return false
       if (this.rateLimitedUntil > Date.now()) {
         setTimeout(() => this.sync(), this.rateLimitedUntil - Date.now() + 500)
@@ -227,7 +227,7 @@ export const useLocalPropertiesStore = defineStore('localProperties', {
           if (!local?.blob) continue
           this.uploading++
           try {
-            const url = await hostPhoto(auth.restToken, local.blob)
+            const url = await hostPhoto(local.blob)
             await propertiesDb.setPhotoUrl(agency, ph.id, url)
             meta = { ...(meta || { id: ph.id, propertyId: record.id }), uploaded: true, publicUrl: url }
             this.photoMeta[ph.id] = meta
@@ -239,7 +239,7 @@ export const useLocalPropertiesStore = defineStore('localProperties', {
       }
       // 2. create / update the listing
       const { dirty, syncError, ...payload } = record
-      await saveProperty(auth.restToken, payload, urls)
+      await saveProperty(payload, urls)
       const status = record.unavailable ? 'unavailable' : 'sent'
       await propertiesDb.markSynced(agency, record.id, { status, sentAt: Date.now() })
       this.items = await propertiesDb.all(agency)
@@ -252,7 +252,7 @@ export const useLocalPropertiesStore = defineStore('localProperties', {
       let patch = {}
       let codOfer = record.codOfer
       if (!codOfer) {
-        const found = await findByRef(auth.credentials, record.ref)
+        const found = await findByRef(record.ref)
         if (found?.cod_ofer) {
           codOfer = String(found.cod_ofer)
           patch.codOfer = codOfer
@@ -260,8 +260,8 @@ export const useLocalPropertiesStore = defineStore('localProperties', {
       }
       if (codOfer && record.ownerDirty && record.ownerName) {
         const withCod = { ...record, codOfer }
-        if (record.ownerRemoteId) await updateOwner(auth.restToken, withCod)
-        else patch.ownerRemoteId = await createOwner(auth.restToken, withCod)
+        if (record.ownerRemoteId) await updateOwner(withCod)
+        else patch.ownerRemoteId = await createOwner(withCod)
         patch.ownerDirty = false
       }
       if (Object.keys(patch).length) {

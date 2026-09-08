@@ -126,7 +126,7 @@ export const useFollowUpsStore = defineStore('followUps', {
     async sync({ pull = true } = {}) {
       const auth = useAuthStore()
       const agency = auth.numagencia
-      if (!agency || !auth.restToken || this.syncing) return false
+      if (!agency || !auth.hasKeys || !auth.canWrite || this.syncing) return false
       if (typeof navigator !== 'undefined' && navigator.onLine === false) return false
       if (this.rateLimitedUntil > Date.now()) {
         setTimeout(() => this.sync(), this.rateLimitedUntil - Date.now() + 500)
@@ -139,7 +139,7 @@ export const useFollowUpsStore = defineStore('followUps', {
         for (const record of pendingRecords(this.items)) {
           try {
             const { dirty, syncError, ...payload } = record
-            const remoteId = await saveFollowUp(auth.restToken, payload)
+            const remoteId = await saveFollowUp(payload)
             await followUpsDb.markSynced(agency, record.id, { remoteId: remoteId || record.remoteId || null })
           } catch (err) {
             if (err.status === 0) return false
@@ -171,13 +171,13 @@ export const useFollowUpsStore = defineStore('followUps', {
     async pull({ force = false } = {}) {
       const auth = useAuthStore()
       const agency = auth.numagencia
-      if (!agency || !auth.restToken || navigator.onLine === false || this.pulling) return
+      if (!agency || !auth.hasKeys || navigator.onLine === false || this.pulling) return
       if (!force && Date.now() - this.lastPullAt < PULL_EVERY_MS) return
       this.pulling = true
       try {
         const enums = useEnumsStore()
         enums.ensureTiposSeguimiento() // not awaited: the enum queue is throttled (2 calls/min); labels resolve when it lands
-        const raw = await searchFollowUps(auth.restToken, { from: Date.now() - PULL_DAYS * 86_400_000, to: Date.now() })
+        const raw = await searchFollowUps({ from: Date.now() - PULL_DAYS * 86_400_000, to: Date.now() })
         const remote = raw.map((r) => fromInmovillaFollowUp(r, (k) => enums.followUpTypeLabel(k))).filter(Boolean)
         // keep labels we already resolved
         const known = new Map(this.items.filter((f) => f.remoteId).map((f) => [f.remoteId, f]))
@@ -215,7 +215,7 @@ export const useFollowUpsStore = defineStore('followUps', {
         }
         if (f.propertyCodOfer && !f.propertyLabel && navigator.onLine !== false) {
           try {
-            const data = await callInmovilla(auth.credentials, [{ type: 'paginacion', pos: 1, num: 1, where: `cod_ofer=${Number(f.propertyCodOfer)}`, order: '' }])
+            const data = await callInmovilla([{ type: 'paginacion', pos: 1, num: 1, where: `cod_ofer=${Number(f.propertyCodOfer)}`, order: '' }])
             const p = splitSection(data.paginacion).items[0]
             if (p) patch.propertyLabel = `Ref. ${p.ref} · ${[p.nbtipo, p.ciudad].filter(Boolean).join(' en ')}`
           } catch {

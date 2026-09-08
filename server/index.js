@@ -1,26 +1,27 @@
 /**
- * Stateless gateway for the Immoba PWA.
+ * Immoba gateway.
  *
- *  - POST /api/inmovilla  → relays queries to Inmovilla's legacy "apiweb" (read: listings, fichas, types).
- *  - ANY  /api/rest/*     → relays to Inmovilla's REST API v1 with the user's token (write: clients,
- *                           listings, photos). The token travels in the X-Inmovilla-Token header of
- *                           each request and is never stored here.
- *  - PUT  /api/photos      → stores a listing photo and returns its public URL (Inmovilla fetches
- *                           photos by URL). Files are purged after PHOTO_TTL_DAYS.
- *  - GET  /photos/:id.jpg  → serves it.
- *  - serves the built PWA.
+ *  - /api/account/*        accounts: agency setup, login, profile, Inmovilla keys (admin), users (admin)
+ *  - POST /api/inmovilla   relays apiweb queries (read) with the agency's keys, for logged-in users
+ *  - ANY  /api/rest/*      relays Inmovilla REST v1 (write) with the agency's token; roles enforced
+ *  - PUT  /api/photos      hosts a listing photo (public URL for Inmovilla to download); write roles only
+ *  - GET  /photos/:id.jpg  serves it
+ *  - serves the built PWA
  *
- * Why a server at all: the browser cannot call apiweb directly (no CORS, whitelisted server IPs only),
- * so this process must run on a machine whose IP Inmovilla has authorised. It keeps no data.
+ * Users log in with their own email/password. The Inmovilla keys are set by an admin, stored
+ * encrypted in DATA_DIR/immoba.sqlite and never sent to the phone.
  */
+import crypto from 'node:crypto'
 import express from 'express'
+import { mkdir, readdir, rename, stat, unlink, writeFile } from 'node:fs/promises'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
+import { createAccountsRouter } from './accounts.js'
+import { canDelete, canWrite, requireUser } from './auth.js'
+import * as db from './db.js'
 import { buildFormBody, normalizeRequest, parseApiResponse } from './inmovilla.js'
 import { mockResponse } from './mock.js'
 import { createMockRest } from './mockRest.js'
-import crypto from 'node:crypto'
-import { mkdir, readdir, rename, stat, unlink, writeFile } from 'node:fs/promises'
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 const PORT = Number(process.env.PORT || 3000)
@@ -28,118 +29,130 @@ const API_URL = process.env.INMOVILLA_API_URL || 'https://apiweb.inmovilla.com/a
 const REST_URL = (process.env.INMOVILLA_REST_URL || 'https://procesos.inmovilla.com/api/v1').replace(/\/+$/, '')
 const DOMAIN = process.env.INMOVILLA_DOMAIN || ''
 const MOCK = process.env.INMOVILLA_MOCK === '1'
-const UPSTREAM_TIMEOUT_MS = 30_000
-const MAX_BODY = '12mb'
-// Photo hosting: Inmovilla's REST API downloads listing photos from public URLs, so the
-// relay keeps the uploaded files for a while at unguessable addresses. This is the only
-// thing the server stores.
-const PHOTOS_DIR = process.env.PHOTOS_DIR || path.join(__dirname, '..', 'data', 'photos')
+const DATA_DIR = process.env.DATA_DIR || path.join(__dirname, '..', 'data')
+const PHOTOS_DIR = process.env.PHOTOS_DIR || path.join(DATA_DIR, 'photos')
 const PHOTO_TTL_DAYS = Number(process.env.PHOTO_TTL_DAYS || 30)
 const PUBLIC_URL = (process.env.PUBLIC_URL || '').replace(/\/+$/, '')
+const UPSTREAM_TIMEOUT_MS = 30_000
+const MAX_BODY = '12mb'
 const MAX_PHOTO_BYTES = 8 * 1024 * 1024
+
+db.openDb(DATA_DIR)
+const mockRest = MOCK ? createMockRest() : null
 
 const app = express()
 app.disable('x-powered-by')
 app.set('trust proxy', true)
 
 app.get('/api/health', (_req, res) => {
-  res.json({ ok: true, mock: MOCK, apiweb: MOCK ? 'mock' : API_URL, rest: MOCK ? 'mock' : REST_URL })
+  res.json({ ok: true, mock: MOCK, apiweb: MOCK ? 'mock' : API_URL, rest: MOCK ? 'mock' : REST_URL, needsSetup: db.countUsers() === 0 })
 })
 
 // ---------------------------------------------------------------------------
-// apiweb relay (read)
+// Inmovilla calls with the agency's keys
 // ---------------------------------------------------------------------------
-app.post('/api/inmovilla', express.json({ limit: '64kb' }), async (req, res) => {
-  const { numagencia, password, idioma, requests } = req.body || {}
+async function withTimeout(fn) {
+  const controller = new AbortController()
+  const timer = setTimeout(() => controller.abort(), UPSTREAM_TIMEOUT_MS)
+  try {
+    return await fn(controller.signal)
+  } catch (err) {
+    if (err.name === 'AbortError') throw Object.assign(new Error('Inmovilla no responde'), { status: 504 })
+    throw err
+  } finally {
+    clearTimeout(timer)
+  }
+}
+
+async function apiwebQuery(creds, normalized, clientIp) {
+  if (MOCK) {
+    const data = mockResponse({ numagencia: creds.numagencia, password: creds.password }, normalized)
+    if (data.error) throw Object.assign(new Error(data.error), { status: 401 })
+    return data
+  }
+  return withTimeout(async (signal) => {
+    const upstream = await fetch(API_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded', Accept: 'application/json', 'User-Agent': 'immoba/0.4' },
+      body: buildFormBody({ numagencia: creds.numagencia, password: creds.password, idioma: creds.idioma }, normalized, { clientIp, domain: DOMAIN }),
+      signal,
+    })
+    const text = await upstream.text()
+    if (!upstream.ok) throw Object.assign(new Error(`Inmovilla responded ${upstream.status}`), { status: 502 })
+    return parseApiResponse(text)
+  })
+}
+
+/** Raw REST relay: returns { status, type, body } */
+async function restRelay(token, method, urlPath, contentType, body) {
+  if (MOCK) return mockRest.call(token, method, urlPath, contentType, body)
+  return withTimeout(async (signal) => {
+    const headers = { Token: token, Accept: 'application/json', 'User-Agent': 'immoba/0.4' }
+    if (body?.length) headers['Content-Type'] = contentType || 'application/json'
+    const upstream = await fetch(REST_URL + urlPath, { method, headers, body: body?.length ? body : undefined, signal })
+    return { status: upstream.status, type: upstream.headers.get('content-type') || 'application/json', body: Buffer.from(await upstream.arrayBuffer()) }
+  })
+}
+
+/** Used when an admin saves keys: both must be accepted by Inmovilla. */
+async function verifyInmovillaKeys(creds) {
+  await apiwebQuery(creds, [normalizeRequest({ type: 'paginacion', pos: 1, num: 1 })], '')
+  const r = await restRelay(creds.restToken, 'GET', '/clientes/buscar/?telefono=000000000', null, null)
+  if (r.status === 401 || r.status === 403) throw Object.assign(new Error('Inmovilla rechazó la clave de la API REST'), { status: 401 })
+}
+
+app.use('/api/account', createAccountsRouter({ verifyInmovillaKeys }))
+
+/** Loads the agency's Inmovilla credentials or answers 409 when the admin has not set them. */
+function requireKeys(req, res, next) {
+  const creds = db.agencyCredentials(req.user.agency_id)
+  if (!creds || !creds.numagencia || !creds.password || !creds.restToken) {
+    return res.status(409).json({ error: 'La agencia aún no tiene configuradas las claves de Inmovilla', code: 'keys' })
+  }
+  req.creds = creds
+  next()
+}
+
+// ---------------------------------------------------------------------------
+// apiweb relay (read) — any active user
+// ---------------------------------------------------------------------------
+app.post('/api/inmovilla', requireUser, requireKeys, express.json({ limit: '64kb' }), async (req, res) => {
+  const { requests, idioma } = req.body || {}
   let normalized
   try {
     if (!Array.isArray(requests) || requests.length === 0 || requests.length > 5) throw new Error('Provide between 1 and 5 requests')
     normalized = requests.map(normalizeRequest)
-    if (!numagencia || !password) throw new Error('Missing credentials')
   } catch (err) {
     return res.status(400).json({ error: err.message })
   }
-  const credentials = { numagencia: String(numagencia), password: String(password), idioma: Number(idioma) || 1 }
   res.set('Cache-Control', 'no-store')
-
-  if (MOCK) {
-    const data = mockResponse(credentials, normalized)
-    return data.error ? res.status(401).json({ error: data.error }) : res.json(data)
-  }
-
-  const controller = new AbortController()
-  const timer = setTimeout(() => controller.abort(), UPSTREAM_TIMEOUT_MS)
   try {
-    const upstream = await fetch(API_URL, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/x-www-form-urlencoded', Accept: 'application/json', 'User-Agent': 'immoba/0.3' },
-      body: buildFormBody(credentials, normalized, { clientIp: req.ip, domain: DOMAIN }),
-      signal: controller.signal,
-    })
-    const text = await upstream.text()
-    if (!upstream.ok) return res.status(502).json({ error: `Inmovilla responded ${upstream.status}`, detail: text.slice(0, 300) })
-    return res.json(parseApiResponse(text))
+    res.json(await apiwebQuery({ ...req.creds, idioma: Number(idioma) || req.creds.idioma }, normalized, req.ip))
   } catch (err) {
-    const status = err.name === 'AbortError' ? 504 : err.status || 502
-    return res.status(status).json({ error: err.message || 'Upstream error' })
-  } finally {
-    clearTimeout(timer)
+    res.status(err.status || 502).json({ error: err.message || 'Upstream error' })
   }
 })
 
 // ---------------------------------------------------------------------------
-// REST API v1 relay (write) — the user's token is forwarded, nothing is kept
+// REST relay (write) — roles: readonly may only GET; agents may not DELETE
 // ---------------------------------------------------------------------------
-if (MOCK) {
-  app.use('/api/rest', createMockRest().router)
-  // sample listing photos for the mock (generate them with scripts/generate-mock-photos.mjs)
-  app.use('/mock-photos', express.static(process.env.MOCK_PHOTOS_DIR || path.join(__dirname, '..', 'data', 'mock-photos'), { maxAge: '1d' }))
-} else {
-  app.use('/api/rest', express.raw({ type: () => true, limit: MAX_BODY }), async (req, res) => {
-    const token = req.get('x-inmovilla-token')
-    if (!token) return res.status(401).json({ error: 'Falta la clave de la API REST de Inmovilla' })
-    const target = REST_URL + req.url // req.url is already relative to /api/rest and keeps the query string
-    const controller = new AbortController()
-    const timer = setTimeout(() => controller.abort(), UPSTREAM_TIMEOUT_MS)
-    try {
-      const headers = { Token: token, Accept: 'application/json', 'User-Agent': 'immoba/0.3' }
-      const hasBody = !['GET', 'HEAD'].includes(req.method) && Buffer.isBuffer(req.body) && req.body.length > 0
-      if (hasBody) headers['Content-Type'] = req.get('content-type') || 'application/json'
-      const upstream = await fetch(target, { method: req.method, headers, body: hasBody ? req.body : undefined, signal: controller.signal })
-      res.status(upstream.status)
-      res.set('Cache-Control', 'no-store')
-      const type = upstream.headers.get('content-type')
-      if (type) res.type(type)
-      res.send(Buffer.from(await upstream.arrayBuffer()))
-    } catch (err) {
-      res.status(err.name === 'AbortError' ? 504 : 502).json({ error: err.name === 'AbortError' ? 'Inmovilla no responde' : err.message })
-    } finally {
-      clearTimeout(timer)
-    }
-  })
-}
-
-// ---------------------------------------------------------------------------
-// Photo hosting for Inmovilla to fetch
-// ---------------------------------------------------------------------------
-const tokenCache = new Map() // token -> expiry; avoids hitting Inmovilla for every upload
-async function tokenIsValid(token) {
-  if (!token) return false
-  if (MOCK) return token === 'demo-token'
-  const cached = tokenCache.get(token)
-  if (cached && cached > Date.now()) return true
+app.use('/api/rest', requireUser, requireKeys, express.raw({ type: () => true, limit: MAX_BODY }), async (req, res) => {
+  const method = req.method.toUpperCase()
+  if (method !== 'GET' && !canWrite(req.user.role)) return res.status(403).json({ error: 'Tu cuenta es de solo lectura', code: 'role' })
+  if (method === 'DELETE' && !canDelete(req.user.role)) return res.status(403).json({ error: 'Solo un administrador puede eliminar en Inmovilla', code: 'role' })
   try {
-    const res = await fetch(`${REST_URL}/clientes/buscar/?telefono=000000000`, { headers: { Token: token, Accept: 'application/json' } })
-    if (res.status === 401 || res.status === 403) return false
-    tokenCache.set(token, Date.now() + 60 * 60_000)
-    return true
-  } catch {
-    return false
+    const r = await restRelay(req.creds.restToken, method, req.url, req.get('content-type'), Buffer.isBuffer(req.body) ? req.body : null)
+    res.status(r.status).set('Cache-Control', 'no-store').type(r.type).send(r.body)
+  } catch (err) {
+    res.status(err.status || 502).json({ error: err.message })
   }
-}
+})
 
-app.put('/api/photos', express.raw({ type: ['image/jpeg', 'image/png', 'image/webp', 'application/octet-stream'], limit: MAX_PHOTO_BYTES }), async (req, res) => {
-  if (!(await tokenIsValid(req.get('x-inmovilla-token')))) return res.status(401).json({ error: 'Clave de la API REST no válida' })
+// ---------------------------------------------------------------------------
+// Photo hosting for Inmovilla to fetch — write roles only
+// ---------------------------------------------------------------------------
+app.put('/api/photos', requireUser, express.raw({ type: ['image/jpeg', 'image/png', 'image/webp', 'application/octet-stream'], limit: MAX_PHOTO_BYTES }), async (req, res) => {
+  if (!canWrite(req.user.role)) return res.status(403).json({ error: 'Tu cuenta es de solo lectura', code: 'role' })
   if (!Buffer.isBuffer(req.body) || req.body.length === 0) return res.status(400).json({ error: 'Foto vacía' })
   const id = crypto.randomBytes(16).toString('hex')
   try {
@@ -157,11 +170,8 @@ app.put('/api/photos', express.raw({ type: ['image/jpeg', 'image/png', 'image/we
 
 app.get('/photos/:id.jpg', (req, res) => {
   if (!/^[a-f0-9]{32}$/.test(req.params.id)) return res.status(404).end()
-  res.set('Cache-Control', 'public, max-age=31536000, immutable')
-  res.type('image/jpeg')
-  res.sendFile(path.join(PHOTOS_DIR, `${req.params.id}.jpg`), (err) => {
-    if (err) res.status(404).end()
-  })
+  res.set('Cache-Control', 'public, max-age=31536000, immutable').type('image/jpeg')
+  res.sendFile(path.join(PHOTOS_DIR, `${req.params.id}.jpg`), (err) => err && res.status(404).end())
 })
 
 async function purgeOldPhotos() {
@@ -179,20 +189,23 @@ async function purgeOldPhotos() {
 purgeOldPhotos()
 setInterval(purgeOldPhotos, 60 * 60_000).unref()
 
+if (MOCK) {
+  app.use('/mock-photos', express.static(process.env.MOCK_PHOTOS_DIR || path.join(DATA_DIR, 'mock-photos'), { maxAge: '1d' }))
+}
+
 // ---------------------------------------------------------------------------
 // Built PWA
 // ---------------------------------------------------------------------------
 const dist = path.join(__dirname, '..', 'dist')
 app.use(express.static(dist, { index: 'index.html', maxAge: '1h' }))
 app.get(/^(?!\/api\/).*/, (_req, res) => {
-  res.sendFile(path.join(dist, 'index.html'), (err) => {
-    if (err) res.status(404).send('Build the app first: npm run build')
-  })
+  res.sendFile(path.join(dist, 'index.html'), (err) => err && res.status(404).send('Build the app first: npm run build'))
 })
 
 app.listen(PORT, () => {
   console.log(`[server] listening on http://localhost:${PORT}`)
-  console.log(`[server] apiweb → ${MOCK ? 'MOCK' : API_URL}`)
+  console.log(`[server] apiweb → ${MOCK ? 'MOCK (agencia 1234 / clave demo)' : API_URL}`)
   console.log(`[server] REST   → ${MOCK ? 'MOCK (token "demo-token")' : REST_URL}`)
-  console.log(`[server] photos → ${PHOTOS_DIR} (kept ${PHOTO_TTL_DAYS} days${PUBLIC_URL ? `, public at ${PUBLIC_URL}/photos/` : ''})`)
+  console.log(`[server] data   → ${DATA_DIR} (accounts + encrypted keys), photos kept ${PHOTO_TTL_DAYS} days${PUBLIC_URL ? ` at ${PUBLIC_URL}/photos/` : ''}`)
+  if (db.countUsers() === 0) console.log('[server] no users yet: open the app to create the agency and its administrator')
 })

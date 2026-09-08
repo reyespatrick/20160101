@@ -1,6 +1,8 @@
 <script setup>
+import { useI18n } from 'vue-i18n'
 import { onMounted, ref } from 'vue'
 import { useRegisterSW } from 'virtual:pwa-register/vue'
+const { t } = useI18n()
 
 /**
  * Over-the-air updates. The service worker is checked every CHECK_MS, when the app comes
@@ -50,8 +52,8 @@ onMounted(() => {
   <Transition name="banner">
     <div v-if="status !== 'idle'" class="update" role="status" aria-live="polite">
       <span class="spinner-sm"></span>
-      <span v-if="status === 'updating'">Nueva versión disponible · actualizando la app…</span>
-      <span v-else>Listo · recargando</span>
+      <span v-if="status === 'updating'">{{ t('common.updating') }}</span>
+      <span v-else>{{ t('common.updated') }}</span>
     </div>
   </Transition>
 </template>

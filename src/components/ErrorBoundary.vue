@@ -1,6 +1,8 @@
 <script setup>
+import { useI18n } from 'vue-i18n'
 import { onErrorCaptured, ref, watch } from 'vue'
 import { useRoute } from 'vue-router'
+const { t } = useI18n()
 
 /**
  * Catches render/lifecycle errors of the current screen and shows a recoverable panel
@@ -26,13 +28,13 @@ function reload() {
   <div v-if="error" class="boundary">
     <div class="panel">
       <div class="icon">⚠️</div>
-      <h2>Esta pantalla ha fallado</h2>
-      <p class="muted">La aplicación sigue funcionando y tus datos están guardados en este dispositivo.</p>
-      <details><summary>Detalles técnicos</summary><pre>{{ error.message }}</pre></details>
+      <h2>{{ t('common.errorTitle') }}</h2>
+      <p class="muted">{{ t('common.errorBody') }}</p>
+      <details><summary>{{ t('common.errorDetails') }}</summary><pre>{{ error.message }}</pre></details>
       <div class="actions">
-        <button type="button" class="btn" @click="retry">Reintentar</button>
-        <RouterLink to="/" class="btn btn-ghost">Ir al inicio</RouterLink>
-        <button type="button" class="btn btn-ghost" @click="reload">Recargar la app</button>
+        <button type="button" class="btn" @click="retry">{{ t('common.retry') }}</button>
+        <RouterLink to="/" class="btn btn-ghost">{{ t('common.home') }}</RouterLink>
+        <button type="button" class="btn btn-ghost" @click="reload">{{ t('common.reload') }}</button>
       </div>
     </div>
   </div>
@@ -46,6 +48,6 @@ function reload() {
 h2 { margin: 0; }
 p { margin: 0; }
 details { width: 100%; text-align: left; font-size: 0.8rem; }
-pre { white-space: pre-wrap; overflow-wrap: anywhere; background: #f4f5fa; padding: 0.6rem; border-radius: 8px; }
+pre { white-space: pre-wrap; overflow-wrap: anywhere; background: var(--bg); padding: 0.6rem; border-radius: 8px; }
 .actions { display: flex; flex-wrap: wrap; gap: 0.5rem; justify-content: center; margin-top: 0.5rem; }
 </style>

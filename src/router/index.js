@@ -3,20 +3,24 @@ import { useAuthStore } from '../stores/auth'
 
 const routes = [
   { path: '/login', name: 'login', component: () => import('../views/LoginView.vue'), meta: { public: true } },
+  { path: '/setup', name: 'setup', component: () => import('../views/SetupView.vue'), meta: { public: true } },
+  { path: '/perfil', name: 'profile', component: () => import('../views/ProfileView.vue') },
+  { path: '/perfil/claves', name: 'agency-keys', component: () => import('../views/AgencyKeysView.vue'), meta: { admin: true } },
+  { path: '/perfil/usuarios', name: 'users', component: () => import('../views/UsersView.vue'), meta: { admin: true } },
   { path: '/', name: 'properties', component: () => import('../views/PropertiesView.vue') },
   { path: '/propiedad/:codOfer', name: 'property', component: () => import('../views/PropertyDetailView.vue'), props: true },
-  { path: '/mis-propiedades/nueva', name: 'local-property-new', component: () => import('../views/LocalPropertyFormView.vue') },
+  { path: '/mis-propiedades/nueva', name: 'local-property-new', meta: { write: true }, component: () => import('../views/LocalPropertyFormView.vue') },
   { path: '/mis-propiedades/:id', name: 'local-property', component: () => import('../views/LocalPropertyDetailView.vue'), props: true },
-  { path: '/mis-propiedades/:id/editar', name: 'local-property-edit', component: () => import('../views/LocalPropertyFormView.vue'), props: true },
+  { path: '/mis-propiedades/:id/editar', name: 'local-property-edit', meta: { write: true }, component: () => import('../views/LocalPropertyFormView.vue'), props: true },
   { path: '/agenda', name: 'followups', component: () => import('../views/FollowUpsView.vue') },
-  { path: '/agenda/nuevo', name: 'followup-new', component: () => import('../views/FollowUpFormView.vue') },
-  { path: '/agenda/:id', name: 'followup-edit', component: () => import('../views/FollowUpFormView.vue'), props: true },
-  { path: '/propietario/nuevo', name: 'owner-new', component: () => import('../views/OwnerFormView.vue') },
-  { path: '/propietario/:id/editar', name: 'owner-edit', component: () => import('../views/OwnerFormView.vue'), props: true },
+  { path: '/agenda/nuevo', name: 'followup-new', meta: { write: true }, component: () => import('../views/FollowUpFormView.vue') },
+  { path: '/agenda/:id', name: 'followup-edit', meta: { write: true }, component: () => import('../views/FollowUpFormView.vue'), props: true },
+  { path: '/propietario/nuevo', name: 'owner-new', meta: { write: true }, component: () => import('../views/OwnerFormView.vue') },
+  { path: '/propietario/:id/editar', name: 'owner-edit', meta: { write: true }, component: () => import('../views/OwnerFormView.vue'), props: true },
   { path: '/clientes', name: 'clients', component: () => import('../views/ClientsView.vue') },
-  { path: '/clientes/nuevo', name: 'client-new', component: () => import('../views/ClientFormView.vue') },
+  { path: '/clientes/nuevo', name: 'client-new', meta: { write: true }, component: () => import('../views/ClientFormView.vue') },
   { path: '/clientes/:id', name: 'client', component: () => import('../views/ClientDetailView.vue'), props: true },
-  { path: '/clientes/:id/editar', name: 'client-edit', component: () => import('../views/ClientFormView.vue'), props: true },
+  { path: '/clientes/:id/editar', name: 'client-edit', meta: { write: true }, component: () => import('../views/ClientFormView.vue'), props: true },
   { path: '/:pathMatch(.*)*', redirect: '/' },
 ]
 
@@ -34,7 +38,9 @@ router.beforeEach((to) => {
   if (!to.meta.public && !auth.isAuthenticated) {
     return { name: 'login', query: to.fullPath !== '/' ? { redirect: to.fullPath } : {} }
   }
-  if (to.name === 'login' && auth.isAuthenticated) return { name: 'properties' }
+  if ((to.name === 'login' || to.name === 'setup') && auth.isAuthenticated) return { name: 'properties' }
+  if (to.meta.admin && !auth.isAdmin) return { name: 'profile' }
+  if (to.meta.write && !auth.canWrite) return { name: 'properties' }
   return true
 })
 

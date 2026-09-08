@@ -1,9 +1,13 @@
 <script setup>
+import { useI18n } from 'vue-i18n'
 import { onMounted, ref, watch } from 'vue'
 import ClientCard from '../components/ClientCard.vue'
 import { useClientsStore } from '../stores/clients'
+import { useAuthStore } from '../stores/auth'
+const { t } = useI18n()
 
 const store = useClientsStore()
+const auth = useAuthStore()
 const searchInput = ref(null)
 
 onMounted(async () => {
@@ -22,10 +26,10 @@ watch(
 )
 
 function syncLabel() {
-  if (store.syncing) return 'Enviando a Inmovilla…'
-  if (store.rateLimitedUntil > Date.now()) return 'Inmovilla limita las peticiones, reintentando en un minuto'
-  if (store.pendingCount) return `${store.pendingCount} cambio${store.pendingCount === 1 ? '' : 's'} pendiente${store.pendingCount === 1 ? '' : 's'}`
-  return 'Todo en Inmovilla'
+  if (store.syncing) return t('common.syncing')
+  if (store.rateLimitedUntil > Date.now()) return t('common.rateLimited')
+  if (store.pendingCount) return t('common.pending', store.pendingCount)
+  return t('common.allInInmovilla')
 }
 </script>
 
@@ -34,52 +38,52 @@ function syncLabel() {
     <div class="toolbar">
       <div class="search-wrap">
         <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="7" fill="none" stroke="currentColor" stroke-width="2" /><path d="m20 20-3.5-3.5" stroke="currentColor" stroke-width="2" /></svg>
-        <input ref="searchInput" v-model="store.query" type="search" placeholder="Nombre, teléfono o email" aria-label="Buscar clientes" autocomplete="off" />
-        <button v-if="store.query" type="button" class="clear" aria-label="Limpiar búsqueda" @click="store.query = ''; searchInput.focus()">×</button>
+        <input ref="searchInput" v-model="store.query" type="search" :placeholder="t('clients.searchPh')" :aria-label="t('common.search')" autocomplete="off" />
+        <button v-if="store.query" type="button" class="clear" :aria-label="t('common.close')" @click="store.query = ''; searchInput.focus()">×</button>
       </div>
-      <RouterLink :to="{ name: 'client-new' }" class="btn new-btn">+ Nuevo</RouterLink>
+      <RouterLink v-if="auth.canWrite" :to="{ name: 'client-new' }" class="btn new-btn">+ {{ t('common.new') }}</RouterLink>
     </div>
 
     <p class="sync muted">
       <span class="sync-dot" :class="{ pending: store.pendingCount, busy: store.syncing || store.searching }"></span>
-      <template v-if="store.searching">Buscando en Inmovilla…</template>
+      <template v-if="store.searching">{{ t('clients.searchingRemote') }}</template>
       <template v-else>{{ syncLabel() }}</template>
-      <button v-if="!store.syncing && store.pendingCount && store.rateLimitedUntil < Date.now()" type="button" class="link" @click="store.sync()">Enviar ahora</button>
+      <button v-if="!store.syncing && store.pendingCount && store.rateLimitedUntil < Date.now()" type="button" class="link" @click="store.sync()">{{ t('common.sendNow') }}</button>
     </p>
-    <p v-if="store.needsLogin" class="alert">Inmovilla rechazó la clave de la API REST. Tus cambios están guardados en este dispositivo; vuelve a iniciar sesión con una clave válida para enviarlos.</p>
+    <p v-if="store.needsLogin" class="alert">{{ t('common.keysRejected') }}</p>
     <p v-else-if="store.syncError" class="alert">{{ store.syncError }}</p>
 
     <div v-if="store.loading" class="spinner"></div>
 
     <div v-else-if="!store.active.length && !store.query" class="empty">
       <div class="empty-icon">👤</div>
-      <h2>Aún no hay clientes en este dispositivo</h2>
-      <p class="muted">Crea un cliente o busca uno de Inmovilla por su teléfono o email. Funciona también sin conexión.</p>
-      <RouterLink :to="{ name: 'client-new' }" class="btn">Añadir cliente</RouterLink>
+      <h2>{{ t('clients.empty') }}</h2>
+      <p class="muted">{{ t('clients.emptyBody') }}</p>
+      <RouterLink v-if="auth.canWrite" :to="{ name: 'client-new' }" class="btn">{{ t('clients.addClient') }}</RouterLink>
     </div>
 
     <div v-else-if="!store.filtered.length" class="empty">
-      <h2>Sin resultados</h2>
+      <h2>{{ t('common.noResults') }}</h2>
       <p v-if="store.canSearchRemote" class="muted">
-        <template v-if="store.searching">Buscando en Inmovilla…</template>
-        <template v-else-if="store.remoteResultsFor === store.query.trim()">Tampoco hay coincidencias en Inmovilla.</template>
-        <template v-else><button type="button" class="link" @click="store.searchRemote()">Buscar en Inmovilla</button></template>
+        <template v-if="store.searching">{{ t('clients.searchingRemote') }}</template>
+        <template v-else-if="store.remoteResultsFor === store.query.trim()">{{ t('clients.noRemote') }}</template>
+        <template v-else><button type="button" class="link" @click="store.searchRemote()">{{ t('clients.searchRemote') }}</button></template>
       </p>
-      <p v-else class="muted">Inmovilla solo permite buscar por teléfono o email; por nombre se busca entre los clientes ya vistos en este dispositivo.</p>
-      <RouterLink :to="{ name: 'client-new', query: { q: store.query } }" class="btn btn-ghost">Crear “{{ store.query }}”</RouterLink>
+      <p v-else class="muted">{{ t('clients.nameOnlyLocal') }}</p>
+      <RouterLink v-if="auth.canWrite" :to="{ name: 'client-new', query: { q: store.query } }" class="btn btn-ghost">{{ t('clients.create', { q: store.query }) }}</RouterLink>
     </div>
 
     <div v-else class="list">
       <p class="count muted">
-        {{ store.filtered.length }} de {{ store.active.length }} clientes
+        {{ t('clients.count', { n: store.filtered.length, total: store.active.length }) }}
         <template v-if="store.canSearchRemote && store.remoteResultsFor !== store.query.trim()">
-          · <button type="button" class="link" @click="store.searchRemote()">Buscar también en Inmovilla</button>
+          · <button type="button" class="link" @click="store.searchRemote()">{{ t('clients.alsoRemote') }}</button>
         </template>
       </p>
       <ClientCard v-for="c in store.filtered" :key="c.id" :client="c" />
     </div>
 
-    <RouterLink :to="{ name: 'client-new' }" class="fab" aria-label="Nuevo cliente">+</RouterLink>
+    <RouterLink v-if="auth.canWrite" :to="{ name: 'client-new' }" class="fab" :aria-label="t('clients.new')">+</RouterLink>
   </section>
 </template>
 
@@ -93,7 +97,7 @@ function syncLabel() {
 .clear { position: absolute; right: 0.5rem; top: 50%; transform: translateY(-50%); border: 0; background: var(--border); border-radius: 50%; width: 26px; height: 26px; line-height: 1; font-size: 1.1rem; }
 .new-btn { white-space: nowrap; }
 .sync { display: flex; align-items: center; gap: 0.45rem; font-size: 0.82rem; margin: 0.25rem 0 0.75rem; }
-.sync-dot { width: 8px; height: 8px; border-radius: 50%; background: #2e7d32; }
+.sync-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--ok); }
 .sync-dot.pending { background: var(--accent); }
 .sync-dot.busy { background: var(--brand); animation: pulse 1s infinite; }
 @keyframes pulse { 50% { opacity: 0.3; } }

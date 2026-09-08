@@ -201,5 +201,24 @@ export function createMockRest() {
   })
 
   router.use((_req, res) => err(res, 405, 405001, 'Método no permitido'))
-  return { router, db }
+
+  /** In-process invocation used by the relay: returns { status, type, body } like a real upstream. */
+  const app = express()
+  app.use(router)
+  async function call(token, method, urlPath, contentType, body) {
+    const { createServer } = await import('node:http')
+    if (!call.server) {
+      call.server = createServer(app)
+      await new Promise((r) => call.server.listen(0, '127.0.0.1', r))
+      call.server.unref()
+    }
+    const port = call.server.address().port
+    const upstream = await fetch(`http://127.0.0.1:${port}${urlPath}`, {
+      method,
+      headers: { Token: token || '', Accept: 'application/json', ...(body?.length ? { 'Content-Type': contentType || 'application/json' } : {}) },
+      body: body?.length ? body : undefined,
+    })
+    return { status: upstream.status, type: upstream.headers.get('content-type') || 'application/json', body: Buffer.from(await upstream.arrayBuffer()) }
+  }
+  return { router, db, call }
 }

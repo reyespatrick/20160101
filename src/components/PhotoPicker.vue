@@ -1,6 +1,8 @@
 <script setup>
+import { useI18n } from 'vue-i18n'
 import { ref } from 'vue'
 import { isImageFile } from '../utils/image'
+const { t } = useI18n()
 
 /**
  * Photo grid with add / remove / reorder / set-as-cover.
@@ -26,7 +28,7 @@ async function onFiles(event) {
   if (!files.length) return
   const room = props.max - props.modelValue.length
   if (room <= 0) {
-    error.value = `Máximo ${props.max} fotos`
+    error.value = t('props.photos.max', { max: props.max })
     return
   }
   error.value = ''
@@ -34,7 +36,7 @@ async function onFiles(event) {
   try {
     await props.addFiles(files.slice(0, room))
   } catch (err) {
-    error.value = err.message || 'No se pudo añadir la foto'
+    error.value = err.message || t('props.photos.add')
   } finally {
     busy.value -= 1
   }
@@ -70,28 +72,28 @@ async function remove(index) {
     <div class="grid">
       <div v-for="(photo, i) in modelValue" :key="photo.id" class="tile" :class="{ cover: i === 0 }">
         <img v-if="urls[photo.id]" :src="urls[photo.id]" alt="" />
-        <div v-else class="placeholder">Cargando…</div>
-        <span v-if="i === 0" class="cover-tag">Portada</span>
+        <div v-else class="placeholder">{{ t('props.photos.loading') }}</div>
+        <span v-if="i === 0" class="cover-tag">{{ t('props.photos.cover') }}</span>
         <div class="tools">
-          <button type="button" aria-label="Mover antes" :disabled="i === 0" @click="move(i, -1)">‹</button>
-          <button type="button" aria-label="Mover después" :disabled="i === modelValue.length - 1" @click="move(i, 1)">›</button>
-          <button v-if="i !== 0" type="button" aria-label="Usar como portada" @click="makeCover(i)">★</button>
-          <button type="button" class="del" aria-label="Quitar foto" @click="remove(i)">×</button>
+          <button type="button" :aria-label="t('props.photos.before')" :disabled="i === 0" @click="move(i, -1)">‹</button>
+          <button type="button" :aria-label="t('props.photos.after')" :disabled="i === modelValue.length - 1" @click="move(i, 1)">›</button>
+          <button v-if="i !== 0" type="button" :aria-label="t('props.photos.asCover')" @click="makeCover(i)">★</button>
+          <button type="button" class="del" :aria-label="t('props.photos.remove')" @click="remove(i)">×</button>
         </div>
       </div>
 
       <button type="button" class="tile add" :disabled="busy > 0" @click="input.click()">
         <span class="plus">＋</span>
-        <span>{{ busy ? 'Procesando…' : 'Galería' }}</span>
+        <span>{{ busy ? t('props.photos.processing') : t('props.photos.gallery') }}</span>
       </button>
       <button type="button" class="tile add camera" :disabled="busy > 0" @click="cameraInput.click()">
         <span class="plus">📷</span>
-        <span>Cámara</span>
+        <span>{{ t('props.photos.camera') }}</span>
       </button>
     </div>
     <input ref="input" type="file" accept="image/*" multiple hidden @change="onFiles" />
     <input ref="cameraInput" type="file" accept="image/*" capture="environment" hidden @change="onFiles" />
-    <p class="hint muted">{{ modelValue.length }} / {{ max }} fotos · la primera es la portada. Se reducen automáticamente antes de subirlas.</p>
+    <p class="hint muted">{{ t('props.photos.hint', { n: modelValue.length, max }) }}</p>
     <p v-if="error" class="alert">{{ error }}</p>
   </div>
 </template>
@@ -103,7 +105,7 @@ async function remove(index) {
   aspect-ratio: 1;
   border-radius: 12px;
   overflow: hidden;
-  background: #e6e7f5;
+  background: var(--photo-bg);
   border: 0;
   padding: 0;
 }

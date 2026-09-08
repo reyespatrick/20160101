@@ -91,12 +91,12 @@ export const useClientsStore = defineStore('clients', {
     async searchRemote(query = this.query) {
       const auth = useAuthStore()
       const q = String(query || '').trim()
-      if (!auth.restToken || navigator.onLine === false || !(looksLikePhone(q) || looksLikeEmail(q))) return []
+      if (!auth.hasKeys || navigator.onLine === false || !(looksLikePhone(q) || looksLikeEmail(q))) return []
       this.searching = true
       try {
         await this.ensureLoaded()
         const params = looksLikeEmail(q) ? { email: q } : { telefono: digitsOf(q).slice(-9) }
-        const found = await searchClients(auth.restToken, params)
+        const found = await searchClients(params)
         if (found.length) {
           this.items = upsertRemote(this.items, found)
           await clientsDb.putClean(this.agency(), this.items.filter((c) => found.some((f) => f.remoteId === c.remoteId) && !c.dirty))
@@ -115,9 +115,9 @@ export const useClientsStore = defineStore('clients', {
     async refresh(id) {
       const auth = useAuthStore()
       const local = this.byId(id)
-      if (!local?.remoteId || local.dirty || !auth.restToken || navigator.onLine === false) return
+      if (!local?.remoteId || local.dirty || !auth.hasKeys || navigator.onLine === false) return
       try {
-        const fresh = await getClient(auth.restToken, local.remoteId)
+        const fresh = await getClient(local.remoteId)
         if (fresh) {
           const merged = { ...fresh, id: local.id, dirty: false }
           await clientsDb.putClean(this.agency(), [merged])
@@ -141,7 +141,7 @@ export const useClientsStore = defineStore('clients', {
     async sync() {
       const auth = useAuthStore()
       const agency = auth.numagencia
-      if (!agency || !auth.restToken || this.syncing) return false
+      if (!agency || !auth.hasKeys || !auth.canWrite || this.syncing) return false
       if (typeof navigator !== 'undefined' && navigator.onLine === false) return false
       if (this.rateLimitedUntil > Date.now()) {
         setTimeout(() => this.sync(), this.rateLimitedUntil - Date.now() + 500)
@@ -153,7 +153,7 @@ export const useClientsStore = defineStore('clients', {
         await this.ensureLoaded()
         for (const record of pendingRecords(this.items)) {
           try {
-            await this.pushOne(auth.restToken, agency, record)
+            await this.pushOne(agency, record)
           } catch (err) {
             if (err.status === 0) return false
             if (isAuthError(err)) {
@@ -179,20 +179,20 @@ export const useClientsStore = defineStore('clients', {
       }
     },
 
-    async pushOne(token, agency, record) {
+    async pushOne(agency, record) {
       const { dirty, syncError, ...payload } = record
       switch (planFor(record)) {
         case 'create': {
-          const remoteId = await createClient(token, payload)
+          const remoteId = await createClient(payload)
           await clientsDb.markSynced(agency, record.id, { remoteId: remoteId || null })
           break
         }
         case 'update':
-          await updateClient(token, payload)
+          await updateClient(payload)
           await clientsDb.markSynced(agency, record.id, {})
           break
         case 'delete':
-          await deleteClient(token, record.remoteId)
+          await deleteClient(record.remoteId)
           await clientsDb.remove(agency, record.id)
           break
         default:

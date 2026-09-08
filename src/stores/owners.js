@@ -51,11 +51,11 @@ export const useOwnersStore = defineStore('owners', {
       await this.ensureLoaded()
       const auth = useAuthStore()
       const key = String(codOfer)
-      if (!auth.restToken || navigator.onLine === false || this.loadingFor[key]) return this.forProperty(codOfer)
+      if (!auth.hasKeys || navigator.onLine === false || this.loadingFor[key]) return this.forProperty(codOfer)
       if (!force && Date.now() - (this.checkedFor[key] || 0) < 60 * 60_000) return this.forProperty(codOfer)
       this.loadingFor[key] = true
       try {
-        const remote = await getOwnerByCodOfer(auth.restToken, codOfer)
+        const remote = await getOwnerByCodOfer(codOfer)
         this.checkedFor[key] = Date.now()
         const local = this.items.find((o) => remote && String(o.remoteId) === String(remote.remoteId))
         if (remote && !local?.dirty) {
@@ -110,7 +110,7 @@ export const useOwnersStore = defineStore('owners', {
     async sync() {
       const auth = useAuthStore()
       const agency = auth.numagencia
-      if (!agency || !auth.restToken || this.syncing) return false
+      if (!agency || !auth.hasKeys || !auth.canWrite || this.syncing) return false
       if (typeof navigator !== 'undefined' && navigator.onLine === false) return false
       if (this.rateLimitedUntil > Date.now()) {
         setTimeout(() => this.sync(), this.rateLimitedUntil - Date.now() + 500)
@@ -125,16 +125,16 @@ export const useOwnersStore = defineStore('owners', {
             const { dirty, syncError, ...payload } = record
             switch (planFor(record)) {
               case 'create': {
-                const remoteId = await createOwnerRecord(auth.restToken, payload)
+                const remoteId = await createOwnerRecord(payload)
                 await ownersDb.markSynced(agency, record.id, { remoteId: remoteId || null })
                 break
               }
               case 'update':
-                await updateOwnerRecord(auth.restToken, payload)
+                await updateOwnerRecord(payload)
                 await ownersDb.markSynced(agency, record.id, {})
                 break
               case 'delete':
-                await deleteOwner(auth.restToken, record.remoteId)
+                await deleteOwner(record.remoteId)
                 await ownersDb.remove(agency, record.id)
                 break
               default:

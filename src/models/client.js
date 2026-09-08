@@ -4,6 +4,8 @@
  * app does not invent them: what you see here is what ends up in the CRM.
  */
 
+import { t } from '../i18n'
+
 export function newId() {
   if (globalThis.crypto?.randomUUID) return globalThis.crypto.randomUUID()
   return `c_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 10)}`
@@ -34,7 +36,7 @@ export function emptyClient() {
 }
 
 export function fullName(c) {
-  return [c?.name, c?.surname].filter((s) => s && String(s).trim()).join(' ').trim() || 'Sin nombre'
+  return [c?.name, c?.surname].filter((s) => s && String(s).trim()).join(' ').trim() || t('common.none')
 }
 
 export function initials(c) {
@@ -92,12 +94,12 @@ export function matchesClient(c, query) {
 
 export function validateClient(c) {
   const errors = {}
-  if (!String(c.name || '').trim()) errors.name = 'El nombre es obligatorio'
-  if (c.email && !looksLikeEmail(c.email)) errors.email = 'Email no válido'
+  if (!String(c.name || '').trim()) errors.name = t('clients.valid.name')
+  if (c.email && !looksLikeEmail(c.email)) errors.email = t('clients.valid.email')
   for (const key of ['mobile', 'phone']) {
-    if (c[key] && digitsOf(c[key]).length < 6) errors[key] = 'Teléfono no válido'
+    if (c[key] && digitsOf(c[key]).length < 6) errors[key] = t('clients.valid.phone')
   }
-  if (c.postalCode && !/^\d{4,6}$/.test(String(c.postalCode).trim())) errors.postalCode = 'Código postal no válido'
+  if (c.postalCode && !/^\d{4,6}$/.test(String(c.postalCode).trim())) errors.postalCode = t('clients.valid.cp')
   return errors
 }
 

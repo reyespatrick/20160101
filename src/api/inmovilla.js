@@ -1,8 +1,9 @@
 /**
- * Browser side client. All calls go through our proxy (/api/inmovilla), which
- * forwards them to Inmovilla. The proxy is required because Inmovilla has no
- * CORS headers and only accepts requests from whitelisted server IPs.
+ * Browser side client. All calls go through the relay (/api/inmovilla) with the
+ * user's session; the relay adds the agency's Inmovilla keys. The relay is required
+ * because Inmovilla has no CORS headers and only accepts whitelisted server IPs.
  */
+import { authHeader, reportUnauthorized } from './session'
 
 export class ApiError extends Error {
   constructor(message, status) {
@@ -11,24 +12,31 @@ export class ApiError extends Error {
   }
 }
 
+let dataLanguage = 1
+/** Inmovilla data language (1 es, 2 en, 4 fr…) sent with listing queries. */
+export function setDataLanguage(idioma) {
+  dataLanguage = Number(idioma) || 1
+}
+
 /**
- * @param {{numagencia:string,password:string,idioma:number}} credentials
  * @param {Array<{type:string,pos?:number,num?:number,where?:string,order?:string}>} requests
  */
-export async function callInmovilla(credentials, requests) {
+export async function callInmovilla(requests) {
   let res
   try {
     res = await fetch('/api/inmovilla', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ ...credentials, requests }),
+      headers: { 'Content-Type': 'application/json', ...authHeader() },
+      body: JSON.stringify({ requests, idioma: dataLanguage }),
     })
   } catch {
     throw new ApiError('No hay conexión con el servidor', 0)
   }
   const data = await res.json().catch(() => ({}))
   if (!res.ok) {
-    throw new ApiError(data.error || `Error ${res.status}`, res.status)
+    const err = Object.assign(new ApiError(data.error || `Error ${res.status}`, res.status), { code: data.code })
+    reportUnauthorized(err)
+    throw err
   }
   return data
 }
@@ -67,22 +75,22 @@ export function buildWhere({ operation, typeKey, search } = {}) {
 }
 
 export const ORDER_OPTIONS = [
-  { value: 'fechaact desc', label: 'Más recientes' },
-  { value: 'precioinmo asc', label: 'Precio: menor a mayor' },
-  { value: 'precioinmo desc', label: 'Precio: mayor a menor' },
-  { value: 'ref asc', label: 'Referencia' },
+  { value: 'fechaact desc', labelKey: 'props.sortRecent' },
+  { value: 'precioinmo asc', labelKey: 'props.sortPriceAsc' },
+  { value: 'precioinmo desc', labelKey: 'props.sortPriceDesc' },
+  { value: 'ref asc', labelKey: 'props.sortRef' },
 ]
 
-export async function fetchProperties(credentials, { page = 1, pageSize = 20, where = '', order = 'fechaact desc' } = {}) {
+export async function fetchProperties({ page = 1, pageSize = 20, where = '', order = 'fechaact desc' } = {}) {
   const pos = (page - 1) * pageSize + 1
-  const data = await callInmovilla(credentials, [{ type: 'paginacion', pos, num: pageSize, where, order }])
+  const data = await callInmovilla([{ type: 'paginacion', pos, num: pageSize, where, order }])
   const list = splitSection(data.paginacion)
   const types = splitSection(data.lostipos).items
   return { ...list, types }
 }
 
-export async function fetchProperty(credentials, codOfer) {
-  const data = await callInmovilla(credentials, [
+export async function fetchProperty(codOfer) {
+  const data = await callInmovilla([
     { type: 'ficha', pos: 1, num: 1, where: `cod_ofer=${Number(codOfer)}`, order: '' },
   ])
   const { items } = splitSection(data.ficha)
@@ -90,9 +98,9 @@ export async function fetchProperty(credentials, codOfer) {
 }
 
 /** Look a listing up by its public reference through apiweb. Returns the summary or null. */
-export async function findByRef(credentials, ref) {
+export async function findByRef(ref) {
   const safe = String(ref).replace(/[%';\\]/g, '')
   if (!safe) return null
-  const data = await callInmovilla(credentials, [{ type: 'paginacion', pos: 1, num: 1, where: `ref=${sqlString(safe)}`, order: '' }])
+  const data = await callInmovilla([{ type: 'paginacion', pos: 1, num: 1, where: `ref=${sqlString(safe)}`, order: '' }])
   return splitSection(data.paginacion).items[0] || null
 }

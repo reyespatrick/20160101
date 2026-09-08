@@ -1,11 +1,16 @@
 <script setup>
+import { useI18n } from 'vue-i18n'
 import { computed, onMounted, ref } from 'vue'
 import FollowUpCard from '../components/FollowUpCard.vue'
 import MonthCalendar from '../components/MonthCalendar.vue'
 import { BUCKETS, startOfDay } from '../models/followUp'
 import { useFollowUpsStore } from '../stores/followUps'
+import { useAuthStore } from '../stores/auth'
+import { intlLocale } from '../i18n'
+const { t } = useI18n()
 
 const store = useFollowUpsStore()
+const auth = useAuthStore()
 const mode = ref(localStorage.getItem('immoba.agenda.mode') === 'calendar' ? 'calendar' : 'list')
 const selectedDay = ref(startOfDay())
 
@@ -28,35 +33,35 @@ const dayItems = computed(() => {
   const end = selectedDay.value + 86_400_000
   return store.active.filter((f) => f.remindAt >= selectedDay.value && f.remindAt < end && (store.showClosed || !f.closed)).sort((a, b) => a.remindAt - b.remindAt)
 })
-const dayLabel = computed(() => (selectedDay.value ? new Date(selectedDay.value).toLocaleDateString('es-ES', { weekday: 'long', day: 'numeric', month: 'long' }) : ''))
+const dayLabel = computed(() => (selectedDay.value ? new Date(selectedDay.value).toLocaleDateString(intlLocale(), { weekday: 'long', day: 'numeric', month: 'long' }) : ''))
 
 function syncLabel() {
-  if (store.syncing || store.pulling) return 'Sincronizando con Inmovilla…'
-  if (store.rateLimitedUntil > Date.now()) return 'Inmovilla limita las peticiones, reintentando en un minuto'
-  if (store.pendingCount) return `${store.pendingCount} cambio${store.pendingCount === 1 ? '' : 's'} pendiente${store.pendingCount === 1 ? '' : 's'}`
-  return 'Todo en Inmovilla'
+  if (store.syncing || store.pulling) return t('agenda.syncing')
+  if (store.rateLimitedUntil > Date.now()) return t('common.rateLimited')
+  if (store.pendingCount) return t('common.pending', store.pendingCount)
+  return t('common.allInInmovilla')
 }
 </script>
 
 <template>
   <section class="container agenda">
     <div class="toolbar">
-      <div class="segments" role="tablist" aria-label="Vista">
-        <button type="button" role="tab" :aria-selected="mode === 'list'" :class="{ active: mode === 'list' }" @click="setMode('list')">Lista</button>
-        <button type="button" role="tab" :aria-selected="mode === 'calendar'" :class="{ active: mode === 'calendar' }" @click="setMode('calendar')">Calendario</button>
+      <div class="segments" role="tablist">
+        <button type="button" role="tab" :aria-selected="mode === 'list'" :class="{ active: mode === 'list' }" @click="setMode('list')">{{ t('agenda.list') }}</button>
+        <button type="button" role="tab" :aria-selected="mode === 'calendar'" :class="{ active: mode === 'calendar' }" @click="setMode('calendar')">{{ t('agenda.calendar') }}</button>
       </div>
-      <label class="toggle"><input v-model="store.showClosed" type="checkbox" /> Ver cerrados</label>
-      <RouterLink :to="{ name: 'followup-new' }" class="btn new-btn">+ Nuevo</RouterLink>
+      <label class="toggle"><input v-model="store.showClosed" type="checkbox" /> {{ t('agenda.showClosed') }}</label>
+      <RouterLink v-if="auth.canWrite" :to="{ name: 'followup-new' }" class="btn new-btn">+ {{ t('common.new') }}</RouterLink>
     </div>
 
-    <input v-if="mode === 'list'" v-model="store.query" type="search" class="search" placeholder="Buscar en asunto, propiedad o cliente" aria-label="Buscar seguimientos" />
+    <input v-if="mode === 'list'" v-model="store.query" type="search" class="search" :placeholder="t('agenda.searchPh')" :aria-label="t('common.search')" />
 
     <p class="sync muted">
       <span class="sync-dot" :class="{ pending: store.pendingCount, busy: store.syncing || store.pulling }"></span>
       {{ syncLabel() }}
-      <button v-if="!store.syncing && !store.pulling" type="button" class="link" @click="store.sync(); store.pull({ force: true })">Actualizar</button>
+      <button v-if="!store.syncing && !store.pulling" type="button" class="link" @click="store.sync(); store.pull({ force: true })">{{ t('common.update') }}</button>
     </p>
-    <p v-if="store.needsLogin" class="alert">Inmovilla rechazó la clave de la API REST. Tus seguimientos están guardados en este dispositivo; vuelve a iniciar sesión con una clave válida para enviarlos.</p>
+    <p v-if="store.needsLogin" class="alert">{{ t('common.keysRejected') }}</p>
     <p v-else-if="store.syncError" class="alert">{{ store.syncError }}</p>
 
     <div v-if="store.loading" class="spinner"></div>
@@ -65,8 +70,8 @@ function syncLabel() {
       <MonthCalendar :items="store.showClosed ? store.active : store.active.filter((f) => !f.closed)" :selected="selectedDay" @update:selected="selectedDay = $event" />
       <h2 v-if="selectedDay" class="day-title">{{ dayLabel }}</h2>
       <div v-if="selectedDay && !dayItems.length" class="empty small">
-        <p class="muted">Nada previsto este día.</p>
-        <RouterLink :to="{ name: 'followup-new', query: { at: selectedDay } }" class="btn btn-ghost">Añadir seguimiento</RouterLink>
+        <p class="muted">{{ t('agenda.nothingToday') }}</p>
+        <RouterLink v-if="auth.canWrite" :to="{ name: 'followup-new', query: { at: selectedDay } }" class="btn btn-ghost">{{ t('agenda.addFollowUp') }}</RouterLink>
       </div>
       <div v-else class="list"><FollowUpCard v-for="f in dayItems" :key="f.id" :follow-up="f" /></div>
     </template>
@@ -74,22 +79,22 @@ function syncLabel() {
     <template v-else>
       <div v-if="!store.active.length" class="empty">
         <div class="empty-icon">📅</div>
-        <h2>Aún no hay seguimientos</h2>
-        <p class="muted">Llamadas, visitas, tareas… vinculadas a un cliente o a una propiedad. Se sincronizan con Inmovilla.</p>
-        <RouterLink :to="{ name: 'followup-new' }" class="btn">Nuevo seguimiento</RouterLink>
+        <h2>{{ t('agenda.empty') }}</h2>
+        <p class="muted">{{ t('agenda.emptyBody') }}</p>
+        <RouterLink v-if="auth.canWrite" :to="{ name: 'followup-new' }" class="btn">{{ t('agenda.new') }}</RouterLink>
       </div>
-      <div v-else-if="!store.filtered.length" class="empty"><h2>Sin resultados</h2></div>
+      <div v-else-if="!store.filtered.length" class="empty"><h2>{{ t('common.noResults') }}</h2></div>
       <template v-else>
         <section v-for="b in BUCKETS" :key="b.value" class="group">
           <template v-if="store.grouped[b.value].length">
-            <h2 :style="{ color: b.color }">{{ b.label }} <span class="n">{{ store.grouped[b.value].length }}</span></h2>
+            <h2 :style="{ color: b.color }">{{ t(b.labelKey) }} <span class="n">{{ store.grouped[b.value].length }}</span></h2>
             <div class="list"><FollowUpCard v-for="f in store.grouped[b.value]" :key="f.id" :follow-up="f" /></div>
           </template>
         </section>
       </template>
     </template>
 
-    <RouterLink :to="{ name: 'followup-new', query: mode === 'calendar' && selectedDay ? { at: selectedDay } : {} }" class="fab" aria-label="Nuevo seguimiento">+</RouterLink>
+    <RouterLink v-if="auth.canWrite" :to="{ name: 'followup-new', query: mode === 'calendar' && selectedDay ? { at: selectedDay } : {} }" class="fab" :aria-label="t('agenda.new')">+</RouterLink>
   </section>
 </template>
 
@@ -104,7 +109,7 @@ function syncLabel() {
 .new-btn { white-space: nowrap; }
 .search { width: 100%; border: 1px solid var(--border); border-radius: 12px; padding: 0.8rem 0.9rem; background: var(--surface); font-size: 1rem; margin-bottom: 0.4rem; }
 .sync { display: flex; align-items: center; gap: 0.45rem; font-size: 0.82rem; margin: 0.25rem 0 0.75rem; }
-.sync-dot { width: 8px; height: 8px; border-radius: 50%; background: #2e7d32; }
+.sync-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--ok); }
 .sync-dot.pending { background: var(--accent); }
 .sync-dot.busy { background: var(--brand); animation: pulse 1s infinite; }
 @keyframes pulse { 50% { opacity: 0.3; } }

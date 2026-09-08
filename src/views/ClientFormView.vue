@@ -1,8 +1,10 @@
 <script setup>
+import { useI18n } from 'vue-i18n'
 import { computed, onMounted, reactive, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { emptyClient, looksLikeEmail, looksLikePhone, validateClient } from '../models/client'
 import { useClientsStore } from '../stores/clients'
+const { t } = useI18n()
 
 const props = defineProps({ id: { type: String, default: '' } })
 const store = useClientsStore()
@@ -54,7 +56,7 @@ async function submit() {
     const saved = await store.save({ ...form })
     router.replace({ name: 'client', params: { id: saved.id }, query: { saved: '1' } })
   } catch (err) {
-    errors.value = { form: err.message || 'No se pudo guardar' }
+    errors.value = { form: err.message || t('common.failed', { where: 'save' }) }
   } finally {
     saving.value = false
   }
@@ -69,86 +71,86 @@ function cancel() {
 <template>
   <section class="container form-view">
     <header class="form-head">
-      <button type="button" class="btn btn-ghost" @click="cancel">Cancelar</button>
-      <h1>{{ isEdit ? 'Editar cliente' : 'Nuevo cliente' }}</h1>
+      <button type="button" class="btn btn-ghost" @click="cancel">{{ t('common.cancel') }}</button>
+      <h1>{{ isEdit ? t('clients.form.editTitle') : t('clients.form.title') }}</h1>
     </header>
 
-    <p v-if="notFound" class="alert">Este cliente ya no existe.</p>
+    <p v-if="notFound" class="alert">{{ t('common.notFound') }}</p>
 
     <form v-else id="client-form" novalidate @submit.prevent="submit">
-      <p v-if="!online" class="alert alert-info">Sin conexión: se guardará en este dispositivo y se enviará a Inmovilla automáticamente.</p>
+      <p v-if="!online" class="alert alert-info">{{ t('common.offlineForm') }}</p>
 
       <fieldset>
-        <legend>Datos de contacto</legend>
+        <legend>{{ t('clients.form.contact') }}</legend>
         <div class="two">
           <div class="field" :class="{ invalid: errors.name }">
-            <label for="name">Nombre *</label>
-            <input id="name" v-model.trim="form.name" autocomplete="given-name" autocapitalize="words" placeholder="Nombre" required />
+            <label for="name">{{ t('clients.form.name') }} *</label>
+            <input id="name" v-model.trim="form.name" autocomplete="given-name" autocapitalize="words" required />
             <small v-if="errors.name" class="err">{{ errors.name }}</small>
           </div>
           <div class="field">
-            <label for="surname">Apellidos</label>
-            <input id="surname" v-model.trim="form.surname" autocomplete="family-name" autocapitalize="words" placeholder="Apellidos" />
+            <label for="surname">{{ t('clients.form.surname') }}</label>
+            <input id="surname" v-model.trim="form.surname" autocomplete="family-name" autocapitalize="words" />
           </div>
         </div>
         <div class="two">
           <div class="field" :class="{ invalid: errors.mobile }">
-            <label for="mobile">Móvil</label>
+            <label for="mobile">{{ t('clients.form.mobile') }}</label>
             <input id="mobile" v-model.trim="form.mobile" type="tel" inputmode="tel" autocomplete="tel" placeholder="600 000 000" />
             <small v-if="errors.mobile" class="err">{{ errors.mobile }}</small>
           </div>
           <div class="field" :class="{ invalid: errors.phone }">
-            <label for="phone">Teléfono fijo</label>
+            <label for="phone">{{ t('clients.form.phone') }}</label>
             <input id="phone" v-model.trim="form.phone" type="tel" inputmode="tel" placeholder="965 000 000" />
             <small v-if="errors.phone" class="err">{{ errors.phone }}</small>
           </div>
         </div>
         <div class="two">
           <div class="field" :class="{ invalid: errors.email }">
-            <label for="email">Email</label>
+            <label for="email">{{ t('clients.form.email') }}</label>
             <input id="email" v-model.trim="form.email" type="email" inputmode="email" autocomplete="email" placeholder="nombre@ejemplo.com" />
             <small v-if="errors.email" class="err">{{ errors.email }}</small>
           </div>
           <div class="field">
-            <label for="nif">NIF / DNI</label>
+            <label for="nif">{{ t('clients.form.nif') }}</label>
             <input id="nif" v-model.trim="form.nif" autocapitalize="characters" placeholder="12345678A" />
           </div>
         </div>
       </fieldset>
 
       <fieldset>
-        <legend>Dirección</legend>
+        <legend>{{ t('clients.form.address') }}</legend>
         <div class="two">
           <div class="field grow">
-            <label for="street">Calle</label>
-            <input id="street" v-model.trim="form.street" autocomplete="address-line1" placeholder="Av. de la Libertad" />
+            <label for="street">{{ t('clients.form.street') }}</label>
+            <input id="street" v-model.trim="form.street" autocomplete="address-line1" />
           </div>
           <div class="field">
-            <label for="number">Número</label>
-            <input id="number" v-model.trim="form.number" placeholder="12, 3º B" />
+            <label for="number">{{ t('clients.form.number') }}</label>
+            <input id="number" v-model.trim="form.number" />
           </div>
         </div>
         <div class="three">
           <div class="field" :class="{ invalid: errors.postalCode }">
-            <label for="cp">Código postal</label>
+            <label for="cp">{{ t('clients.form.cp') }}</label>
             <input id="cp" v-model.trim="form.postalCode" inputmode="numeric" autocomplete="postal-code" placeholder="03001" />
             <small v-if="errors.postalCode" class="err">{{ errors.postalCode }}</small>
           </div>
           <div class="field">
-            <label for="city">Localidad</label>
-            <input id="city" v-model.trim="form.city" autocomplete="address-level2" placeholder="Alicante" />
+            <label for="city">{{ t('clients.form.city') }}</label>
+            <input id="city" v-model.trim="form.city" autocomplete="address-level2" />
           </div>
           <div class="field">
-            <label for="province">Provincia</label>
-            <input id="province" v-model.trim="form.province" placeholder="Alicante" />
+            <label for="province">{{ t('clients.form.province') }}</label>
+            <input id="province" v-model.trim="form.province" />
           </div>
         </div>
       </fieldset>
 
       <fieldset>
-        <legend>Observaciones</legend>
+        <legend>{{ t('clients.form.notes') }}</legend>
         <div class="field">
-          <textarea v-model="form.notes" rows="4" placeholder="Qué busca, horario de contacto, próximos pasos…"></textarea>
+          <textarea v-model="form.notes" rows="4" :placeholder="t('clients.form.notesPh')"></textarea>
         </div>
       </fieldset>
 
@@ -157,7 +159,7 @@ function cancel() {
 
     <div v-if="!notFound" class="save-bar">
       <button type="submit" form="client-form" class="btn save" :disabled="saving">
-        {{ saving ? 'Guardando…' : isEdit ? 'Guardar cambios' : 'Guardar cliente' }}
+        {{ saving ? t('common.saving') : isEdit ? t('clients.form.saveChanges') : t('clients.form.save') }}
       </button>
     </div>
   </section>

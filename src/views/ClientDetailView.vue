@@ -1,23 +1,27 @@
 <script setup>
+import { useI18n } from 'vue-i18n'
 import { computed, onMounted, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import InmovillaState from '../components/InmovillaState.vue'
 import { fullName, initials, primaryPhone, whatsappLink } from '../models/client'
 import { useClientsStore } from '../stores/clients'
+import { useAuthStore } from '../stores/auth'
 import { useFollowUpsStore } from '../stores/followUps'
 import FollowUpCard from '../components/FollowUpCard.vue'
 import { formatDate } from '../utils/format'
+const { t } = useI18n()
 
 const props = defineProps({ id: { type: String, required: true } })
 const store = useClientsStore()
 const followUps = useFollowUpsStore()
+const auth = useAuthStore()
 const router = useRouter()
 const clientFollowUps = computed(() => (client.value?.remoteId ? followUps.forClient(client.value.remoteId) : []))
 const route = useRoute()
 
 const loading = ref(true)
 const confirmDelete = ref(false)
-const toast = ref(route.query.saved ? 'Cliente guardado' : '')
+const toast = ref(route.query.saved ? t('clients.detail.saved') : '')
 const client = computed(() => store.byId(props.id))
 const address = computed(() => {
   const c = client.value
@@ -42,64 +46,64 @@ async function remove() {
 <template>
   <section class="container client-detail">
     <div class="top">
-      <RouterLink :to="{ name: 'clients' }" class="btn btn-ghost">← Clientes</RouterLink>
-      <RouterLink v-if="client" :to="{ name: 'client-edit', params: { id } }" class="btn">Editar</RouterLink>
+      <RouterLink :to="{ name: 'clients' }" class="btn btn-ghost">← {{ t('clients.detail.back') }}</RouterLink>
+      <RouterLink v-if="client && auth.canWrite" :to="{ name: 'client-edit', params: { id } }" class="btn">{{ t('common.edit') }}</RouterLink>
     </div>
 
     <div v-if="loading" class="spinner"></div>
-    <p v-else-if="!client" class="alert">Este cliente no existe o fue eliminado.</p>
+    <p v-else-if="!client" class="alert">{{ t('clients.detail.gone') }}</p>
 
     <template v-else>
       <header class="hero">
         <div class="avatar" :style="{ background: client.remoteId ? '#2e3192' : '#f39200' }">{{ initials(client) }}</div>
         <div>
           <h1>{{ fullName(client) }}</h1>
-          <p class="muted"><InmovillaState :record="client" :sent="Boolean(client.remoteId)" :label="client.remoteId ? `nº ${client.remoteId}` : ''" /></p>
-          <p v-if="client.syncError" class="alert">Inmovilla rechazó el contacto: {{ client.syncError }}. Corrige los datos y guarda de nuevo.</p>
+          <p class="muted"><InmovillaState :record="client" :sent="Boolean(client.remoteId)" :label="client.remoteId ? t('clients.num', { id: client.remoteId }) : ''" /></p>
+          <p v-if="client.syncError" class="alert">{{ t('clients.detail.rejected', { msg: client.syncError }) }}</p>
         </div>
       </header>
 
       <div class="actions">
-        <a v-if="primaryPhone(client)" class="action" :href="`tel:${primaryPhone(client)}`"><span class="icon">📞</span>Llamar</a>
+        <a v-if="primaryPhone(client)" class="action" :href="`tel:${primaryPhone(client)}`"><span class="icon">📞</span>{{ t('common.call') }}</a>
         <a v-if="whatsappLink(client.mobile)" class="action" :href="whatsappLink(client.mobile)" target="_blank" rel="noopener"><span class="icon">💬</span>WhatsApp</a>
-        <a v-if="client.email" class="action" :href="`mailto:${client.email}`"><span class="icon">✉️</span>Email</a>
+        <a v-if="client.email" class="action" :href="`mailto:${client.email}`"><span class="icon">✉️</span>{{ t('common.email') }}</a>
       </div>
 
       <article class="block">
-        <h2>Contacto</h2>
+        <h2>{{ t('clients.detail.contact') }}</h2>
         <dl class="rows">
-          <dt>Móvil</dt><dd>{{ client.mobile || '—' }}</dd>
-          <dt>Fijo</dt><dd>{{ client.phone || '—' }}</dd>
-          <dt>Email</dt><dd>{{ client.email || '—' }}</dd>
-          <dt>NIF</dt><dd>{{ client.nif || '—' }}</dd>
-          <dt>Dirección</dt><dd>{{ address || '—' }}</dd>
-          <template v-if="client.agentName"><dt>Agente</dt><dd>{{ client.agentName }}</dd></template>
+          <dt>{{ t('clients.detail.mobile') }}</dt><dd>{{ client.mobile || '—' }}</dd>
+          <dt>{{ t('clients.detail.phone') }}</dt><dd>{{ client.phone || '—' }}</dd>
+          <dt>{{ t('clients.detail.email') }}</dt><dd>{{ client.email || '—' }}</dd>
+          <dt>{{ t('clients.detail.nif') }}</dt><dd>{{ client.nif || '—' }}</dd>
+          <dt>{{ t('clients.detail.address') }}</dt><dd>{{ address || '—' }}</dd>
+          <template v-if="client.agentName"><dt>{{ t('clients.detail.agent') }}</dt><dd>{{ client.agentName }}</dd></template>
         </dl>
       </article>
 
       <article class="block">
         <div class="block-head">
-          <h2>Seguimientos</h2>
-          <RouterLink v-if="client.remoteId" :to="{ name: 'followup-new', query: { clientId: client.remoteId, clientLabel: fullName(client) } }" class="btn small">+ Nuevo</RouterLink>
+          <h2>{{ t('clients.detail.followUps') }}</h2>
+          <RouterLink v-if="client.remoteId && auth.canWrite" :to="{ name: 'followup-new', query: { clientId: client.remoteId, clientLabel: fullName(client) } }" class="btn small">+ {{ t('common.new') }}</RouterLink>
         </div>
-        <p v-if="!client.remoteId" class="muted">Los seguimientos se podrán añadir cuando el cliente esté en Inmovilla.</p>
-        <p v-else-if="!clientFollowUps.length" class="muted">Sin seguimientos para este cliente en este dispositivo.</p>
+        <p v-if="!client.remoteId" class="muted">{{ t('clients.detail.notInInmovilla') }}</p>
+        <p v-else-if="!clientFollowUps.length" class="muted">{{ t('clients.detail.noFollowUps') }}</p>
         <div v-else class="fu-list"><FollowUpCard v-for="f in clientFollowUps.slice(0, 5)" :key="f.id" :follow-up="f" compact /></div>
       </article>
 
       <article v-if="client.notes" class="block">
-        <h2>Observaciones</h2>
+        <h2>{{ t('clients.detail.notes') }}</h2>
         <p class="notes">{{ client.notes }}</p>
       </article>
 
-      <p class="dates muted">Alta {{ formatDate(new Date(client.createdAt).toISOString()) }} · Actualizado {{ formatDate(new Date(client.updatedAt).toISOString()) }}</p>
+      <p class="dates muted">{{ t('clients.detail.created') }} {{ formatDate(new Date(client.createdAt).toISOString()) }} · {{ t('clients.detail.updated') }} {{ formatDate(new Date(client.updatedAt).toISOString()) }}</p>
 
-      <div class="danger-zone">
-        <button v-if="!confirmDelete" type="button" class="btn btn-ghost danger" @click="confirmDelete = true">Eliminar cliente</button>
+      <div v-if="auth.canDelete || (!client.remoteId && auth.canWrite)" class="danger-zone">
+        <button v-if="!confirmDelete" type="button" class="btn btn-ghost danger" @click="confirmDelete = true">{{ t('clients.detail.delete') }}</button>
         <div v-else class="confirm">
-          <span>¿Eliminar a {{ fullName(client) }}{{ client.remoteId ? ' también en Inmovilla' : '' }}?</span>
-          <button type="button" class="btn danger-fill" @click="remove">Sí, eliminar</button>
-          <button type="button" class="btn btn-ghost" @click="confirmDelete = false">No</button>
+          <span>{{ t('clients.detail.confirm', { name: fullName(client), also: client.remoteId ? t('clients.detail.alsoInmovilla') : '' }) }}</span>
+          <button type="button" class="btn danger-fill" @click="remove">{{ t('common.yes') }}</button>
+          <button type="button" class="btn btn-ghost" @click="confirmDelete = false">{{ t('common.no') }}</button>
         </div>
       </div>
     </template>

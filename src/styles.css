@@ -4,15 +4,42 @@
   --accent: #f39200;
   --bg: #f4f5fa;
   --surface: #ffffff;
+  --surface-2: #eef0fa;
+  --photo-bg: #e6e7f5;
   --text: #1c1d33;
   --muted: #6b6e85;
   --border: #e1e3ee;
   --danger: #c0392b;
+  --ok: #2e7d32;
+  --ok-bg: #eaf5ea;
+  --danger-bg: #fdecea;
   --radius: 14px;
   --shadow: 0 2px 10px rgba(30, 33, 100, 0.08);
   --nav-height: 64px;
   color-scheme: light;
 }
+:root[data-theme='dark'] {
+  --brand: #8b8ff0;
+  --brand-dark: #c3c5ff;
+  --accent: #ffa733;
+  --bg: #12131f;
+  --surface: #1c1d33;
+  --surface-2: #272945;
+  --photo-bg: #272945;
+  --text: #eceef8;
+  --muted: #a3a6bd;
+  --border: #363957;
+  --danger: #ff7b6b;
+  --ok: #6fcf7a;
+  --ok-bg: #1f3324;
+  --danger-bg: #3a2320;
+  --shadow: 0 2px 12px rgba(0, 0, 0, 0.35);
+  color-scheme: dark;
+}
+:root[data-theme='dark'] .btn { color: #12131f; }
+:root[data-theme='dark'] .btn-ghost { color: var(--brand); }
+:root[data-theme='dark'] .badge-sale { background: #2c2f5a; color: #c3c5ff; }
+:root[data-theme='dark'] .badge-rent { background: #4a3417; color: #ffc46b; }
 
 * { box-sizing: border-box; }
 
@@ -45,28 +72,30 @@ input, select { font: inherit; }
 .btn:active { transform: translateY(1px); }
 .btn:disabled { opacity: 0.6; cursor: not-allowed; }
 .btn-ghost { background: transparent; color: var(--brand); border: 1px solid var(--border); }
-.btn-ghost:hover { background: #eef0fa; }
+.btn-ghost:hover { background: var(--surface-2); }
 
 .field { display: flex; flex-direction: column; gap: 0.35rem; }
 .field label { font-size: 0.85rem; font-weight: 600; color: var(--muted); }
-.field input, .field select {
+.field input, .field select, .field textarea {
   border: 1px solid var(--border);
   border-radius: 10px;
   padding: 0.7rem 0.85rem;
-  background: #fff;
+  background: var(--surface);
   color: var(--text);
 }
+input, select, textarea { color: var(--text); }
+::placeholder { color: var(--muted); opacity: 0.8; }
 .field input:focus, .field select:focus { outline: 2px solid var(--brand); outline-offset: 1px; border-color: transparent; }
 
 .alert {
   border-radius: 10px;
   padding: 0.75rem 1rem;
   font-size: 0.9rem;
-  background: #fdecea;
+  background: var(--danger-bg);
   color: var(--danger);
-  border: 1px solid #f5c6c2;
+  border: 1px solid transparent;
 }
-.alert-info { background: #eef0fa; color: var(--brand-dark); border-color: #d4d7f0; }
+.alert-info { background: var(--surface-2); color: var(--brand-dark); }
 
 .badge {
   display: inline-block;

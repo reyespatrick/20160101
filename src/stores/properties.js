@@ -40,7 +40,7 @@ export const usePropertiesStore = defineStore('properties', {
       this.loading = true
       this.error = ''
       try {
-        const { items, meta, types } = await fetchProperties(auth.credentials, {
+        const { items, meta, types } = await fetchProperties({
           page: 1,
           pageSize: PAGE_SIZE,
           where: this.where,
@@ -57,9 +57,12 @@ export const usePropertiesStore = defineStore('properties', {
           /* ignore quota errors */
         }
       } catch (err) {
-        if (err.status === 401) {
-          auth.logout()
-          this.error = 'Credenciales rechazadas por Inmovilla. Inicia sesión de nuevo.'
+        if (err.code === 'keys') {
+          this.error = 'La agencia aún no tiene configuradas las claves de Inmovilla'
+        } else if (err.status === 401 && !err.code) {
+          this.error = 'Inmovilla rechazó las claves de la agencia; avisa al administrador'
+        } else if (err.code === 'session') {
+          this.error = ''
         } else {
           this.error = err.message || 'No se pudieron cargar las propiedades'
           const cached = readCache()
@@ -79,7 +82,7 @@ export const usePropertiesStore = defineStore('properties', {
       const auth = useAuthStore()
       this.loadingMore = true
       try {
-        const { items, meta } = await fetchProperties(auth.credentials, {
+        const { items, meta } = await fetchProperties({
           page: this.page + 1,
           pageSize: PAGE_SIZE,
           where: this.where,
@@ -99,7 +102,7 @@ export const usePropertiesStore = defineStore('properties', {
       const key = String(codOfer)
       if (this.details[key]) return this.details[key]
       const auth = useAuthStore()
-      const detail = await fetchProperty(auth.credentials, codOfer)
+      const detail = await fetchProperty(codOfer)
       if (detail) this.details[key] = detail
       return detail
     },

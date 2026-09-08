@@ -1,13 +1,17 @@
 <script setup>
+import { useI18n } from 'vue-i18n'
 import { computed } from 'vue'
 import InmovillaState from './InmovillaState.vue'
 import { bucketOf, formatWhen } from '../models/followUp'
 import { useFollowUpsStore } from '../stores/followUps'
 import { useEnumsStore } from '../stores/enums'
+import { useAuthStore } from '../stores/auth'
+const { t } = useI18n()
 
 const props = defineProps({ followUp: { type: Object, required: true }, compact: { type: Boolean, default: false } })
 const store = useFollowUpsStore()
 const enums = useEnumsStore()
+const auth = useAuthStore()
 const f = computed(() => props.followUp)
 const typeName = computed(() => f.value.typeName || enums.followUpTypeLabel(f.value.typeKey))
 const bucket = computed(() => bucketOf(f.value))
@@ -22,15 +26,15 @@ async function toggle(e) {
 
 <template>
   <RouterLink :to="{ name: 'followup-edit', params: { id: f.id } }" class="fu" :class="{ closed: f.closed, compact }">
-    <button type="button" class="check" :class="{ on: f.closed }" :aria-label="f.closed ? 'Reabrir' : 'Marcar como hecho'" :style="{ borderColor: color }" @click="toggle">
+    <button type="button" class="check" :class="{ on: f.closed }" :aria-label="f.closed ? t('agenda.reopen') : t('agenda.markDone')" :style="{ borderColor: color }" :disabled="!auth.canWrite" @click="toggle">
       <svg v-if="f.closed" viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12l5 5L20 7" fill="none" stroke="currentColor" stroke-width="3" /></svg>
     </button>
     <div class="body">
       <div class="when" :style="{ color }">{{ formatWhen(f.remindAt) }}<span v-if="typeName" class="type"> · {{ typeName }}</span></div>
-      <div class="subject">{{ f.subject || 'Sin asunto' }}</div>
+      <div class="subject">{{ f.subject || t('agenda.noSubject') }}</div>
       <div v-if="!compact && (f.propertyLabel || f.propertyCodOfer || f.clientLabel || f.clientRemoteId)" class="links muted">
-        <span v-if="f.propertyLabel || f.propertyCodOfer">🏠 {{ f.propertyLabel || `Propiedad ${f.propertyCodOfer}` }}</span>
-        <span v-if="f.clientLabel || f.clientRemoteId">👤 {{ f.clientLabel || `Cliente nº ${f.clientRemoteId}` }}</span>
+        <span v-if="f.propertyLabel || f.propertyCodOfer">🏠 {{ f.propertyLabel || t('agenda.property', { id: f.propertyCodOfer }) }}</span>
+        <span v-if="f.clientLabel || f.clientRemoteId">👤 {{ f.clientLabel || t('agenda.client', { id: f.clientRemoteId }) }}</span>
       </div>
       <div v-if="!compact && f.description" class="desc muted">{{ f.description }}</div>
       <InmovillaState :record="f" :sent="Boolean(f.remoteId)" compact />

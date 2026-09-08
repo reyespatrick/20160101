@@ -1,3 +1,5 @@
+import { intlLocale, t } from '../i18n'
+
 const eur = new Intl.NumberFormat('es-ES', { style: 'currency', currency: 'EUR', maximumFractionDigits: 0 })
 
 export function isRent(p) {
@@ -6,15 +8,15 @@ export function isRent(p) {
 
 export function priceOf(p) {
   if (!p) return ''
-  if (Number(p.aconsultar) === 1) return 'A consultar'
+  if (Number(p.aconsultar) === 1) return t('common.askPrice')
   const rent = isRent(p)
   const value = Number(rent ? p.precioalq : p.precioinmo) || 0
-  if (!value) return 'A consultar'
-  return rent ? `${eur.format(value)}/mes` : eur.format(value)
+  if (!value) return t('common.askPrice')
+  return rent ? `${eur.format(value)}${t('common.perMonth')}` : eur.format(value)
 }
 
 export function operationLabel(p) {
-  return isRent(p) ? 'Alquiler' : 'Venta'
+  return isRent(p) ? t('common.rent') : t('common.sale')
 }
 
 export function locationOf(p) {
@@ -30,7 +32,7 @@ export function formatDate(str) {
   if (!str) return ''
   const d = new Date(String(str).replace(' ', 'T'))
   if (Number.isNaN(d.getTime())) return str
-  return d.toLocaleDateString('es-ES', { day: '2-digit', month: 'short', year: 'numeric' })
+  return d.toLocaleDateString(intlLocale(), { day: '2-digit', month: 'short', year: 'numeric' })
 }
 
 /** Photo field may be a full URL or missing; fall back to a neutral placeholder. */
@@ -46,28 +48,28 @@ export const PLACEHOLDER =
   )
 
 export const FEATURE_LABELS = {
-  ascensor: 'Ascensor',
-  terraza: 'Terraza',
-  balcon: 'Balcón',
-  plaza_gara: 'Garaje',
-  parking: 'Parking',
-  piscina_com: 'Piscina comunitaria',
-  piscina_prop: 'Piscina propia',
-  aire_con: 'Aire acondicionado',
-  calefaccion: 'Calefacción',
-  muebles: 'Amueblado',
-  trastero: 'Trastero',
-  jardin: 'Jardín',
-  vistasalmar: 'Vistas al mar',
-  primera_line: 'Primera línea',
-  chimenea: 'Chimenea',
-  urbanizacion: 'Urbanización',
-  mascotas: 'Admite mascotas',
-  exclu: 'Exclusiva',
+  ascensor: 'props.features.ascensor',
+  terraza: 'props.features.terraza',
+  balcon: 'props.features.balcon',
+  plaza_gara: 'props.features.plaza_gara',
+  parking: 'props.features.parking',
+  piscina_com: 'props.features.piscina_com',
+  piscina_prop: 'props.features.piscina_prop',
+  aire_con: 'props.features.aire_con',
+  calefaccion: 'props.features.calefaccion',
+  muebles: 'props.features.muebles',
+  trastero: 'props.features.trastero',
+  jardin: 'props.features.jardin',
+  vistasalmar: 'props.features.vistasalmar',
+  primera_line: 'props.features.primera_line',
+  chimenea: 'props.features.chimenea',
+  urbanizacion: 'props.features.urbanizacion',
+  mascotas: 'props.features.mascotas',
+  exclu: 'props.features.exclu',
 }
 
 export function featuresOf(p) {
   return Object.entries(FEATURE_LABELS)
     .filter(([key]) => Number(p?.[key]) === 1)
-    .map(([, label]) => label)
+    .map(([, key]) => t(key))
 }

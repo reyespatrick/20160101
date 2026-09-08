@@ -14,6 +14,10 @@ Inmovilla credentials and browse the properties published in the **Inmovilla CRM
   upcoming / closed or a month calendar, one-tap close, "add to the phone's calendar" (.ics / Google Calendar)
 - **Owners (propietarios)**: read, create, edit and delete the owner of a listing from its ficha, with the
   owner's other listings
+- **Accounts and roles**: each person signs in with their own email and password; an **admin** sets the agency's
+  Inmovilla keys (stored encrypted on the server, never sent to phones) and manages users; **agents** create and
+  edit; **read-only** users only consult. Rights are enforced by the relay, not just hidden in the UI
+- **Profile**: language (Español / Français / English), light / dark / automatic theme, password, logout
 - **Never blank**: a screen-level error boundary, global error handlers and toasts keep the shell alive; the
   worst case is a message with "Reintentar"
 - **Over-the-air updates**: the service worker is checked on a timer, on focus and on reconnect; a banner
@@ -27,8 +31,9 @@ Inmovilla credentials and browse the properties published in the **Inmovilla CRM
 
 ## Architecture: a thin gateway to Inmovilla
 
-The app is a mobile front door to the Inmovilla CRM. **Inmovilla is the only database**; the Node process in
-`server/` is a relay that stores nothing but the photos Inmovilla has to download.
+The app is a mobile front door to the Inmovilla CRM. **Inmovilla holds all the business data**; the Node process
+in `server/` is a relay that stores only the accounts (users, roles, encrypted agency keys) and the photos
+Inmovilla has to download.
 
 ```
  phone / PWA ─────► server/ (relay) ─────► Inmovilla apiweb   (read: listings, ficha, types)  — unlimited
@@ -46,14 +51,33 @@ The app is a mobile front door to the Inmovilla CRM. **Inmovilla is the only dat
   resized photo to `PUT /api/photos` (token checked against Inmovilla, cached one hour) and receives a public
   URL under `/photos/<random>.jpg`, which is what gets sent in the listing. Files are purged after
   `PHOTO_TTL_DAYS`. `PUBLIC_URL` must be the address Inmovilla can reach.
-- **Credentials belong to the user.** The login screen asks for the agency number, the apiweb password and
-  the REST token (Inmovilla › Ajustes › Opciones › Token para API Rest). They are checked against Inmovilla
-  and stored only in the browser.
+- **Accounts.** Users sign in with email + password (`/api/account/*`). The agency's Inmovilla keys are set once
+  by an administrator in the profile, verified against Inmovilla, encrypted with `APP_SECRET` and stored in
+  `DATA_DIR/immoba.sqlite` (SQLite through `node:sqlite`, no native dependency). The relay injects them; the
+  phone only knows whether they exist.
 - **Offline**: every edit is written to IndexedDB first and flagged as pending; when online the app replays
   the outbox against Inmovilla. Cards and detail screens show each record's state: pending, "En Inmovilla",
   or the error Inmovilla returned. A 408 (rate limit) pauses the outbox for a minute and retries.
 
-### Inmovilla REST specifics the app follows
+#### Roles
+
+| Role | Inmovilla reads | Create / edit | Delete | Keys & users |
+| --- | --- | --- | --- | --- |
+| `admin` | yes | yes | yes | yes |
+| `agent` | yes | yes | no (`DELETE` refused by the relay) | no |
+| `readonly` | yes | no (any non-GET refused, photo upload refused) | no | no |
+
+The relay checks the session on every call (`Authorization: Bearer`), reloads the user from the database so a
+deactivation or a role change applies immediately, and answers `401 code=session`, `403 code=role` or
+`409 code=keys`. The app reacts: back to login, a toast, or the "configure keys" banner.
+
+### First start and multi-agency
+
+On an empty database the app shows **Crear la agencia**: agency name + first administrator. The admin is then
+taken to the keys screen. Further agencies can be created from the login screen; set `SIGNUP_CODE` to require a
+code for that. Everything is per agency: users, keys, quotas.
+
+## Inmovilla REST specifics the app follows
 
 | Topic | What Inmovilla does | What the app does |
 | --- | --- | --- |
@@ -75,7 +99,8 @@ npm install
 cp .env.example .env         # adjust if needed
 
 # Development with sample data (no Inmovilla account required)
-npm run dev:mock             # login with agency 1234 / key "demo" / REST token "demo-token"
+npm run dev:mock             # first start: create the agency + admin, then set the mock keys in the profile:
+                             # agency 1234 / web key "demo" / REST token "demo-token"
                              # listings created through the fake REST show up in the fake apiweb listing
 
 # Development against the real API
@@ -100,7 +125,10 @@ Deploy `server/` + `dist/` to any Node host (Render, Railway, Fly, a VPS…). En
 | `PUBLIC_URL` | request host | Public base URL of this server, used in the photo URLs Inmovilla downloads |
 | `PHOTOS_DIR` | `./data/photos` | Where uploaded photos wait for Inmovilla (needs a persistent disk) |
 | `PHOTO_TTL_DAYS` | `30` | Photos older than this are purged |
-| `INMOVILLA_MOCK` | `0` | `1` serves sample listings and an in-memory fake REST API |
+| `INMOVILLA_MOCK` | `0` | `1` serves sample listings and an in-memory fake REST API (keys: agency `1234`, web `demo`, REST `demo-token`) |
+| `DATA_DIR` | `./data` | Accounts database (`immoba.sqlite`) and, by default, photos |
+| `APP_SECRET` | generated into `DATA_DIR/secret.key` | Signs sessions and encrypts the Inmovilla keys. **Set it in production** |
+| `SIGNUP_CODE` | *(empty)* | When set, creating a second agency requires this code |
 
 Whitelist the server's public IP in Inmovilla if the agency's account restricts API access by IP.
 
@@ -172,16 +200,19 @@ and the fake server in `server/mockRest.js` follows the same contract.
 ## Project layout
 
 ```
-server/          index.js (apiweb relay, REST relay, photo hosting, static), inmovilla.js (apiweb param builder),
-                 mock.js (sample listings), mockRest.js (fake REST following the documentation)
+server/          index.js (relay: apiweb + REST with the agency keys, roles, photo hosting, static), db.js (SQLite accounts,
+                 encryption, password hashing), auth.js (sessions, roles), accounts.js (setup, login, keys, users),
+                 inmovilla.js (apiweb param builder), mock.js (sample listings), mockRest.js (fake REST)
 src/api/         inmovilla.js (apiweb client), inmovillaRest.js (REST client), inmovillaMapping.js (fields + enums)
 src/db/          IndexedDB wrappers: clients cache, listing drafts + photo blobs
 src/models/      Client, property, follow-up and owner models aligned with Inmovilla's fields
 src/sync/        Outbox helpers
 src/utils/       Formatting helpers and on-device image resizing
-src/stores/      Pinia stores: auth, enums, properties (apiweb listing), localProperties, clients, followUps, owners, notifications
-src/views/       Login, Properties, PropertyDetail, LocalPropertyForm, LocalPropertyDetail, Clients, ClientForm, ClientDetail,
-                 FollowUps (list/calendar), FollowUpForm, OwnerForm
+src/stores/      Pinia stores: auth (session, role, agency), settings (language, theme), enums, properties (apiweb listing),
+                 localProperties, clients, followUps, owners, notifications
+src/i18n/        vue-i18n setup and the es / fr / en dictionaries
+src/views/       Login, Setup, Profile, AgencyKeys (admin), Users (admin), Properties, PropertyDetail, LocalPropertyForm,
+                 LocalPropertyDetail, Clients, ClientForm, ClientDetail, FollowUps (list/calendar), FollowUpForm, OwnerForm
 src/components/  AppHeader, BottomNav, FilterBar, PropertyCard, LocalPropertyCard, PhotoPicker, CityPicker, ClientCard,
                  ChipGroup, InmovillaState, FollowUpCard, MonthCalendar, PropertyPicker, ClientPicker, OwnerCard,
                  ErrorBoundary, UpdateBanner, Toasts

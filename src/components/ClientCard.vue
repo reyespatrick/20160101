@@ -1,7 +1,9 @@
 <script setup>
+import { useI18n } from 'vue-i18n'
 import { computed } from 'vue'
 import InmovillaState from './InmovillaState.vue'
 import { fullName, initials, primaryPhone } from '../models/client'
+const { t } = useI18n()
 
 const props = defineProps({ client: { type: Object, required: true } })
 const c = computed(() => props.client)
@@ -17,10 +19,10 @@ const color = computed(() => (c.value.remoteId ? '#2e3192' : '#f39200'))
         <span v-if="primaryPhone(c)">{{ primaryPhone(c) }}</span>
         <span v-if="primaryPhone(c) && c.email"> · </span>
         <span v-if="c.email">{{ c.email }}</span>
-        <span v-if="!primaryPhone(c) && !c.email">Sin contacto</span>
+        <span v-if="!primaryPhone(c) && !c.email">{{ t('clients.noContact') }}</span>
       </div>
       <div class="foot">
-        <InmovillaState :record="c" :sent="Boolean(c.remoteId)" :label="c.remoteId ? `nº ${c.remoteId}` : ''" />
+        <InmovillaState :record="c" :sent="Boolean(c.remoteId)" :label="c.remoteId ? t('clients.num', { id: c.remoteId }) : ''" />
         <span v-if="c.city" class="muted">· {{ c.city }}</span>
       </div>
     </div>

@@ -1,17 +1,21 @@
 <script setup>
+import { useI18n } from 'vue-i18n'
 import { computed, onMounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import InmovillaState from '../components/InmovillaState.vue'
 import { LISTING_STATUSES, activeFeatures, completeness, locationOf, priceOf, titleOf } from '../models/property'
+import { useAuthStore } from '../stores/auth'
 import { useEnumsStore } from '../stores/enums'
 import { useLocalPropertiesStore } from '../stores/localProperties'
 import { useFollowUpsStore } from '../stores/followUps'
 import FollowUpCard from '../components/FollowUpCard.vue'
 import { PLACEHOLDER, formatDate } from '../utils/format'
+const { t } = useI18n()
 
 const props = defineProps({ id: { type: String, required: true } })
 const store = useLocalPropertiesStore()
 const followUps = useFollowUpsStore()
+const auth = useAuthStore()
 const enums = useEnumsStore()
 const propertyFollowUps = computed(() => (p.value?.codOfer ? followUps.forProperty(p.value.codOfer) : []))
 const router = useRouter()
@@ -20,7 +24,7 @@ const route = useRoute()
 const loading = ref(true)
 const confirmRemove = ref(false)
 const active = ref(0)
-const toast = ref(route.query.saved ? 'Propiedad guardada' : '')
+const toast = ref(route.query.saved ? t('props.detail.saved') : '')
 
 const p = computed(() => store.byId(props.id))
 const status = computed(() => LISTING_STATUSES.find((s) => s.value === p.value?.status) || LISTING_STATUSES[0])
@@ -29,21 +33,21 @@ const pendingPhotos = computed(() => store.pendingPhotosOf(p.value))
 const rows = computed(() => {
   const d = p.value || {}
   return [
-    ['Referencia', d.ref],
-    ['Tipo', d.typeName],
-    ['Dormitorios', d.bedrooms],
-    ['Baños', d.bathrooms],
-    ['Construidos', d.builtArea ? `${d.builtArea} m²` : ''],
-    ['Útiles', d.usableArea ? `${d.usableArea} m²` : ''],
-    ['Parcela', d.plotArea ? `${d.plotArea} m²` : ''],
-    ['Planta', d.floor],
-    ['Año', d.yearBuilt],
-    ['Estado', enums.label('conservacion', d.conservation)],
-    ['Orientación', enums.label('keyori', d.orientation)],
-    ['Certificado energético', d.energyRating],
-    ['Publicación', enums.label('eninternet', d.publish)],
-    ['Dirección', [d.street, d.number].filter(Boolean).join(' ')],
-    ['Código postal', d.postalCode],
+    [t('props.rows.ref'), d.ref],
+    [t('props.rows.type'), d.typeName],
+    [t('props.rows.bedrooms'), d.bedrooms],
+    [t('props.rows.baths'), d.bathrooms],
+    [t('props.rows.builtShort'), d.builtArea ? `${d.builtArea} m²` : ''],
+    [t('props.rows.usable'), d.usableArea ? `${d.usableArea} m²` : ''],
+    [t('props.rows.plot'), d.plotArea ? `${d.plotArea} m²` : ''],
+    [t('props.rows.floor'), d.floor],
+    [t('props.rows.year'), d.yearBuilt],
+    [t('props.rows.condition'), enums.label('conservacion', d.conservation)],
+    [t('props.rows.orientation'), enums.label('keyori', d.orientation)],
+    [t('props.rows.energy'), d.energyRating],
+    [t('props.rows.publish'), enums.label('eninternet', d.publish)],
+    [t('props.rows.address'), [d.street, d.number].filter(Boolean).join(' ')],
+    [t('props.rows.cp'), d.postalCode],
   ].filter(([, v]) => v !== undefined && v !== null && String(v).trim() !== '')
 })
 
@@ -63,13 +67,13 @@ async function remove() {
   confirmRemove.value = false
   if (wasDraft) router.replace({ name: 'properties', query: { source: 'mine' } })
   else {
-    toast.value = 'Marcada como no disponible en Inmovilla'
+    toast.value = t('props.detail.markedUnavailable')
     setTimeout(() => (toast.value = ''), 2500)
   }
 }
 async function reactivate() {
   await store.reactivate(props.id)
-  toast.value = 'Disponible de nuevo'
+  toast.value = t('props.detail.available')
   setTimeout(() => (toast.value = ''), 2500)
 }
 </script>
@@ -77,18 +81,18 @@ async function reactivate() {
 <template>
   <section class="container detail">
     <div class="top">
-      <RouterLink :to="{ name: 'properties', query: { source: 'mine' } }" class="btn btn-ghost">← Mis propiedades</RouterLink>
-      <RouterLink v-if="p" :to="{ name: 'local-property-edit', params: { id } }" class="btn">Editar</RouterLink>
+      <RouterLink :to="{ name: 'properties', query: { source: 'mine' } }" class="btn btn-ghost">← {{ t('props.detail.back') }}</RouterLink>
+      <RouterLink v-if="p && auth.canWrite" :to="{ name: 'local-property-edit', params: { id } }" class="btn">{{ t('common.edit') }}</RouterLink>
     </div>
 
     <div v-if="loading" class="spinner"></div>
-    <p v-else-if="!p" class="alert">Esta propiedad no existe o fue eliminada.</p>
+    <p v-else-if="!p" class="alert">{{ t('common.notFound') }}</p>
 
     <template v-else>
       <div class="gallery">
         <img :src="photos.length ? store.photoUrls[photos[active]?.id] || PLACEHOLDER : PLACEHOLDER" :alt="titleOf(p)" />
-        <span class="badge" :class="Number(p.operation) === 2 ? 'badge-rent' : 'badge-sale'">{{ Number(p.operation) === 2 ? 'Alquiler' : 'Venta' }}</span>
-        <span v-if="!photos.length" class="no-photos">Sin fotos todavía</span>
+        <span class="badge" :class="Number(p.operation) === 2 ? 'badge-rent' : 'badge-sale'">{{ Number(p.operation) === 2 ? t('common.rent') : t('common.sale') }}</span>
+        <span v-if="!photos.length" class="no-photos">{{ t('props.detail.noPhotos') }}</span>
         <div v-if="photos.length > 1" class="thumbs">
           <button v-for="(ph, i) in photos" :key="ph.id" type="button" :class="{ active: i === active }" @click="active = i">
             <img :src="store.photoUrls[ph.id] || PLACEHOLDER" alt="" />
@@ -99,37 +103,37 @@ async function reactivate() {
       <header class="head">
         <div>
           <h1>{{ titleOf(p) }}</h1>
-          <p class="muted">{{ locationOf(p) || 'Sin ubicación' }}</p>
+          <p class="muted">{{ locationOf(p) || t('props.detail.noLocation') }}</p>
         </div>
         <div class="price">{{ priceOf(p) }}</div>
       </header>
 
       <p class="sync muted">
         <InmovillaState :record="p" :sent="p.status !== 'draft'" :label="`ref. ${p.ref}`" />
-        <span v-if="pendingPhotos" class="pending-photos">· {{ pendingPhotos }} foto{{ pendingPhotos === 1 ? '' : 's' }} por subir</span>
-        <span>· ficha {{ completeness(p) }}% completa</span>
+        <span v-if="pendingPhotos" class="pending-photos">· {{ t('props.detail.photosToUpload', pendingPhotos) }}</span>
+        <span>· {{ t('props.form.complete', { n: completeness(p) }) }}</span>
       </p>
-      <p v-if="p.syncError" class="alert">Inmovilla rechazó la ficha: {{ p.syncError }}. Corrige los campos y guarda de nuevo.</p>
+      <p v-if="p.syncError" class="alert">{{ t('props.detail.rejected', { msg: p.syncError }) }}</p>
       <p v-else-if="p.status === 'unavailable'" class="alert alert-info">
-        Marcada como <strong>no disponible</strong> en Inmovilla. <button type="button" class="link" @click="reactivate">Volver a activar</button>
+        {{ t('props.detail.unavailable') }} <button v-if="auth.canWrite" type="button" class="link" @click="reactivate">{{ t('props.detail.reactivate') }}</button>
       </p>
       <p v-else-if="p.codOfer" class="alert alert-info">
-        Ya está en Inmovilla con el código {{ p.codOfer }}. <RouterLink :to="{ name: 'property', params: { codOfer: p.codOfer } }">Ver la ficha publicada</RouterLink>.
+        {{ t('props.detail.inInmovilla', { cod: p.codOfer }) }} <RouterLink :to="{ name: 'property', params: { codOfer: p.codOfer } }">{{ t('props.detail.viewFicha') }}</RouterLink>.
       </p>
-      <p v-else-if="p.status === 'sent'" class="alert alert-info">Enviada a Inmovilla; el enlace a la ficha aparecerá cuando Inmovilla la haya procesado.</p>
+      <p v-else-if="p.status === 'sent'" class="alert alert-info">{{ t('props.detail.sentPending') }}</p>
 
       <article v-if="p.description" class="block">
-        <h2>Descripción</h2>
+        <h2>{{ t('props.description') }}</h2>
         <p class="description">{{ p.description }}</p>
       </article>
 
       <article v-if="activeFeatures(p).length" class="block">
-        <h2>Extras</h2>
+        <h2>{{ t('props.extras') }}</h2>
         <ul class="features"><li v-for="f in activeFeatures(p)" :key="f">{{ f }}</li></ul>
       </article>
 
       <article class="block">
-        <h2>Detalles</h2>
+        <h2>{{ t('props.details') }}</h2>
         <dl class="rows">
           <template v-for="[label, value] in rows" :key="label"><dt>{{ label }}</dt><dd>{{ value }}</dd></template>
         </dl>
@@ -137,34 +141,34 @@ async function reactivate() {
 
       <article v-if="p.codOfer" class="block">
         <div class="block-head">
-          <h2>Seguimientos</h2>
-          <RouterLink :to="{ name: 'followup-new', query: { codOfer: p.codOfer, propertyLabel: `Ref. ${p.ref} · ${titleOf(p)}` } }" class="btn small">+ Nuevo</RouterLink>
+          <h2>{{ t('props.followUps') }}</h2>
+          <RouterLink v-if="auth.canWrite" :to="{ name: 'followup-new', query: { codOfer: p.codOfer, propertyLabel: `${t('common.ref')} ${p.ref} · ${titleOf(p)}` } }" class="btn small">+ {{ t('common.new') }}</RouterLink>
         </div>
-        <p v-if="!propertyFollowUps.length" class="muted">Sin seguimientos todavía.</p>
+        <p v-if="!propertyFollowUps.length" class="muted">{{ t('props.detail.noFollowUps') }}</p>
         <div v-else class="fu-list"><FollowUpCard v-for="f in propertyFollowUps.slice(0, 5)" :key="f.id" :follow-up="f" compact /></div>
       </article>
 
       <article v-if="p.ownerName || p.ownerPhone || p.notes" class="block">
-        <h2>Propietario y notas</h2>
+        <h2>{{ t('props.detail.ownerNotes') }}</h2>
         <dl class="rows">
-          <template v-if="p.ownerName"><dt>Propietario</dt><dd>{{ [p.ownerName, p.ownerSurname].filter(Boolean).join(' ') }} <span v-if="p.ownerRemoteId" class="muted">· en Inmovilla nº {{ p.ownerRemoteId }}</span><span v-else-if="p.status !== 'draft'" class="muted">· pendiente de crear en Inmovilla</span></dd></template>
-          <template v-if="p.ownerPhone"><dt>Teléfono</dt><dd><a :href="`tel:${p.ownerPhone}`">{{ p.ownerPhone }}</a></dd></template>
-          <template v-if="p.ownerEmail"><dt>Email</dt><dd><a :href="`mailto:${p.ownerEmail}`">{{ p.ownerEmail }}</a></dd></template>
+          <template v-if="p.ownerName"><dt>{{ t('props.form.owner') }}</dt><dd>{{ [p.ownerName, p.ownerSurname].filter(Boolean).join(' ') }} <span v-if="p.ownerRemoteId" class="muted">· {{ t('props.detail.ownerInInmovilla', { id: p.ownerRemoteId }) }}</span><span v-else-if="p.status !== 'draft'" class="muted">· {{ t('props.detail.ownerPending') }}</span></dd></template>
+          <template v-if="p.ownerPhone"><dt>{{ t('props.form.ownerPhone') }}</dt><dd><a :href="`tel:${p.ownerPhone}`">{{ p.ownerPhone }}</a></dd></template>
+          <template v-if="p.ownerEmail"><dt>{{ t('common.email') }}</dt><dd><a :href="`mailto:${p.ownerEmail}`">{{ p.ownerEmail }}</a></dd></template>
         </dl>
         <p v-if="p.notes" class="description notes">{{ p.notes }}</p>
       </article>
 
-      <p class="dates muted">Creada {{ formatDate(new Date(p.createdAt).toISOString()) }} · Actualizada {{ formatDate(new Date(p.updatedAt).toISOString()) }} · <span :style="{ color: status.color }">{{ status.label }}</span></p>
+      <p class="dates muted">{{ t('props.detail.created') }} {{ formatDate(new Date(p.createdAt).toISOString()) }} · {{ t('props.detail.updated') }} {{ formatDate(new Date(p.updatedAt).toISOString()) }} · <span :style="{ color: status.color }">{{ t(status.labelKey) }}</span></p>
 
-      <div v-if="p.status !== 'unavailable'" class="danger-zone">
+      <div v-if="p.status !== 'unavailable' && auth.canWrite" class="danger-zone">
         <button v-if="!confirmRemove" type="button" class="btn btn-ghost danger" @click="confirmRemove = true">
-          {{ p.status === 'draft' ? 'Eliminar borrador' : 'Dar de baja en Inmovilla' }}
+          {{ p.status === 'draft' ? t('props.detail.deleteDraft') : t('props.detail.unpublish') }}
         </button>
         <div v-else class="confirm">
-          <span v-if="p.status === 'draft'">¿Eliminar “{{ titleOf(p) }}” y sus fotos de este dispositivo?</span>
-          <span v-else>¿Marcar “{{ titleOf(p) }}” como no disponible en Inmovilla?</span>
-          <button type="button" class="btn danger-fill" @click="remove">Sí</button>
-          <button type="button" class="btn btn-ghost" @click="confirmRemove = false">No</button>
+          <span v-if="p.status === 'draft'">{{ t('props.detail.confirmDraft', { t: titleOf(p) }) }}</span>
+          <span v-else>{{ t('props.detail.confirmUnpublish', { t: titleOf(p) }) }}</span>
+          <button type="button" class="btn danger-fill" @click="remove">{{ t('common.yes') }}</button>
+          <button type="button" class="btn btn-ghost" @click="confirmRemove = false">{{ t('common.no') }}</button>
         </div>
       </div>
     </template>
@@ -176,7 +180,7 @@ async function reactivate() {
 <style scoped>
 .detail { padding-bottom: 5rem; }
 .top { display: flex; justify-content: space-between; margin-bottom: 0.75rem; }
-.gallery { position: relative; border-radius: var(--radius); overflow: hidden; background: #e6e7f5; }
+.gallery { position: relative; border-radius: var(--radius); overflow: hidden; background: var(--photo-bg); }
 .gallery > img { width: 100%; aspect-ratio: 16 / 10; max-height: 60vh; object-fit: cover; display: block; }
 .gallery .badge { position: absolute; top: 0.75rem; left: 0.75rem; }
 .no-photos { position: absolute; inset: 0; display: grid; place-items: center; color: var(--muted); font-weight: 600; }

@@ -1,18 +1,22 @@
 <script setup>
+import { useI18n } from 'vue-i18n'
 import { computed, onMounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { usePropertiesStore } from '../stores/properties'
+import { useAuthStore } from '../stores/auth'
 import { useFollowUpsStore } from '../stores/followUps'
 import FollowUpCard from '../components/FollowUpCard.vue'
 import OwnerCard from '../components/OwnerCard.vue'
 import { PLACEHOLDER, featuresOf, formatDate, isRent, locationOf, operationLabel, photoOf, priceOf, surfaceOf } from '../utils/format'
+const { t } = useI18n()
 
 const props = defineProps({ codOfer: { type: String, required: true } })
 const store = usePropertiesStore()
 const followUps = useFollowUpsStore()
+const auth = useAuthStore()
 const router = useRouter()
 const propertyFollowUps = computed(() => followUps.forProperty(props.codOfer))
-const followUpLabel = computed(() => (p.value ? `Ref. ${p.value.ref} · ${[p.value.nbtipo, p.value.ciudad].filter(Boolean).join(' en ')}` : ''))
+const followUpLabel = computed(() => (p.value ? `${t('common.ref')} ${p.value.ref} · ${[p.value.nbtipo, p.value.ciudad].filter(Boolean).join(' · ')}` : ''))
 
 const detail = ref(null)
 const loading = ref(true)
@@ -31,7 +35,7 @@ const description = computed(() => {
   if (typeof d === 'string') return d
   return detail.value?.descrip || ''
 })
-const title = computed(() => (p.value ? [p.value.nbtipo, p.value.ciudad].filter(Boolean).join(' en ') || `Ref. ${p.value.ref}` : ''))
+const title = computed(() => (p.value ? [p.value.nbtipo, p.value.ciudad].filter(Boolean).join(' · ') || `${t('common.ref')} ${p.value.ref}` : ''))
 const agent = computed(() => {
   const d = p.value || {}
   const name = [d.nombreagente, d.apellidosagente].filter(Boolean).join(' ')
@@ -40,20 +44,20 @@ const agent = computed(() => {
 const details = computed(() => {
   const d = p.value || {}
   const rows = [
-    ['Referencia', d.ref],
-    ['Operación', operationLabel(d)],
-    ['Tipo', d.nbtipo],
-    ['Dormitorios', d.habitaciones],
-    ['Baños', d.banyos],
-    ['Superficie construida', surfaceOf(d)],
-    ['Parcela', Number(d.m_parcela) ? `${d.m_parcela} m²` : ''],
-    ['Planta', d.planta],
-    ['Antigüedad', Number(d.antiguedad) ? `${d.antiguedad} años` : ''],
-    ['Estado', d.nbconservacion],
-    ['Certificado energético', d.energialetra],
-    ['Provincia', d.provincia],
-    ['Código postal', d.cp],
-    ['Actualizado', formatDate(d.fechaact)],
+    [t('props.rows.ref'), d.ref],
+    [t('props.rows.operation'), isRent(d) ? t('common.rent') : t('common.sale')],
+    [t('props.rows.type'), d.nbtipo],
+    [t('props.rows.bedrooms'), d.habitaciones],
+    [t('props.rows.baths'), d.banyos],
+    [t('props.rows.built'), surfaceOf(d)],
+    [t('props.rows.plot'), Number(d.m_parcela) ? `${d.m_parcela} m²` : ''],
+    [t('props.rows.floor'), d.planta],
+    [t('props.rows.age'), Number(d.antiguedad) ? t('props.rows.years', { n: d.antiguedad }) : ''],
+    [t('props.rows.condition'), d.nbconservacion],
+    [t('props.rows.energy'), d.energialetra],
+    [t('props.rows.province'), d.provincia],
+    [t('props.rows.cp'), d.cp],
+    [t('props.rows.updated'), formatDate(d.fechaact)],
   ]
   return rows.filter(([, v]) => {
     if (v === undefined || v === null) return false
@@ -71,9 +75,9 @@ onMounted(async () => {
   followUps.ensureLoaded()
   try {
     detail.value = await store.loadDetail(props.codOfer)
-    if (!detail.value && !summary.value) error.value = 'Propiedad no encontrada'
+    if (!detail.value && !summary.value) error.value = t('common.notFound')
   } catch (err) {
-    error.value = summary.value ? '' : err.message || 'No se pudo cargar la ficha'
+    error.value = summary.value ? '' : err.message || t('common.notFound')
   } finally {
     loading.value = false
   }
@@ -82,7 +86,7 @@ onMounted(async () => {
 
 <template>
   <section class="container detail">
-    <button class="btn btn-ghost back" type="button" @click="back">← Volver</button>
+    <button class="btn btn-ghost back" type="button" @click="back">← {{ t('common.back') }}</button>
 
     <div v-if="loading && !p" class="spinner"></div>
     <p v-else-if="error && !p" class="alert" role="alert">{{ error }}</p>
@@ -90,7 +94,7 @@ onMounted(async () => {
     <template v-else-if="p">
       <div class="gallery">
         <img :src="photos[activePhoto]" :alt="title" @error="$event.target.src = PLACEHOLDER" />
-        <span class="badge" :class="isRent(p) ? 'badge-rent' : 'badge-sale'">{{ operationLabel(p) }}</span>
+        <span class="badge" :class="isRent(p) ? 'badge-rent' : 'badge-sale'">{{ isRent(p) ? t('common.rent') : t('common.sale') }}</span>
         <div v-if="photos.length > 1" class="thumbs">
           <button v-for="(url, i) in photos" :key="url" type="button" :class="{ active: i === activePhoto }" @click="activePhoto = i">
             <img :src="url" alt="" loading="lazy" />
@@ -107,27 +111,27 @@ onMounted(async () => {
       </header>
 
       <ul class="quick">
-        <li v-if="Number(p.habitaciones)"><strong>{{ p.habitaciones }}</strong> hab.</li>
-        <li v-if="Number(p.banyos)"><strong>{{ p.banyos }}</strong> baños</li>
+        <li v-if="Number(p.habitaciones)"><strong>{{ t('common.rooms', { n: p.habitaciones }) }}</strong></li>
+        <li v-if="Number(p.banyos)"><strong>{{ t('common.baths', { n: p.banyos }) }}</strong></li>
         <li v-if="surfaceOf(p)"><strong>{{ surfaceOf(p) }}</strong></li>
       </ul>
 
-      <div v-if="loading" class="spinner" aria-label="Cargando ficha"></div>
+      <div v-if="loading" class="spinner" :aria-label="t('common.loading')"></div>
 
       <article v-if="description" class="block">
-        <h2>Descripción</h2>
+        <h2>{{ t('props.description') }}</h2>
         <p class="description">{{ description }}</p>
       </article>
 
       <article v-if="featuresOf(p).length" class="block">
-        <h2>Características</h2>
+        <h2>{{ t('props.features') }}</h2>
         <ul class="features">
           <li v-for="f in featuresOf(p)" :key="f">{{ f }}</li>
         </ul>
       </article>
 
       <article class="block">
-        <h2>Detalles</h2>
+        <h2>{{ t('props.details') }}</h2>
         <dl class="rows">
           <template v-for="[label, value] in details" :key="label">
             <dt>{{ label }}</dt>
@@ -140,19 +144,19 @@ onMounted(async () => {
 
       <article class="block">
         <div class="block-head">
-          <h2>Seguimientos</h2>
-          <RouterLink :to="{ name: 'followup-new', query: { codOfer, propertyLabel: followUpLabel } }" class="btn small">+ Nuevo</RouterLink>
+          <h2>{{ t('props.followUps') }}</h2>
+          <RouterLink v-if="auth.canWrite" :to="{ name: 'followup-new', query: { codOfer, propertyLabel: followUpLabel } }" class="btn small">+ {{ t('common.new') }}</RouterLink>
         </div>
-        <p v-if="!propertyFollowUps.length" class="muted">Sin seguimientos para esta propiedad en este dispositivo.</p>
+        <p v-if="!propertyFollowUps.length" class="muted">{{ t('props.noFollowUps') }}</p>
         <div v-else class="fu-list"><FollowUpCard v-for="f in propertyFollowUps.slice(0, 5)" :key="f.id" :follow-up="f" compact /></div>
       </article>
 
       <article v-if="agent.name || agent.phone || agent.email" class="block contact">
-        <h2>Contacto</h2>
+        <h2>{{ t('props.contact') }}</h2>
         <p v-if="agent.name"><strong>{{ agent.name }}</strong><span v-if="p.agencia" class="muted"> · {{ p.agencia }}</span></p>
         <div class="actions">
-          <a v-if="agent.phone" class="btn" :href="`tel:${agent.phone}`">Llamar</a>
-          <a v-if="agent.email" class="btn btn-ghost" :href="`mailto:${agent.email}?subject=Ref. ${p.ref}`">Email</a>
+          <a v-if="agent.phone" class="btn" :href="`tel:${agent.phone}`">{{ t('common.call') }}</a>
+          <a v-if="agent.email" class="btn btn-ghost" :href="`mailto:${agent.email}?subject=Ref. ${p.ref}`">{{ t('common.email') }}</a>
         </div>
       </article>
     </template>
@@ -162,7 +166,7 @@ onMounted(async () => {
 <style scoped>
 .detail { padding-bottom: 3rem; }
 .back { margin-bottom: 0.75rem; }
-.gallery { position: relative; border-radius: var(--radius); overflow: hidden; background: #e6e7f5; }
+.gallery { position: relative; border-radius: var(--radius); overflow: hidden; background: var(--photo-bg); }
 .gallery > img { width: 100%; aspect-ratio: 16 / 10; max-height: 60vh; object-fit: cover; display: block; }
 .gallery .badge { position: absolute; top: 0.75rem; left: 0.75rem; }
 .thumbs { display: flex; gap: 0.4rem; padding: 0.5rem; overflow-x: auto; background: var(--surface); }

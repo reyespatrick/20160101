@@ -1,6 +1,9 @@
 <script setup>
+import { useI18n } from 'vue-i18n'
 import { computed, ref } from 'vue'
 import { bucketOf, startOfDay } from '../models/followUp'
+import { intlLocale } from '../i18n'
+const { t, tm } = useI18n()
 
 /** Month grid with a dot per follow-up; v-model:selected = timestamp of the selected day (start of day). */
 const props = defineProps({ items: { type: Array, required: true }, selected: { type: Number, default: null } })
@@ -11,8 +14,8 @@ function startOfMonth(ts) {
   const d = new Date(ts)
   return new Date(d.getFullYear(), d.getMonth(), 1).getTime()
 }
-const monthLabel = computed(() => new Date(cursor.value).toLocaleDateString('es-ES', { month: 'long', year: 'numeric' }))
-const weekdays = ['L', 'M', 'X', 'J', 'V', 'S', 'D']
+const monthLabel = computed(() => new Date(cursor.value).toLocaleDateString(intlLocale(), { month: 'long', year: 'numeric' }))
+const weekdays = computed(() => tm('agenda.weekdays'))
 
 const byDay = computed(() => {
   const map = new Map()
@@ -63,11 +66,11 @@ function select(cell) {
 <template>
   <div class="cal">
     <div class="head">
-      <button type="button" class="nav" aria-label="Mes anterior" @click="move(-1)">‹</button>
+      <button type="button" class="nav" :aria-label="t('agenda.prevMonth')" @click="move(-1)">‹</button>
       <button type="button" class="month" @click="goToday">{{ monthLabel }}</button>
-      <button type="button" class="nav" aria-label="Mes siguiente" @click="move(1)">›</button>
+      <button type="button" class="nav" :aria-label="t('agenda.nextMonth')" @click="move(1)">›</button>
     </div>
-    <div class="grid weekdays"><span v-for="w in weekdays" :key="w">{{ w }}</span></div>
+    <div class="grid weekdays"><span v-for="(w, i) in weekdays" :key="i">{{ w }}</span></div>
     <div class="grid days">
       <button
         v-for="c in cells"
@@ -75,7 +78,7 @@ function select(cell) {
         type="button"
         class="day"
         :class="{ out: !c.inMonth, today: c.isToday, selected: selected === c.ts, has: c.info }"
-        :aria-label="new Date(c.ts).toLocaleDateString('es-ES', { weekday: 'long', day: 'numeric', month: 'long' })"
+        :aria-label="new Date(c.ts).toLocaleDateString(intlLocale(), { weekday: 'long', day: 'numeric', month: 'long' })"
         @click="select(c)"
       >
         <span class="num">{{ c.day }}</span>
@@ -94,13 +97,13 @@ function select(cell) {
 <style scoped>
 .cal { background: var(--surface); border-radius: var(--radius); box-shadow: var(--shadow); padding: 0.75rem; }
 .head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 0.5rem; }
-.nav { border: 0; background: #eef0fa; color: var(--brand); width: 36px; height: 36px; border-radius: 10px; font-size: 1.3rem; }
+.nav { border: 0; background: var(--surface-2); color: var(--brand); width: 36px; height: 36px; border-radius: 10px; font-size: 1.3rem; }
 .month { border: 0; background: transparent; font-weight: 800; text-transform: capitalize; font-size: 1.05rem; color: var(--text); }
 .grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 4px; }
 .weekdays span { text-align: center; font-size: 0.72rem; font-weight: 700; color: var(--muted); padding-bottom: 0.25rem; }
 .day { position: relative; aspect-ratio: 1; border: 0; border-radius: 10px; background: transparent; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px; color: var(--text); font-weight: 600; padding: 0; }
-.day.out { color: #b8bacc; }
-.day.has { background: #f4f5fa; }
+.day.out { color: var(--border); }
+.day.has { background: var(--bg); }
 .day.today .num { color: var(--brand); font-weight: 800; text-decoration: underline; text-underline-offset: 3px; }
 .day.selected { background: var(--brand); color: #fff; }
 .day.selected .num { color: #fff; }
@@ -108,8 +111,8 @@ function select(cell) {
 .dot { width: 6px; height: 6px; border-radius: 50%; background: var(--brand); display: inline-block; }
 .dot.overdue { background: #c0392b; }
 .dot.due { background: var(--accent); }
-.dot.closed { background: #b8bacc; }
-.selected .dot { background: #fff; }
+.dot.closed { background: var(--border); }
+.selected .dot { background: var(--surface); }
 .count { position: absolute; top: 3px; right: 5px; font-size: 0.6rem; font-weight: 800; color: var(--muted); }
 .selected .count { color: #fff; }
 </style>

@@ -4,38 +4,40 @@
  * codes (see stores/enums.js); labels are kept alongside for display offline.
  */
 
+import { t } from '../i18n'
+
 export const OPERATIONS = [
-  { value: 1, label: 'Venta' }, // keyacci
-  { value: 2, label: 'Alquiler' },
+  { value: 1, labelKey: 'common.sale' }, // keyacci
+  { value: 2, labelKey: 'common.rent' },
 ]
 
 export const LISTING_STATUSES = [
-  { value: 'draft', label: 'Borrador', color: '#6b6e85' },
-  { value: 'sent', label: 'En Inmovilla', color: '#2e7d32' },
-  { value: 'unavailable', label: 'Dada de baja', color: '#8e44ad' },
+  { value: 'draft', labelKey: 'props.statuses.draft', color: '#6b6e85' },
+  { value: 'sent', labelKey: 'props.statuses.sent', color: '#2e7d32' },
+  { value: 'unavailable', labelKey: 'props.statuses.unavailable', color: '#8e44ad' },
 ]
 
 /** Inmovilla boolean/numeric extras we expose as checkboxes (field names are Inmovilla's). */
 export const FEATURES = [
-  ['ascensor', 'Ascensor'],
-  ['terraza', 'Terraza'],
-  ['balcon', 'Balcón'],
-  ['plaza_gara', 'Plaza de garaje'],
-  ['trastero', 'Trastero'],
-  ['piscina_com', 'Piscina comunitaria'],
-  ['piscina_prop', 'Piscina propia'],
-  ['aire_con', 'Aire acondicionado'],
-  ['calefaccion', 'Calefacción'],
-  ['muebles', 'Amueblado'],
-  ['jardin', 'Jardín'],
-  ['vistasalmar', 'Vistas al mar'],
-  ['primera_linea', 'Primera línea'],
-  ['chimenea', 'Chimenea'],
-  ['urbanizacion', 'Urbanización'],
-  ['arma_empo', 'Armarios empotrados'],
-  ['puerta_blin', 'Puerta blindada'],
-  ['luminoso', 'Luminoso'],
-  ['exclu', 'Exclusiva'],
+  ['ascensor', 'props.features.ascensor'],
+  ['terraza', 'props.features.terraza'],
+  ['balcon', 'props.features.balcon'],
+  ['plaza_gara', 'props.features.plaza_gara'],
+  ['trastero', 'props.features.trastero'],
+  ['piscina_com', 'props.features.piscina_com'],
+  ['piscina_prop', 'props.features.piscina_prop'],
+  ['aire_con', 'props.features.aire_con'],
+  ['calefaccion', 'props.features.calefaccion'],
+  ['muebles', 'props.features.muebles'],
+  ['jardin', 'props.features.jardin'],
+  ['vistasalmar', 'props.features.vistasalmar'],
+  ['primera_linea', 'props.features.primera_linea'],
+  ['chimenea', 'props.features.chimenea'],
+  ['urbanizacion', 'props.features.urbanizacion'],
+  ['arma_empo', 'props.features.arma_empo'],
+  ['puerta_blin', 'props.features.puerta_blin'],
+  ['luminoso', 'props.features.luminoso'],
+  ['exclu', 'props.features.exclu'],
 ]
 /** Extras that Inmovilla types as numbers rather than booleans. */
 export const NUMERIC_FEATURES = new Set(['plaza_gara'])
@@ -106,7 +108,7 @@ export function suggestRef(prefix = 'APP') {
 
 export function titleOf(p) {
   if (p?.title?.trim()) return p.title.trim()
-  return [p?.typeName, p?.cityName].filter((s) => s && String(s).trim()).join(' en ') || 'Nueva propiedad'
+  return [p?.typeName, p?.cityName].filter((s) => s && String(s).trim()).join(' · ') || t('props.form.title')
 }
 
 export function locationOf(p) {
@@ -116,26 +118,26 @@ export function locationOf(p) {
 const eur = new Intl.NumberFormat('es-ES', { style: 'currency', currency: 'EUR', maximumFractionDigits: 0 })
 export function priceOf(p) {
   if (!p) return ''
-  if (Number(p.operation) === 2) return p.priceRent ? `${eur.format(p.priceRent)}/mes` : 'Sin precio'
-  return p.price ? eur.format(p.price) : 'Sin precio'
+  if (Number(p.operation) === 2) return p.priceRent ? `${eur.format(p.priceRent)}${t('common.perMonth')}` : t('common.noPrice')
+  return p.price ? eur.format(p.price) : t('common.noPrice')
 }
 
 export function activeFeatures(p) {
-  return FEATURES.filter(([key]) => p?.features?.[key]).map(([, label]) => label)
+  return FEATURES.filter(([key]) => p?.features?.[key]).map(([, key]) => t(key))
 }
 
 export function validateProperty(p) {
   const errors = {}
-  if (!String(p.ref || '').trim()) errors.ref = 'La referencia es obligatoria'
-  else if (!/^[\w.-]{2,40}$/.test(String(p.ref).trim())) errors.ref = 'Solo letras, números, guiones y puntos'
-  if (!p.typeKey) errors.typeKey = 'Elige el tipo de inmueble'
-  if (!p.cityKey) errors.cityKey = 'Elige la ciudad'
+  if (!String(p.ref || '').trim()) errors.ref = t('props.valid.ref')
+  else if (!/^[\w.-]{2,40}$/.test(String(p.ref).trim())) errors.ref = t('props.valid.refFormat')
+  if (!p.typeKey) errors.typeKey = t('props.valid.type')
+  if (!p.cityKey) errors.cityKey = t('props.valid.city')
   if (Number(p.operation) === 2) {
-    if (p.priceRent == null || Number(p.priceRent) <= 0) errors.priceRent = 'Indica el precio del alquiler'
-  } else if (p.price == null || Number(p.price) <= 0) errors.price = 'Indica el precio de venta'
-  if (p.yearBuilt != null && (Number(p.yearBuilt) < 1500 || Number(p.yearBuilt) > new Date().getFullYear() + 3)) errors.yearBuilt = 'Año no válido'
-  if (p.postalCode && !/^\d{4,6}$/.test(String(p.postalCode))) errors.postalCode = 'Código postal no válido'
-  if (p.ownerEmail && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(p.ownerEmail)) errors.ownerEmail = 'Email no válido'
+    if (p.priceRent == null || Number(p.priceRent) <= 0) errors.priceRent = t('props.valid.priceRent')
+  } else if (p.price == null || Number(p.price) <= 0) errors.price = t('props.valid.price')
+  if (p.yearBuilt != null && (Number(p.yearBuilt) < 1500 || Number(p.yearBuilt) > new Date().getFullYear() + 3)) errors.yearBuilt = t('props.valid.year')
+  if (p.postalCode && !/^\d{4,6}$/.test(String(p.postalCode))) errors.postalCode = t('props.valid.cp')
+  if (p.ownerEmail && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(p.ownerEmail)) errors.ownerEmail = t('props.valid.email')
   return errors
 }
 

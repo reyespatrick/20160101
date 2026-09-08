@@ -1,6 +1,8 @@
 <script setup>
+import { useI18n } from 'vue-i18n'
 import { ref, watch } from 'vue'
 import { ORDER_OPTIONS } from '../api/inmovilla'
+const { t } = useI18n()
 
 const props = defineProps({
   filters: { type: Object, required: true },
@@ -23,14 +25,14 @@ function set(key, value) {
 <template>
   <form class="filters" @submit.prevent="emit('update', { search })">
     <div class="search">
-      <input v-model="search" type="search" placeholder="Buscar por referencia o ciudad" aria-label="Buscar" />
+      <input v-model="search" type="search" :placeholder="t('props.searchPlaceholder')" :aria-label="t('common.search')" />
     </div>
     <div class="segments" role="tablist" aria-label="Operación">
       <button
         v-for="opt in [
-          { v: 'all', l: 'Todo' },
-          { v: 'sale', l: 'Venta' },
-          { v: 'rent', l: 'Alquiler' },
+          { v: 'all', l: t('props.all') },
+          { v: 'sale', l: t('common.sale') },
+          { v: 'rent', l: t('common.rent') },
         ]"
         :key="opt.v"
         type="button"
@@ -42,12 +44,12 @@ function set(key, value) {
         {{ opt.l }}
       </button>
     </div>
-    <select :value="filters.typeKey" aria-label="Tipo de inmueble" @change="set('typeKey', $event.target.value)">
-      <option value="">Todos los tipos</option>
+    <select :value="filters.typeKey" :aria-label="t('props.allTypes')" @change="set('typeKey', $event.target.value)">
+      <option value="">{{ t('props.allTypes') }}</option>
       <option v-for="t in types" :key="t.key_tipo" :value="t.key_tipo">{{ t.nbtipo || t.tipo }}</option>
     </select>
-    <select :value="filters.order" aria-label="Ordenar" @change="set('order', $event.target.value)">
-      <option v-for="o in ORDER_OPTIONS" :key="o.value" :value="o.value">{{ o.label }}</option>
+    <select :value="filters.order" :aria-label="t('props.sortRecent')" @change="set('order', $event.target.value)">
+      <option v-for="o in ORDER_OPTIONS" :key="o.value" :value="o.value">{{ t(o.labelKey) }}</option>
     </select>
   </form>
 </template>
