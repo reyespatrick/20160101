@@ -42,6 +42,21 @@ hold no grant on any table, and RLS is on with no policy.
 The PWA itself only ever receives the project URL and the **anon** key, which grant access to
 Auth alone.
 
+## Local development
+
+```bash
+npm run build            # the functions are served next to the built PWA
+npm run dev:pages        # fake Inmovilla on :3001 + wrangler pages dev on :8788
+```
+
+`.dev.vars` (gitignored) carries the secrets and points `INMOVILLA_API_URL` / `INMOVILLA_REST_URL`
+at `scripts/mock-inmovilla.mjs`. The functions therefore contain **no mock branch at all**: the code
+path exercised in development is the one production takes, only the upstream URL differs. Demo
+credentials stay the same as before — agency `1234`, web key `demo`, REST token `demo-token`.
+
+The functions talk to the real Supabase project even in development. That is deliberate: it is the
+part worth exercising for real, and nothing there is destructive.
+
 ## Why the keys stay encrypted in the application layer
 
 The Inmovilla and Anthropic keys are encrypted with `APP_SECRET` before they are written, and

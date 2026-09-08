@@ -15,7 +15,9 @@
     "test": "vitest run",
     "icons": "node scripts/generate-icons.mjs",
     "predev:mock": "node scripts/generate-mock-photos.mjs --if-missing",
-    "mock:photos": "node scripts/generate-mock-photos.mjs"
+    "mock:photos": "node scripts/generate-mock-photos.mjs",
+    "mock:inmovilla": "node scripts/mock-inmovilla.mjs",
+    "dev:pages": "concurrently -k \"npm:mock:inmovilla\" \"wrangler pages dev dist --port 8788 --compatibility-date=2026-09-01 --compatibility-flags=nodejs_compat\""
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.124.0",

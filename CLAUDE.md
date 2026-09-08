@@ -40,6 +40,17 @@ REST token `demo-token`, any text as Anthropic key (valuations are simulated in 
 - The app must **never crash**: ErrorBoundary per screen, global handlers → toast; OTA updates with a banner.
 - Multi-agency on one server (one row in `agencies` per Inmovilla account).
 
+## Cloudflare Pages Functions (the target runtime)
+
+`functions/` holds the production API: `_shared/` (supabase client, data layer, auth guards, http
+helpers, Inmovilla upstream) and `api/` (account, inmovilla, rest, estimate, photos). They run on
+Workers, so **no `node:crypto` and no Express** — use `shared/crypto.js` (Web Crypto) and plain fetch.
+`server/` stays as the local Node relay and now also hosts `scripts/mock-inmovilla.mjs`, a standalone
+fake Inmovilla the functions call over HTTP in dev (`npm run dev:pages`), which is why the functions
+carry no mock branch.
+
+Pure modules shared by both runtimes: `server/inmovilla.js`, `server/estimate.js`, `server/mock.js`.
+
 ## Layout (short)
 
 - `server/index.js` relay: `/api/account/*` (accounts.js), `POST /api/inmovilla` (apiweb), `ANY /api/rest/*`
