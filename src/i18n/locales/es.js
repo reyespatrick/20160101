@@ -23,8 +23,8 @@ export default {
   nav: { properties: 'Propiedades', agenda: 'Agenda', clients: 'Clientes', pendingSync: '{n} cambios pendientes de sincronizar', due: '{n} seguimientos para hoy o vencidos' },
   auth: {
     login: 'Acceso', intro: 'Entra con tu cuenta de Immoba.', email: 'Email', password: 'Contraseña', remember: 'Recordar en este dispositivo', enter: 'Entrar',
-    checking: 'Comprobando…', bad: 'Email o contraseña incorrectos.', setupTitle: 'Crear la agencia', setupIntro: 'Primer inicio: crea tu agencia y la cuenta de administrador. Después podrás añadir usuarios y las claves de Inmovilla desde tu perfil.',
-    agencyName: 'Nombre de la agencia', yourName: 'Tu nombre', signupCode: 'Código de alta', create: 'Crear agencia', haveAccount: 'Ya tengo cuenta', newAgency: 'Crear una nueva agencia',
+    checking: 'Comprobando…', bad: 'Email o contraseña incorrectos.', setupTitle: 'Crea tu cuenta', setupIntro: 'Primer inicio: crea la cuenta de administrador. Después introducirás las claves de Inmovilla, que identifican a tu agencia.',
+    yourName: 'Tu nombre', signupCode: 'Código de alta', create: 'Crear la cuenta', haveAccount: 'Ya tengo cuenta', newAgency: 'Crear una nueva agencia',
     expired: 'Tu sesión ha caducado. Vuelve a entrar.', passwordRule: 'Mínimo 8 caracteres',
     noKeysAdmin: 'Falta configurar las claves de Inmovilla. Como administrador puedes hacerlo desde tu perfil.',
     noKeysAgent: 'La agencia aún no tiene configuradas las claves de Inmovilla. Pide al administrador que las añada.', goKeys: 'Configurar claves',
@@ -49,7 +49,7 @@ export default {
     numagenciaHint: 'El USUARIO_API completo de Inmovilla. Puede llevar un sufijo, por ejemplo 123_244_ext.',
     fromInmovilla: 'según Inmovilla',
     keep: 'Dejar en blanco para conservar la actual', dataLanguage: 'Idioma de los datos', configured: 'Configuradas', notConfigured: 'Sin configurar', verifyAndSave: 'Comprobar y guardar',
-    saved: 'Claves comprobadas y guardadas', agencyName: 'Nombre de la agencia',
+    saved: 'Claves comprobadas y guardadas',
     anthropic: 'Clave API de Anthropic · valoraciones con Claude', anthropicHint: 'console.anthropic.com › API keys. Necesaria para el botón «Estimar valor». Se cobra a la cuenta de la agencia.',
   },
   estimate: {

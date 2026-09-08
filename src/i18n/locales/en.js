@@ -23,8 +23,8 @@ export default {
   nav: { properties: 'Listings', agenda: 'Agenda', clients: 'Clients', pendingSync: '{n} changes waiting to sync', due: '{n} follow-ups due today or overdue' },
   auth: {
     login: 'Sign in', intro: 'Sign in with your Immoba account.', email: 'Email', password: 'Password', remember: 'Remember me on this device', enter: 'Sign in',
-    checking: 'Checking…', bad: 'Wrong email or password.', setupTitle: 'Create the agency', setupIntro: 'First start: create your agency and the administrator account. You can then add users and the Inmovilla keys from your profile.',
-    agencyName: 'Agency name', yourName: 'Your name', signupCode: 'Signup code', create: 'Create agency', haveAccount: 'I already have an account', newAgency: 'Create a new agency',
+    checking: 'Checking…', bad: 'Wrong email or password.', setupTitle: 'Create your account', setupIntro: 'First start: create the administrator account. You will then enter the Inmovilla keys, which identify your agency.',
+    yourName: 'Your name', signupCode: 'Signup code', create: 'Create account', haveAccount: 'I already have an account', newAgency: 'Create a new agency',
     expired: 'Your session expired. Please sign in again.', passwordRule: 'At least 8 characters',
     noKeysAdmin: 'The Inmovilla keys are not configured. As administrator you can set them from your profile.',
     noKeysAgent: 'The agency has not configured its Inmovilla keys yet. Ask the administrator to add them.', goKeys: 'Set up keys',
@@ -49,7 +49,7 @@ export default {
     numagenciaHint: 'The full Inmovilla USUARIO_API. It may carry a suffix, for example 123_244_ext.',
     fromInmovilla: 'as Inmovilla spells it',
     keep: 'Leave blank to keep the current one', dataLanguage: 'Data language', configured: 'Configured', notConfigured: 'Not configured', verifyAndSave: 'Verify and save',
-    saved: 'Keys verified and saved', agencyName: 'Agency name',
+    saved: 'Keys verified and saved',
     anthropic: 'Anthropic API key · valuations with Claude', anthropicHint: 'console.anthropic.com › API keys. Needed for the “Estimate value” button. Billed to the agency’s account.',
   },
   estimate: {

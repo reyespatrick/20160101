@@ -23,8 +23,8 @@ export default {
   nav: { properties: 'Biens', agenda: 'Agenda', clients: 'Clients', pendingSync: '{n} modifications à synchroniser', due: "{n} suivis pour aujourd'hui ou en retard" },
   auth: {
     login: 'Connexion', intro: 'Connectez-vous avec votre compte Immoba.', email: 'Email', password: 'Mot de passe', remember: 'Se souvenir de moi sur cet appareil', enter: 'Entrer',
-    checking: 'Vérification…', bad: 'Email ou mot de passe incorrect.', setupTitle: "Créer l'agence", setupIntro: "Premier démarrage : créez votre agence et le compte administrateur. Vous pourrez ensuite ajouter des utilisateurs et les clés Inmovilla depuis votre profil.",
-    agencyName: "Nom de l'agence", yourName: 'Votre nom', signupCode: "Code d'inscription", create: "Créer l'agence", haveAccount: "J'ai déjà un compte", newAgency: 'Créer une nouvelle agence',
+    checking: 'Vérification…', bad: 'Email ou mot de passe incorrect.', setupTitle: 'Créez votre compte', setupIntro: "Premier démarrage : créez le compte administrateur. Vous saisirez ensuite les clés Inmovilla, qui identifient votre agence.",
+    yourName: 'Votre nom', signupCode: "Code d'inscription", create: 'Créer le compte', haveAccount: "J'ai déjà un compte", newAgency: 'Créer une nouvelle agence',
     expired: 'Votre session a expiré. Reconnectez-vous.', passwordRule: '8 caractères minimum',
     noKeysAdmin: 'Les clés Inmovilla ne sont pas configurées. En tant qu\'administrateur, vous pouvez le faire depuis votre profil.',
     noKeysAgent: "L'agence n'a pas encore configuré ses clés Inmovilla. Demandez à l'administrateur de les ajouter.", goKeys: 'Configurer les clés',
@@ -49,7 +49,7 @@ export default {
     numagenciaHint: 'L’USUARIO_API complet d’Inmovilla. Il peut comporter un suffixe, par exemple 123_244_ext.',
     fromInmovilla: 'selon Inmovilla',
     keep: 'Laisser vide pour conserver la clé actuelle', dataLanguage: 'Langue des données', configured: 'Configurées', notConfigured: 'Non configurées', verifyAndSave: 'Vérifier et enregistrer',
-    saved: 'Clés vérifiées et enregistrées', agencyName: "Nom de l'agence",
+    saved: 'Clés vérifiées et enregistrées',
     anthropic: 'Clé API Anthropic · estimations avec Claude', anthropicHint: 'console.anthropic.com › API keys. Nécessaire pour le bouton « Estimer la valeur ». Facturée au compte de l’agence.',
   },
   estimate: {
