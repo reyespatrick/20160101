@@ -118,7 +118,10 @@ onMounted(async () => {
 
       <div v-if="auth.canEstimate" class="estimate-cta">
         <RouterLink v-if="auth.hasAnthropic" :to="{ name: 'estimate', params: { source: 'inmovilla', id: codOfer } }" class="btn">✦ {{ t('estimate.button') }}</RouterLink>
-        <RouterLink v-else-if="auth.isAdmin" :to="{ name: 'agency-keys' }" class="btn btn-ghost">✦ {{ t('estimate.buttonSetup') }}</RouterLink>
+        <template v-else>
+          <button type="button" class="btn" disabled>✦ {{ t('estimate.button') }}</button>
+          <small class="muted">{{ auth.isAdmin ? t('estimate.addKeyHint') : t('estimate.askAdmin') }}</small>
+        </template>
       </div>
 
       <div v-if="loading" class="spinner" :aria-label="t('common.loading')"></div>
@@ -183,8 +186,9 @@ onMounted(async () => {
 .head p { margin: 0; }
 .price { font-size: 1.5rem; font-weight: 800; color: var(--brand); white-space: nowrap; }
 .quick { display: flex; gap: 1.25rem; list-style: none; padding: 0; margin: 0.5rem 0 1rem; color: var(--muted); }
-.estimate-cta { margin: 0 0 1rem; }
+.estimate-cta { margin: 0 0 1rem; display: flex; flex-direction: column; gap: 0.35rem; }
 .estimate-cta .btn { width: 100%; }
+.estimate-cta small { text-align: center; font-size: 0.78rem; }
 .block { background: var(--surface); border-radius: var(--radius); box-shadow: var(--shadow); padding: 1rem 1.25rem; margin-bottom: 1rem; }
 .block h2 { margin: 0 0 0.75rem; font-size: 1.05rem; }
 .description { white-space: pre-line; margin: 0; line-height: 1.55; }

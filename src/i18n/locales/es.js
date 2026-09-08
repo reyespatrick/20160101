@@ -53,7 +53,7 @@ export default {
     anthropic: 'Clave API de Anthropic · valoraciones con Claude', anthropicHint: 'console.anthropic.com › API keys. Necesaria para el botón «Estimar valor». Se cobra a la cuenta de la agencia.',
   },
   estimate: {
-    button: 'Estimar valor', buttonSetup: 'Estimar valor · añadir clave de Anthropic', title: 'Valoración', working: 'Claude está valorando la propiedad…', workingHint: 'Compara con los inmuebles de la agencia; suele tardar menos de un minuto.',
+    button: 'Estimar valor', addKeyHint: 'Añade la clave de Anthropic en Perfil › Claves para activarlo.', title: 'Valoración', working: 'Claude está valorando la propiedad…', workingHint: 'Compara con los inmuebles de la agencia; suele tardar menos de un minuto.',
     needsPrice: 'La propiedad necesita un precio para poder valorarla.', addKey: 'Añadir la clave de Anthropic', askAdmin: 'Pide al administrador que añada la clave de Anthropic en el perfil.',
     estimatedValue: 'Valor estimado', between: 'Entre {low} y {high}', askingDiff: 'precio pedido {pct} % respecto a la estimación', confidence: 'Confianza', demo: 'valoración de demostración',
     verdicts: { underpriced: 'Por debajo del mercado', fair: 'Precio ajustado al mercado', overpriced: 'Por encima del mercado' }, confidences: { low: 'baja', medium: 'media', high: 'alta' },
