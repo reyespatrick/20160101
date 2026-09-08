@@ -101,8 +101,9 @@ async function restRelay(token, method, urlPath, contentType, body) {
 }
 
 /** Used when an admin saves keys: both must be accepted by Inmovilla. */
-async function verifyInmovillaKeys(creds) {
-  await apiwebQuery(creds, [normalizeRequest({ type: 'paginacion', pos: 1, num: 1 })], '')
+async function verifyInmovillaKeys(creds, clientIp = '') {
+  // apiweb refuses a call that carries no visitor IP, so verification needs it too.
+  await apiwebQuery(creds, [normalizeRequest({ type: 'paginacion', pos: 1, num: 1 })], clientIp)
   const r = await restRelay(creds.restToken, 'GET', '/clientes/buscar/?telefono=000000000', null, null)
   if (r.status === 401 || r.status === 403) throw Object.assign(new Error('Inmovilla rechazó la clave de la API REST'), { status: 401 })
 }

@@ -69,8 +69,16 @@ Pure modules shared by both runtimes: `server/inmovilla.js`, `server/estimate.js
 - Inmovilla field names are kept as-is in mapping code (`inmovillaMapping.js`); app models use camelCase.
 - REST rate limits: 408 = rate limited → outbox pauses 65 s. Enums: 2 calls/min → cached 7 days.
 - apiweb: 70 requests/minute **per IP** or Inmovilla blocks it (10 min, permanent after 10 blocks). The relay
-  caps itself via `createRateLimiter` at `APIWEB_MAX_PER_MIN` (60). There is **no IP allow list** — an earlier
-  version of this file and the deploy docs claimed there was, which is wrong.
+  caps itself via `createRateLimiter` at `APIWEB_MAX_PER_MIN` (60).
+- **apiweb and the caller's IP — unresolved.** The published documentation says there is no allow list, only
+  reactive blocking. The live endpoint disagrees: a call from a Cloudflare Worker is refused with
+  `xIP NO VALIDADA - IP_RECIVED: <egress ip>`, and a call with no `ia` field with `NECESITAMOS RECIBIR LA IP`.
+  This was observed with invalid credentials, so it may also be the generic rejection for an unknown agency —
+  it cannot be settled without valid apiweb credentials. Consequence if IP validation is real: apiweb cannot be
+  called from Pages Functions (no stable egress IP) and needs a fixed-IP hop, while the REST write path is fine
+  since it authenticates by token alone. Ask Inmovilla before designing around either answer.
+- `ia` (the visitor IP) is **required** by apiweb; forgetting it on the key-verification call made verification
+  fail every time against the real API.
 - The apiweb credential is the full `USUARIO_API` and may carry a suffix (`123_244_ext`); it goes in the first
   `param` field as-is. Docs: https://procesos.inmovilla.com/apiweb/doc/index.html
 - Photos: resized to 1600 px JPEG on device, uploaded to the relay, public URL sent to Inmovilla.

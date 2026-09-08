@@ -1,33 +1,41 @@
 import { defineStore } from 'pinia'
-import { accountStatus, getAgency, login as apiLogin, me as apiMe, signup as apiSignup, updateAgency } from '../api/accounts'
+import { accountStatus, getAgency, me as apiMe, signup as apiSignup, updateAgency } from '../api/accounts'
 import { setDataLanguage } from '../api/inmovilla'
+import { setRemember, supabase, supabaseConfigured } from '../api/supabase'
 import { setSessionToken, setUnauthorizedHandler } from '../api/session'
 
 /**
- * The user's session (email/password account on the relay). The Inmovilla keys belong
- * to the agency and stay on the server; the phone only knows whether they are set.
+ * The user's session. People sign in against Supabase Auth, which owns passwords and resets;
+ * the role, the agency and its write lock come from the relay, which is the only place that
+ * can be trusted about them. The Inmovilla keys never reach the phone at all.
  */
-const STORAGE_KEY = 'immoba.session'
-
 export const ROLES = [
   { value: 'admin', labelKey: 'roles.admin' },
   { value: 'agent', labelKey: 'roles.agent' },
   { value: 'readonly', labelKey: 'roles.readonly' },
 ]
 
-function storages() {
-  return [window.localStorage, window.sessionStorage]
+/** Cached user/agency so the app can paint immediately and work offline. */
+const PROFILE_KEY = 'immoba.profile'
+const readProfile = () => {
+  try {
+    return JSON.parse(window.localStorage.getItem(PROFILE_KEY) || 'null')
+  } catch {
+    return null
+  }
 }
 
 export const useAuthStore = defineStore('auth', {
   state: () => ({
     token: '',
-    user: null, // { id, email, name, role }
-    agency: null, // { id, name, numagencia, idioma, hasKeys }
+    user: null, // { id, email, name, role, active }
+    agency: null, // { id, name, numagencia, idioma, hasKeys, hasAnthropic, readOnly }
     remember: true,
     restored: false,
-    needsSetup: null, // null = unknown yet
+    ready: null, // promise resolved once the stored session has been read
+    needsSetup: null,
     sessionExpired: false,
+    configError: supabaseConfigured ? '' : 'La aplicación no está configurada (falta Supabase)',
   }),
   getters: {
     isAuthenticated: (s) => Boolean(s.token && s.user),
@@ -55,45 +63,56 @@ export const useAuthStore = defineStore('auth', {
     idioma: (s) => s.agency?.idioma || 1,
   },
   actions: {
+    /** Reads the stored Supabase session once; every caller awaits the same promise. */
     restore() {
-      if (this.restored) return
-      this.restored = true
-      setUnauthorizedHandler(() => this.expire())
-      for (const store of storages()) {
-        try {
-          const raw = store.getItem(STORAGE_KEY)
-          if (!raw) continue
-          const saved = JSON.parse(raw)
-          this.token = saved.token || ''
-          this.user = saved.user || null
-          this.agency = saved.agency || null
-          this.remember = store === window.localStorage
-          break
-        } catch {
-          /* ignore corrupt storage */
+      if (this.ready) return this.ready
+      this.ready = (async () => {
+        setUnauthorizedHandler(() => this.expire())
+        if (!supabase) return
+        supabase.auth.onAuthStateChange((event, session) => {
+          this.applyToken(session?.access_token || '')
+          if (event === 'SIGNED_OUT') this.clearProfile()
+        })
+        const cached = readProfile()
+        if (cached) {
+          this.user = cached.user
+          this.agency = cached.agency
+          setDataLanguage(this.idioma)
         }
-      }
+        const { data } = await supabase.auth.getSession()
+        this.applyToken(data?.session?.access_token || '')
+        if (this.token) this.refresh() // role, keys or lock may have changed since last time
+      })().finally(() => {
+        this.restored = true
+      })
+      return this.ready
+    },
+    applyToken(token) {
+      this.token = token || ''
       setSessionToken(this.token)
-      setDataLanguage(this.idioma)
+      if (this.token) this.sessionExpired = false
     },
     persist() {
-      const payload = JSON.stringify({ token: this.token, user: this.user, agency: this.agency })
-      const target = this.remember ? window.localStorage : window.sessionStorage
-      const other = this.remember ? window.sessionStorage : window.localStorage
       try {
-        target.setItem(STORAGE_KEY, payload)
-        other.removeItem(STORAGE_KEY)
+        window.localStorage.setItem(PROFILE_KEY, JSON.stringify({ user: this.user, agency: this.agency }))
       } catch {
         /* storage unavailable */
       }
     },
-    applySession(session, remember = this.remember) {
-      this.token = session.token
-      this.user = session.user
-      this.agency = session.agency
-      this.remember = remember
-      this.sessionExpired = false
-      setSessionToken(this.token)
+    clearProfile() {
+      this.user = null
+      this.agency = null
+      try {
+        window.localStorage.removeItem(PROFILE_KEY)
+      } catch {
+        /* storage unavailable */
+      }
+    },
+    /** Loads the profile the relay reports for the current token. */
+    async loadProfile() {
+      const { user, agency } = await apiMe()
+      this.user = user
+      this.agency = agency
       setDataLanguage(this.idioma)
       this.persist()
     },
@@ -108,21 +127,41 @@ export const useAuthStore = defineStore('auth', {
       }
     },
     async login({ email, password, remember = true }) {
-      this.applySession(await apiLogin(String(email).trim(), password), remember)
+      if (!supabase) throw new Error(this.configError)
+      this.remember = remember
+      setRemember(remember)
+      const { data, error } = await supabase.auth.signInWithPassword({ email: String(email).trim(), password })
+      if (error) throw Object.assign(new Error(error.message), { status: error.status || 401 })
+      this.applyToken(data.session?.access_token || '')
+      try {
+        await this.loadProfile()
+      } catch (err) {
+        await supabase.auth.signOut().catch(() => {})
+        this.applyToken('')
+        throw err
+      }
     },
+    /** Creates the agency and its first administrator, then adopts the session it returns. */
     async signup(data) {
-      this.applySession(await apiSignup(data), true)
+      if (!supabase) throw new Error(this.configError)
+      setRemember(true)
+      this.remember = true
+      const created = await apiSignup(data)
+      if (created.access_token && created.refresh_token) {
+        await supabase.auth.setSession({ access_token: created.access_token, refresh_token: created.refresh_token })
+      }
+      this.applyToken(created.access_token || '')
+      this.user = created.user
+      this.agency = created.agency
+      setDataLanguage(this.idioma)
+      this.persist()
       this.needsSetup = false
     },
-    /** Refresh user/agency from the server (role or keys may have changed). Silent on failure. */
+    /** Refresh user/agency from the server. Silent on failure so it never breaks a screen. */
     async refresh() {
       if (!this.token) return
       try {
-        const session = await apiMe()
-        this.user = session.user
-        this.agency = session.agency
-        setDataLanguage(this.idioma)
-        this.persist()
+        await this.loadProfile()
       } catch (err) {
         if (err.code === 'session') this.expire()
       }
@@ -134,7 +173,7 @@ export const useAuthStore = defineStore('auth', {
       this.persist()
       return agency
     },
-    /** Admin only: set the agency's Inmovilla keys (verified by the server). */
+    /** Admin only: set the agency's Inmovilla and Anthropic keys (verified by the server). */
     async saveAgencyKeys(data) {
       const { agency } = await updateAgency(data)
       this.agency = { ...this.agency, ...agency }
@@ -153,19 +192,11 @@ export const useAuthStore = defineStore('auth', {
       this.sessionExpired = true
       this.logout({ keepFlag: true })
     },
-    logout({ keepFlag = false } = {}) {
-      this.token = ''
-      this.user = null
-      this.agency = null
+    async logout({ keepFlag = false } = {}) {
       if (!keepFlag) this.sessionExpired = false
-      setSessionToken('')
-      for (const store of storages()) {
-        try {
-          store.removeItem(STORAGE_KEY)
-        } catch {
-          /* ignore */
-        }
-      }
+      this.applyToken('')
+      this.clearProfile()
+      if (supabase) await supabase.auth.signOut().catch(() => {})
     },
   },
 })

@@ -43,8 +43,8 @@ function syncAll() {
   owners.sync().catch(() => {})
 }
 
-onMounted(() => {
-  auth.restore()
+onMounted(async () => {
+  await auth.restore()
   window.addEventListener('online', () => {
     online.value = true
     syncAll()
@@ -53,7 +53,6 @@ onMounted(() => {
   document.addEventListener('visibilitychange', () => document.visibilityState === 'visible' && syncAll())
   if (auth.isAuthenticated) {
     enums.restore()
-    auth.refresh() // role or keys may have changed since last time
     Promise.all([clients.load(), localProperties.load(), followUps.load()]).then(syncAll).catch(() => {})
   }
 })

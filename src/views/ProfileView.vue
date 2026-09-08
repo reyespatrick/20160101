@@ -55,7 +55,7 @@ async function logout() {
       return
     }
   }
-  auth.logout()
+  await auth.logout()
   clients.reset()
   localProperties.reset()
   followUps.reset()

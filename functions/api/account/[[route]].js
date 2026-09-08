@@ -107,7 +107,8 @@ export const onRequest = guard(async (context) => {
     }
     if (b.numagencia !== undefined || b.apiwebPassword || b.restToken) {
       if (!candidate.numagencia || !candidate.password || !candidate.restToken) return fail('Faltan el número de agencia, la clave web o la clave REST')
-      await verifyKeys(env, candidate).catch((err) => {
+      const clientIp = request.headers.get('cf-connecting-ip') || ''
+      await verifyKeys(env, candidate, { clientIp }).catch((err) => {
         throw Object.assign(new Error(err.message || 'Inmovilla rechazó las claves'), { status: err.status === 401 || err.status === 403 ? 401 : 502 })
       })
     }

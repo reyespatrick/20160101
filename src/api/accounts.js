@@ -20,7 +20,6 @@ async function request(path, { method = 'GET', json, auth = true } = {}) {
 
 export const accountStatus = () => request('/status', { auth: false })
 export const signup = (data) => request('/signup', { method: 'POST', json: data, auth: false })
-export const login = (email, password) => request('/login', { method: 'POST', json: { email, password }, auth: false })
 export const me = () => request('/me')
 export const updateMe = (data) => request('/me', { method: 'PUT', json: data })
 export const getAgency = () => request('/agency')

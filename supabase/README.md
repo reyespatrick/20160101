@@ -57,6 +57,14 @@ credentials stay the same as before — agency `1234`, web key `demo`, REST toke
 The functions talk to the real Supabase project even in development. That is deliberate: it is the
 part worth exercising for real, and nothing there is destructive.
 
+## Known open point: apiweb and the caller's IP
+
+Everything except the apiweb read path is verified in production. apiweb itself refuses calls coming from a
+Cloudflare Worker with `xIP NO VALIDADA`, naming the egress IP. If Inmovilla really validates caller IPs — the
+documentation says it does not — the listing has to be fetched through a host with a fixed, authorised IP
+(the `deploy/` folder still describes one), while writes, photos, valuations and accounts stay on Pages, since
+the REST API authenticates by token alone. Confirm with Inmovilla before rebuilding anything around it.
+
 ## Why the keys stay encrypted in the application layer
 
 The Inmovilla and Anthropic keys are encrypted with `APP_SECRET` before they are written, and
