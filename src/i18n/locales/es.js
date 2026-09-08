@@ -46,6 +46,7 @@ export default {
   keys: {
     title: 'Claves de Inmovilla', intro: 'Se guardan cifradas en el servidor y nunca se envían a los teléfonos. Inmovilla las comprueba antes de guardarlas.',
     numagencia: 'Número de agencia', apiweb: 'Clave web (apiweb) · listado', rest: 'Clave API REST · escritura', restHint: 'Inmovilla › Ajustes › Opciones › Token para API Rest',
+    numagenciaHint: 'El USUARIO_API completo de Inmovilla. Puede llevar un sufijo, por ejemplo 123_244_ext.',
     keep: 'Dejar en blanco para conservar la actual', dataLanguage: 'Idioma de los datos', configured: 'Configuradas', notConfigured: 'Sin configurar', verifyAndSave: 'Comprobar y guardar',
     saved: 'Claves comprobadas y guardadas', agencyName: 'Nombre de la agencia',
     anthropic: 'Clave API de Anthropic · valoraciones con Claude', anthropicHint: 'console.anthropic.com › API keys. Necesaria para el botón «Estimar valor». Se cobra a la cuenta de la agencia.',

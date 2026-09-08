@@ -57,6 +57,11 @@ REST token `demo-token`, any text as Anthropic key (valuations are simulated in 
 - Plain JS, no TypeScript. Vue `<script setup>`. No semicolons, single quotes, 2 spaces.
 - Inmovilla field names are kept as-is in mapping code (`inmovillaMapping.js`); app models use camelCase.
 - REST rate limits: 408 = rate limited → outbox pauses 65 s. Enums: 2 calls/min → cached 7 days.
+- apiweb: 70 requests/minute **per IP** or Inmovilla blocks it (10 min, permanent after 10 blocks). The relay
+  caps itself via `createRateLimiter` at `APIWEB_MAX_PER_MIN` (60). There is **no IP allow list** — an earlier
+  version of this file and the deploy docs claimed there was, which is wrong.
+- The apiweb credential is the full `USUARIO_API` and may carry a suffix (`123_244_ext`); it goes in the first
+  `param` field as-is. Docs: https://procesos.inmovilla.com/apiweb/doc/index.html
 - Photos: resized to 1600 px JPEG on device, uploaded to the relay, public URL sent to Inmovilla.
 - Claude: `claude-opus-5`, structured output via `betaZodOutputFormat`, `fallbacks: 'default'` with beta
   `server-side-fallback-2026-07-01`; errors mapped to `{status, code:'anthropic'}`.

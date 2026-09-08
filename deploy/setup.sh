@@ -56,5 +56,5 @@ systemctl restart caddy
 
 echo
 echo "Immoba is running behind https://$DOMAIN"
-echo "Public IP to whitelist in Inmovilla: $(curl -fsS https://api.ipify.org || echo '(check the OCI console)')"
+echo "Public egress IP (Inmovilla blocks an IP at 70 apiweb req/min): $(curl -fsS https://api.ipify.org || echo '(check the OCI console)')"
 echo "Open the URL on a phone to create the agency and its administrator, then add the keys in Perfil › Claves."

@@ -41,7 +41,7 @@ Inmovilla has to download.
                                     ◄───── Inmovilla downloads listing photos from /photos/<id>.jpg
 ```
 
-- **Reading** uses the legacy `apiweb` (fast, free-form `where` filters, no rate limit) through
+- **Reading** uses the legacy `apiweb` (fast, free-form `where` filters) through
   `POST /api/inmovilla`. The REST API only offers a bare listing plus one call per ficha at 10 calls/minute,
   so it is not usable for browsing.
 - **Writing** uses the REST API v1 through `ANY /api/rest/*`. The relay forwards the request as is, adding
@@ -131,7 +131,7 @@ npm run dev:mock             # http://localhost:5173 — first start: create the
                              # mock keys in Perfil › Claves: agency 1234 / web key "demo" / REST token "demo-token"
                              # (any value works as Anthropic key: valuations are simulated in mock mode)
 
-# Development against the real Inmovilla API (your machine's IP must be whitelisted by Inmovilla)
+# Development against the real Inmovilla API (no IP allow list; stay under 70 apiweb calls/minute)
 npm run dev                  # Vite on :5173 with hot reload, relay on :3000
 
 # Production-like run (single process serving the built app)
@@ -155,6 +155,7 @@ Deploy `server/` + `dist/` to any Node host (Render, Railway, Fly, a VPS…). En
 | --- | --- | --- |
 | `PORT` | `3000` | HTTP port |
 | `INMOVILLA_API_URL` | `https://apiweb.inmovilla.com/apiweb/apiweb.php` | Legacy read endpoint |
+| `APIWEB_MAX_PER_MIN` | `60` | Cap on outgoing apiweb calls; Inmovilla blocks the IP at 70/min |
 | `INMOVILLA_DOMAIN` | *(empty)* | Sent as `elDominio` |
 | `INMOVILLA_REST_URL` | `https://procesos.inmovilla.com/api/v1` | REST API v1 base URL |
 | `PUBLIC_URL` | request host | Public base URL of this server, used in the photo URLs Inmovilla downloads |
@@ -165,7 +166,10 @@ Deploy `server/` + `dist/` to any Node host (Render, Railway, Fly, a VPS…). En
 | `APP_SECRET` | generated into `DATA_DIR/secret.key` | Signs sessions and encrypts the Inmovilla keys. **Set it in production** |
 | `SIGNUP_CODE` | *(empty)* | When set, creating a second agency requires this code |
 
-Whitelist the server's public IP in Inmovilla if the agency's account restricts API access by IP.
+Inmovilla does not keep an allow list of caller IPs for the apiweb, but it **blocks** an IP for 10 minutes once
+it reaches 70 requests in a minute, and permanently after 10 such blocks. The relay therefore caps its own
+apiweb rate at `APIWEB_MAX_PER_MIN` (60 by default), queuing callers and answering `429` rather than risking
+a block. Keep that in mind on shared hosting, where the egress IP is shared with other tenants.
 
 **Oracle Cloud (free, fixed IP):** see [`deploy/oracle.md`](deploy/oracle.md). `deploy/setup.sh` installs Node,
 Caddy (automatic HTTPS), the systemd service and the data directory on a fresh Ubuntu VM in one go;
@@ -250,7 +254,10 @@ npm test
 
 ## Inmovilla API notes
 
-**apiweb (read)**: form POST with `param` and `json=1`; `param` is `numagencia;password;idioma;lostipos;<type>;<pos>;<num>;<where>;<order>`.
+**apiweb (read)** — [official docs](https://procesos.inmovilla.com/apiweb/doc/index.html): form POST with `param`
+and `json=1`; `param` is `usuario_api;password;idioma;lostipos;<type>;<pos>;<num>;<where>;<order>`. The first field
+is the full `USUARIO_API`, which may carry a suffix (`123_244_ext`). `elDominio` carries the authorised domain and
+`ia`/`ib` the visitor's IP (used by Inmovilla to attribute leads). Limit: 70 requests/minute per IP.
 Types: `paginacion` (list), `ficha` (detail, `where=cod_ofer=123`), `destacados`, `lostipos`, `ciudades`, `zonas`, `provincias`.
 Each response key is an array whose first element is `{ posicion, elementos, total }` followed by the items.
 

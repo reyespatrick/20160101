@@ -109,7 +109,11 @@ async function submit() {
 
     <form class="block form" @submit.prevent="submit">
       <div class="field"><label for="aname">{{ t('keys.agencyName') }}</label><input id="aname" v-model.trim="form.name" /></div>
-      <div class="field"><label for="num">{{ t('keys.numagencia') }}</label><input id="num" v-model.trim="form.numagencia" inputmode="numeric" required /></div>
+      <div class="field">
+        <label for="num">{{ t('keys.numagencia') }}</label>
+        <input id="num" v-model.trim="form.numagencia" autocapitalize="off" autocorrect="off" spellcheck="false" required />
+        <small class="muted">{{ t('keys.numagenciaHint') }}</small>
+      </div>
       <div class="field">
         <label for="apiweb">{{ t('keys.apiweb') }} <span class="state" :class="{ ok: info?.hasApiweb }">{{ info?.hasApiweb ? t('keys.configured') : t('keys.notConfigured') }}</span></label>
         <input id="apiweb" v-model.trim="form.apiwebPassword" :type="show ? 'text' : 'password'" autocomplete="off" :placeholder="info?.hasApiweb ? t('keys.keep') : ''" />

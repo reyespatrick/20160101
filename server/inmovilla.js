@@ -46,6 +46,41 @@ export function normalizeRequest(req) {
   }
 }
 
+/**
+ * Sliding-window limiter for calls to a single upstream.
+ *
+ * Inmovilla blocks an IP for 10 minutes when it reaches 70 apiweb requests in a minute,
+ * and permanently after 10 such blocks, so the relay must stay under that on its own.
+ * Slots are handed out one at a time (the queue) so concurrent callers cannot all pass
+ * the check at once; a caller waits its turn and gives up only past `maxWaitMs`.
+ */
+export function createRateLimiter({ limit, windowMs = 60_000, maxWaitMs = 15_000, now = () => Date.now(), sleep } = {}) {
+  const wait = sleep || ((ms) => new Promise((r) => setTimeout(r, ms)))
+  const calls = []
+  let queue = Promise.resolve()
+
+  const take = async () => {
+    for (;;) {
+      const t = now()
+      while (calls.length && t - calls[0] >= windowMs) calls.shift()
+      if (calls.length < limit) {
+        calls.push(t)
+        return
+      }
+      const delay = windowMs - (t - calls[0]) + 25
+      if (delay > maxWaitMs) throw Object.assign(new Error('Demasiadas consultas a Inmovilla; espera un momento'), { status: 429 })
+      await wait(delay)
+    }
+  }
+  const slot = () => {
+    const p = queue.then(take, take)
+    queue = p.catch(() => {})
+    return p
+  }
+  slot.pending = () => calls.length
+  return slot
+}
+
 export function buildParam({ numagencia, password, idioma = 1 }, requests) {
   if (!clean(numagencia)) throw new Error('numagencia is required')
   if (!clean(password)) throw new Error('password is required')
@@ -64,7 +99,11 @@ export function buildFormBody(credentials, requests, { clientIp = '', domain = '
   const body = new URLSearchParams()
   body.set('param', buildParam(credentials, requests))
   body.set('json', '1')
-  if (clientIp) body.set('ia', clientIp)
+  // The visitor's IP, used by Inmovilla to attribute leads (both names appear in their docs)
+  if (clientIp) {
+    body.set('ia', clientIp)
+    body.set('ib', clientIp)
+  }
   if (domain) body.set('elDominio', domain)
   return body
 }

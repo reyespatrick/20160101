@@ -21,7 +21,7 @@ import { createAccountsRouter } from './accounts.js'
 import { canDelete, canWrite, requireUser } from './auth.js'
 import * as db from './db.js'
 import { estimateProperty, verifyAnthropicKey } from './estimate.js'
-import { buildFormBody, normalizeRequest, parseApiResponse } from './inmovilla.js'
+import { buildFormBody, createRateLimiter, normalizeRequest, parseApiResponse } from './inmovilla.js'
 import { mockResponse } from './mock.js'
 import { createMockRest } from './mockRest.js'
 
@@ -36,11 +36,14 @@ const PHOTOS_DIR = process.env.PHOTOS_DIR || path.join(DATA_DIR, 'photos')
 const PHOTO_TTL_DAYS = Number(process.env.PHOTO_TTL_DAYS || 30)
 const PUBLIC_URL = (process.env.PUBLIC_URL || '').replace(/\/+$/, '')
 const UPSTREAM_TIMEOUT_MS = 30_000
+// Inmovilla blocks the caller's IP at 70 apiweb requests per minute; stay clearly under it.
+const APIWEB_MAX_PER_MIN = Number(process.env.APIWEB_MAX_PER_MIN || 60)
 const MAX_BODY = '12mb'
 const MAX_PHOTO_BYTES = 8 * 1024 * 1024
 
 db.openDb(DATA_DIR)
 const mockRest = MOCK ? createMockRest() : null
+const apiwebSlot = createRateLimiter({ limit: APIWEB_MAX_PER_MIN })
 
 const app = express()
 app.disable('x-powered-by')
@@ -72,6 +75,7 @@ async function apiwebQuery(creds, normalized, clientIp) {
     if (data.error) throw Object.assign(new Error(data.error), { status: 401 })
     return data
   }
+  await apiwebSlot()
   return withTimeout(async (signal) => {
     const upstream = await fetch(API_URL, {
       method: 'POST',
@@ -240,7 +244,7 @@ app.get(/^(?!\/api\/).*/, (_req, res) => {
 
 app.listen(PORT, () => {
   console.log(`[server] listening on http://localhost:${PORT}`)
-  console.log(`[server] apiweb → ${MOCK ? 'MOCK (agencia 1234 / clave demo)' : API_URL}`)
+  console.log(`[server] apiweb → ${MOCK ? 'MOCK (agencia 1234 / clave demo)' : `${API_URL} (max ${APIWEB_MAX_PER_MIN}/min)`}`)
   console.log(`[server] REST   → ${MOCK ? 'MOCK (token "demo-token")' : REST_URL}`)
   console.log(`[server] data   → ${DATA_DIR} (accounts + encrypted keys), photos kept ${PHOTO_TTL_DAYS} days${PUBLIC_URL ? ` at ${PUBLIC_URL}/photos/` : ''}`)
   if (db.countUsers() === 0) console.log('[server] no users yet: open the app to create the agency and its administrator')

@@ -1,8 +1,14 @@
 # Hosting Immoba on Oracle Cloud (Always Free)
 
-The relay needs one small always-on VM with a **fixed public IP** (Inmovilla's apiweb only answers from
-whitelisted IPs). Oracle's Always Free tier provides that at no cost. Everything below takes about
-30 minutes the first time.
+The relay needs one small always-on VM. Oracle's Always Free tier provides one at no cost, and its fixed
+public IP is useful here: Inmovilla does **not** keep an allow list, but it blocks a caller's IP for 10
+minutes at 70 apiweb requests per minute (permanently after 10 blocks), so an IP you control and do not
+share with other tenants keeps that reputation predictable. The relay also caps its own rate
+(`APIWEB_MAX_PER_MIN`, 60 by default). Everything below takes about 30 minutes the first time.
+
+> An earlier version of this guide said Inmovilla required whitelisted IPs. That was wrong — see
+> [the apiweb documentation](https://procesos.inmovilla.com/apiweb/doc/index.html). A fixed IP is a
+> convenience here, not a requirement, so serverless hosting is also on the table.
 
 ## 1. Create the VM
 
@@ -15,7 +21,7 @@ whitelisted IPs). Oracle's Always Free tier provides that at no cost. Everything
    - Add your SSH public key, then Create.
 3. Make the IP permanent: **Networking › IP management › Reserved public IPs › Reserve**, then on the
    instance go to *Attached VNICs › IPv4 addresses › Edit* and switch the ephemeral IP to the reserved
-   one. Without this step a stop/start can change the IP and break the Inmovilla whitelist.
+   one. Without this step a stop/start can change the IP, losing the reputation you built with Inmovilla.
 4. Open the web ports: **Networking › Virtual cloud networks › your VCN › Security lists › Default**,
    add two ingress rules: source `0.0.0.0/0`, TCP, destination port `80` and `443`.
 
@@ -41,8 +47,9 @@ It ends by printing the public IP.
 
 ## 4. First start
 
-1. In Inmovilla, whitelist the printed IP for the apiweb (the agency's account settings, or ask Inmovilla
-   support) and note the agency number, web key and REST token (*Ajustes › Opciones › Token para API Rest*).
+1. Note your Inmovilla credentials: the full `USUARIO_API` (it may look like `123_244_ext`), the apiweb key,
+   and the REST token (*Ajustes › Opciones › Token para API Rest*). Ask support@inmovilla.com for the apiweb
+   credentials if you do not have them.
 2. Open `https://<domain>` on a phone: create the agency and its administrator.
 3. *Perfil › Claves*: enter the Inmovilla keys (they are checked live) and, for valuations, the Anthropic key.
 4. Add users in *Perfil › Usuarios*. Each installs the PWA from the browser ("Add to home screen").
