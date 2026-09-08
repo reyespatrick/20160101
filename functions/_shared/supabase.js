@@ -109,6 +109,45 @@ export function createSupabase(env) {
       },
     },
 
+    auth: {
+      /** Creates a confirmed account. Admin endpoint: needs the secret key, never the browser. */
+      async createUser({ email, password, metadata }) {
+        const res = await fetch(`${url}/auth/v1/admin/users`, {
+          method: 'POST',
+          headers: headers({ 'Content-Type': 'application/json' }),
+          body: JSON.stringify({ email: String(email).trim().toLowerCase(), password, email_confirm: true, user_metadata: metadata || {} }),
+        })
+        const body = await res.json().catch(() => null)
+        if (!res.ok) throw fail(body?.msg || body?.message || `Auth responded ${res.status}`, res.status, body)
+        return body
+      },
+      async deleteUser(id) {
+        const res = await fetch(`${url}/auth/v1/admin/users/${id}`, { method: 'DELETE', headers: headers() })
+        if (!res.ok && res.status !== 404) throw fail(`Auth delete failed (${res.status})`, res.status, null)
+      },
+      async updateUser(id, patch) {
+        const res = await fetch(`${url}/auth/v1/admin/users/${id}`, {
+          method: 'PUT',
+          headers: headers({ 'Content-Type': 'application/json' }),
+          body: JSON.stringify(patch),
+        })
+        const body = await res.json().catch(() => null)
+        if (!res.ok) throw fail(body?.msg || `Auth update failed (${res.status})`, res.status, body)
+        return body
+      },
+      /** Exchanges email + password for a session, exactly as the browser client would. */
+      async signInWithPassword({ email, password }) {
+        const res = await fetch(`${url}/auth/v1/token?grant_type=password`, {
+          method: 'POST',
+          headers: { apikey: env.SUPABASE_PUBLISHABLE_KEY || key, 'Content-Type': 'application/json' },
+          body: JSON.stringify({ email: String(email).trim().toLowerCase(), password }),
+        })
+        const body = await res.json().catch(() => null)
+        if (!res.ok) throw fail(body?.error_description || body?.msg || 'Email o contraseña incorrectos', res.status === 400 ? 401 : res.status, body)
+        return body
+      },
+    },
+
     /** Verifies a user's access token with Supabase Auth and returns the auth user, or null. */
     async userFromToken(accessToken) {
       if (!accessToken) return null
