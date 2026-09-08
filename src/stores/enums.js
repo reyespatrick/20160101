@@ -105,7 +105,7 @@ export const useEnumsStore = defineStore('enums', {
       this.restore()
       if (this.fresh(this.fetchedAt.tipos) && this.tipos.key_tipo?.length) return
       const auth = useAuthStore()
-      if (!auth.hasKeys || navigator.onLine === false) return
+      if (!auth.hasRest || navigator.onLine === false) return
       this.loading.tipos = true
       try {
         let tipos = parseTipos(await throttled(() => enumsTipos()))
@@ -127,7 +127,7 @@ export const useEnumsStore = defineStore('enums', {
       this.restore()
       if (this.fresh(this.fetchedAt.ciudades) && this.ciudades.length) return
       const auth = useAuthStore()
-      if (!auth.hasKeys || navigator.onLine === false) return
+      if (!auth.hasRest || navigator.onLine === false) return
       this.loading.ciudades = true
       try {
         this.ciudades = parseCiudades(await throttled(() => enumsCiudades()))
@@ -144,7 +144,7 @@ export const useEnumsStore = defineStore('enums', {
       const key = String(keyLoca)
       if (!keyLoca || (this.fresh(this.zonasFetchedAt[key]) && this.zonas[key])) return
       const auth = useAuthStore()
-      if (!auth.hasKeys || navigator.onLine === false) return
+      if (!auth.hasRest || navigator.onLine === false) return
       this.loading.zonas = true
       try {
         const parsed = parseZonas(await throttled(() => enumsZonas(key)))
@@ -161,7 +161,7 @@ export const useEnumsStore = defineStore('enums', {
       this.restore()
       if (this.fresh(this.fetchedAt.tiposSeguimiento) && this.tiposSeguimiento.length) return
       const auth = useAuthStore()
-      if (!auth.hasKeys || navigator.onLine === false) return
+      if (!auth.hasRest || navigator.onLine === false) return
       this.loading.tiposSeguimiento = true
       try {
         const body = await throttled(() => enumsTiposSeguimiento())

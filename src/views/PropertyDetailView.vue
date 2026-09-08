@@ -117,10 +117,10 @@ onMounted(async () => {
       </ul>
 
       <div v-if="auth.canEstimate" class="estimate-cta">
-        <RouterLink v-if="auth.hasAnthropic" :to="{ name: 'estimate', params: { source: 'inmovilla', id: codOfer } }" class="btn">✦ {{ t('estimate.button') }}</RouterLink>
+        <RouterLink v-if="auth.hasAnthropic && auth.hasApiweb" :to="{ name: 'estimate', params: { source: 'inmovilla', id: codOfer } }" class="btn">✦ {{ t('estimate.button') }}</RouterLink>
         <template v-else>
           <button type="button" class="btn" disabled>✦ {{ t('estimate.button') }}</button>
-          <small class="muted">{{ auth.isAdmin ? t('estimate.addKeyHint') : t('estimate.askAdmin') }}</small>
+          <small class="muted">{{ !auth.hasApiweb ? t('estimate.needsApiweb') : auth.isAdmin ? t('estimate.addKeyHint') : t('estimate.askAdmin') }}</small>
         </template>
       </div>
 

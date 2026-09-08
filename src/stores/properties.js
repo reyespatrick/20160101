@@ -23,6 +23,7 @@ export const usePropertiesStore = defineStore('properties', {
     loadingMore: false,
     error: '',
     fromCache: false,
+    needsApiweb: false, // the listing needs the apiweb key, which is issued separately
     filters: { search: '', operation: 'all', typeKey: '', order: ORDER_OPTIONS[0].value },
     details: {}, // cod_ofer -> ficha
   }),
@@ -39,6 +40,7 @@ export const usePropertiesStore = defineStore('properties', {
       const auth = useAuthStore()
       this.loading = true
       this.error = ''
+      this.needsApiweb = false
       try {
         const { items, meta, types } = await fetchProperties({
           page: 1,
@@ -58,7 +60,8 @@ export const usePropertiesStore = defineStore('properties', {
         }
       } catch (err) {
         if (err.code === 'keys') {
-          this.error = 'La agencia aún no tiene configuradas las claves de Inmovilla'
+          this.error = err.message || 'La agencia no tiene configurada la clave web de Inmovilla'
+          this.needsApiweb = true
         } else if (err.status === 401 && !err.code) {
           this.error = 'Inmovilla rechazó las claves de la agencia; avisa al administrador'
         } else if (err.code === 'session') {

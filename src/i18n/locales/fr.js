@@ -54,6 +54,7 @@ export default {
   },
   estimate: {
     button: 'Estimer la valeur', addKeyHint: 'Ajoutez la clé Anthropic dans Profil › Clés pour l’activer.', title: 'Estimation', working: 'Claude estime le bien…', workingHint: 'Comparaison avec les biens de l’agence ; cela prend en général moins d’une minute.',
+    needsApiweb: 'L’estimation a besoin de la clé web d’Inmovilla, qui donne accès aux biens comparables.', 
     needsPrice: 'Le bien doit avoir un prix pour être estimé.', addKey: 'Ajouter la clé Anthropic', askAdmin: 'Demandez à l’administrateur d’ajouter la clé Anthropic dans le profil.',
     estimatedValue: 'Valeur estimée', between: 'Entre {low} et {high}', askingDiff: 'prix demandé {pct} % par rapport à l’estimation', confidence: 'Confiance', demo: 'estimation de démonstration',
     verdicts: { underpriced: 'Sous le marché', fair: 'Prix conforme au marché', overpriced: 'Au-dessus du marché' }, confidences: { low: 'faible', medium: 'moyenne', high: 'élevée' },
@@ -77,6 +78,7 @@ export default {
     inmovilla: 'Inmovilla', mine: 'Mes biens', newProperty: 'Nouveau bien', searchPlaceholder: 'Rechercher par référence ou ville', all: 'Tout', allTypes: 'Tous les types',
     sortRecent: 'Plus récents', sortPriceAsc: 'Prix croissant', sortPriceDesc: 'Prix décroissant', sortRef: 'Référence',
     count: '{n} biens', noMatch: 'Aucun bien ne correspond', cached: 'Pas de connexion à Inmovilla. Dernier listing enregistré.', loadMore: 'Charger plus',
+    needsApiweb: 'Le listing Inmovilla nécessite la clé web.', needsApiwebBody: 'Inmovilla la fournit séparément de la clé REST. En attendant, clients, agenda, propriétaires et vos propres biens fonctionnent normalement.', 
     mineSearch: 'Rechercher par référence, ville, titre…', allStates: 'Tous les états', mineEmpty: "Vous n'avez pas encore créé de bien", mineEmptyBody: 'Créez une fiche avec photos depuis le mobile, même hors ligne.',
     noMatchFilter: 'Aucun bien ne correspond au filtre.', syncingPhotos: 'Synchronisation des photos…',
     description: 'Description', features: 'Caractéristiques', extras: 'Équipements', details: 'Détails', contact: 'Contact', followUps: 'Suivis', noFollowUps: 'Aucun suivi pour ce bien sur cet appareil.',

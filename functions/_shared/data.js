@@ -18,9 +18,11 @@ const agencyView = (row) =>
         numagencia: row.numagencia,
         idioma: row.idioma,
         readOnly: row.read_only !== false,
-        hasKeys: Boolean(row.numagencia && row.apiweb_password && row.rest_token),
-        hasApiweb: Boolean(row.apiweb_password),
+        // The two Inmovilla APIs are configured independently: apiweb needs the agency number
+        // and the web key, the REST API needs only its token.
+        hasApiweb: Boolean(row.numagencia && row.apiweb_password),
         hasRest: Boolean(row.rest_token),
+        hasKeys: Boolean(row.numagencia && row.apiweb_password) || Boolean(row.rest_token),
         hasAnthropic: Boolean(row.anthropic_key),
       }
     : null

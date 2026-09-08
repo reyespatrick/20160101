@@ -14,7 +14,8 @@ beforeAll(async () => {
   db.openDb(dir)
   const app = express()
   app.use('/api/account', accounts.createAccountsRouter({
-    verifyInmovillaKeys: async (c) => { if (c.restToken !== 'good') throw Object.assign(new Error('bad key'), { status: 401 }) },
+    verifyApiwebKey: async (c) => { if (c.password !== 'demo') throw Object.assign(new Error('bad web key'), { status: 401 }) },
+    verifyRestKey: async (token) => { if (token !== 'good') throw Object.assign(new Error('bad key'), { status: 401 }) },
     verifyAnthropicKey: async (k) => { if (!k.startsWith('sk-ant-')) throw Object.assign(new Error('bad anthropic key'), { status: 401 }) },
   }))
   await new Promise((r) => (server = app.listen(0, r)))
@@ -54,6 +55,12 @@ describe('accounts API', () => {
     expect(r.status).toBe(200)
     expect(auth.verifySession(r.body.token).role).toBe('admin')
     expect(auth.verifySession(r.body.token + 'x')).toBeNull()
+  })
+  it('accepts the REST key alone, since Inmovilla issues the web key separately', async () => {
+    const r = await call('/agency', { method: 'PUT', body: JSON.stringify({ restToken: 'good' }) }, adminToken)
+    expect(r.status).toBe(200)
+    expect(r.body.agency).toMatchObject({ hasRest: true, hasApiweb: false, hasKeys: true })
+    expect((await call('/agency', { method: 'PUT', body: JSON.stringify({ apiwebPassword: 'demo' }) }, adminToken)).body.error).toMatch(/número de agencia/)
   })
   it('lets only admins set keys, verified against Inmovilla, and keeps them server side', async () => {
     const bad = await call('/agency', { method: 'PUT', body: JSON.stringify({ numagencia: '1234', apiwebPassword: 'demo', restToken: 'wrong' }) }, adminToken)

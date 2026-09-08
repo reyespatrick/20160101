@@ -54,6 +54,7 @@ export default {
   },
   estimate: {
     button: 'Estimate value', addKeyHint: 'Add the Anthropic key in Profile › Keys to enable it.', title: 'Valuation', working: 'Claude is valuing the property…', workingHint: 'It compares with the agency’s listings; usually under a minute.',
+    needsApiweb: 'The valuation needs the Inmovilla web key, which gives access to the comparable listings.', 
     needsPrice: 'The property needs a price before it can be valued.', addKey: 'Add the Anthropic key', askAdmin: 'Ask the administrator to add the Anthropic key in the profile.',
     estimatedValue: 'Estimated value', between: 'Between {low} and {high}', askingDiff: 'asking price {pct} % vs the estimate', confidence: 'Confidence', demo: 'demo valuation',
     verdicts: { underpriced: 'Below market', fair: 'Priced in line with the market', overpriced: 'Above market' }, confidences: { low: 'low', medium: 'medium', high: 'high' },
@@ -77,6 +78,7 @@ export default {
     inmovilla: 'Inmovilla', mine: 'My listings', newProperty: 'New listing', searchPlaceholder: 'Search by reference or city', all: 'All', allTypes: 'All types',
     sortRecent: 'Most recent', sortPriceAsc: 'Price: low to high', sortPriceDesc: 'Price: high to low', sortRef: 'Reference',
     count: '{n} listings', noMatch: 'No listings match', cached: 'No connection to Inmovilla. Showing the last saved listing.', loadMore: 'Load more',
+    needsApiweb: 'The Inmovilla listing needs the web key.', needsApiwebBody: 'Inmovilla issues it separately from the REST key. Meanwhile clients, agenda, owners and your own listings work as usual.', 
     mineSearch: 'Search by reference, city, title…', allStates: 'All states', mineEmpty: 'You have not created listings yet', mineEmptyBody: 'Create a listing with photos from your phone, even offline.',
     noMatchFilter: 'No listing matches the filter.', syncingPhotos: 'Syncing photos…',
     description: 'Description', features: 'Features', extras: 'Extras', details: 'Details', contact: 'Contact', followUps: 'Follow-ups', noFollowUps: 'No follow-ups for this listing on this device.',

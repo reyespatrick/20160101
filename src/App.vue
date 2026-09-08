@@ -63,7 +63,7 @@ onMounted(async () => {
     <UpdateBanner />
     <AppHeader v-if="auth.isAuthenticated" />
     <div v-if="!online" class="offline-bar">{{ t('common.offlineBar') }}</div>
-    <div v-if="auth.isAuthenticated && !auth.hasKeys && $route.name !== 'agency-keys'" class="keys-bar">
+    <div v-if="auth.isAuthenticated && !auth.hasRest && $route.name !== 'agency-keys'" class="keys-bar">
       <span>{{ auth.isAdmin ? t('auth.noKeysAdmin') : t('auth.noKeysAgent') }}</span>
       <RouterLink v-if="auth.isAdmin" :to="{ name: 'agency-keys' }" class="btn small">{{ t('auth.goKeys') }}</RouterLink>
     </div>

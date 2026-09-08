@@ -7,7 +7,7 @@
 import { authenticate, requireAdmin } from '../../_shared/auth.js'
 import { createData, ROLES } from '../../_shared/data.js'
 import { fail, guard, json, readJson } from '../../_shared/http.js'
-import { verifyKeys } from '../../_shared/inmovilla.js'
+import { verifyApiweb, verifyRest } from '../../_shared/inmovilla.js'
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
 const path = (context) => '/' + (context.params.route || []).join('/')
@@ -108,14 +108,22 @@ export const onRequest = guard(async (context) => {
       idioma: Number(b.idioma) || current.idioma || 1,
     }
     if (b.numagencia !== undefined || b.apiwebPassword || b.restToken) {
-      if (!candidate.numagencia || !candidate.password || !candidate.restToken) return fail('Faltan el número de agencia, la clave web o la clave REST')
-      const taken = (await data.agencyByNumagencia(candidate.numagencia)).filter((a) => a.id !== agency.id)
-      if (taken.length) return fail('Otra cuenta de este servidor ya usa esa agencia de Inmovilla', 409)
-      const clientIp = request.headers.get('cf-connecting-ip') || ''
-      const verified = await verifyKeys(env, candidate, { clientIp }).catch((err) => {
+      if (!candidate.numagencia && !candidate.password && !candidate.restToken) return fail('Indica al menos una clave de Inmovilla')
+      if (candidate.numagencia) {
+        const taken = (await data.agencyByNumagencia(candidate.numagencia)).filter((a) => a.id !== agency.id)
+        if (taken.length) return fail('Otra cuenta de este servidor ya usa esa agencia de Inmovilla', 409)
+      }
+      const reject = (err) => {
         throw Object.assign(new Error(err.message || 'Inmovilla rechazó las claves'), { status: err.status === 401 || err.status === 403 ? 401 : 502 })
-      })
-      discovered = verified.agencyName
+      }
+      // The two APIs are independent: an agency can hold the REST token without the web key.
+      if (candidate.numagencia && candidate.password) {
+        const clientIp = request.headers.get('cf-connecting-ip') || ''
+        discovered = (await verifyApiweb(env, candidate, { clientIp }).catch(reject)).agencyName
+      } else if (candidate.password && !candidate.numagencia) {
+        return fail('La clave web necesita también el número de agencia')
+      }
+      if (candidate.restToken) await verifyRest(env, candidate.restToken).catch(reject)
     }
     if (b.readOnly !== undefined) await data.setAgencyReadOnly(agency.id, b.readOnly)
     await data.setAgencyKeys(agency.id, {

@@ -97,6 +97,11 @@ onBeforeUnmount(() => observer?.disconnect())
     <FilterBar :filters="store.filters" :types="store.types" @update="store.setFilters" />
 
     <p v-if="store.fromCache" class="alert alert-info">{{ t('props.cached') }}</p>
+    <div v-else-if="store.needsApiweb" class="alert alert-info no-apiweb">
+      <p>{{ t('props.needsApiweb') }}</p>
+      <p class="muted">{{ t('props.needsApiwebBody') }}</p>
+      <RouterLink v-if="auth.isAdmin" :to="{ name: 'agency-keys' }" class="btn btn-ghost small">{{ t('auth.goKeys') }}</RouterLink>
+    </div>
     <p v-else-if="store.error" class="alert" role="alert">{{ store.error }}</p>
 
     <div v-if="store.loading" class="spinner" :aria-label="t('common.loading')"></div>
@@ -140,6 +145,8 @@ onBeforeUnmount(() => observer?.disconnect())
 .empty h2 { margin: 0; }
 .empty p { margin: 0 0 0.75rem; }
 .empty-icon { font-size: 3rem; }
+.no-apiweb { display: flex; flex-direction: column; gap: 0.4rem; align-items: flex-start; }
+.no-apiweb p { margin: 0; }
 .fab { position: fixed; right: 1.25rem; bottom: calc(var(--nav-height) + 1rem + env(safe-area-inset-bottom)); width: 58px; height: 58px; border-radius: 50%; background: var(--accent); color: #fff; font-size: 2rem; line-height: 1; display: grid; place-items: center; box-shadow: 0 6px 18px rgba(243, 146, 0, 0.45); }
 @media (min-width: 720px) { .fab { display: none; } }
 @media (max-width: 719px) { .new-btn { display: none; } }

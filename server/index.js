@@ -101,12 +101,17 @@ async function restRelay(token, method, urlPath, contentType, body) {
 }
 
 /** Used when an admin saves keys: both must be accepted by Inmovilla. */
-async function verifyInmovillaKeys(creds, clientIp = '') {
-  // apiweb refuses a call that carries no visitor IP, so verification needs it too.
+/**
+ * The two Inmovilla APIs are verified separately: an agency may hold the REST token without
+ * the apiweb key. apiweb also refuses a call carrying no visitor IP, so it is forwarded.
+ */
+async function verifyApiwebKey(creds, clientIp = '') {
   const listing = await apiwebQuery(creds, [normalizeRequest({ type: 'paginacion', pos: 1, num: 1 })], clientIp)
-  const r = await restRelay(creds.restToken, 'GET', '/clientes/buscar/?telefono=000000000', null, null)
-  if (r.status === 401 || r.status === 403) throw Object.assign(new Error('Inmovilla rechazó la clave de la API REST'), { status: 401 })
   return { agencyName: await inmovillaAgencyName(creds, listing, clientIp) }
+}
+async function verifyRestKey(restToken) {
+  const r = await restRelay(restToken, 'GET', '/clientes/buscar/?telefono=000000000', null, null)
+  if (r.status === 401 || r.status === 403) throw Object.assign(new Error('Inmovilla rechazó la clave de la API REST'), { status: 401 })
 }
 
 /** The agency's name as Inmovilla spells it. Cosmetic: never blocks saving the keys. */
@@ -125,7 +130,7 @@ async function inmovillaAgencyName(creds, listing, clientIp) {
 /** Mock mode accepts any Anthropic key (the estimate itself is simulated); otherwise the key must list models. */
 const checkAnthropicKey = MOCK ? async () => {} : verifyAnthropicKey
 
-app.use('/api/account', createAccountsRouter({ verifyInmovillaKeys, verifyAnthropicKey: checkAnthropicKey }))
+app.use('/api/account', createAccountsRouter({ verifyApiwebKey, verifyRestKey, verifyAnthropicKey: checkAnthropicKey }))
 
 /**
  * Agency-wide write lock (on by default). While it is on, nothing can be created, modified or
@@ -139,19 +144,29 @@ const lockedResponse = (res) =>
   res.status(403).json({ error: 'La agencia está en modo solo lectura. Un administrador debe desactivarlo en el perfil.', code: 'locked' })
 
 /** Loads the agency's Inmovilla credentials or answers 409 when the admin has not set them. */
-function requireKeys(req, res, next) {
-  const creds = db.agencyCredentials(req.user.agency_id)
-  if (!creds || !creds.numagencia || !creds.password || !creds.restToken) {
-    return res.status(409).json({ error: 'La agencia aún no tiene configuradas las claves de Inmovilla', code: 'keys' })
+function loadCreds(req) {
+  req.creds = db.agencyCredentials(req.user.agency_id)
+  return req.creds
+}
+function requireApiweb(req, res, next) {
+  const c = loadCreds(req)
+  if (!c || !c.numagencia || !c.password) {
+    return res.status(409).json({ error: 'La agencia no tiene configurada la clave web de Inmovilla (listado)', code: 'keys' })
   }
-  req.creds = creds
+  next()
+}
+function requireRest(req, res, next) {
+  const c = loadCreds(req)
+  if (!c || !c.restToken) {
+    return res.status(409).json({ error: 'La agencia no tiene configurada la clave de la API REST de Inmovilla', code: 'keys' })
+  }
   next()
 }
 
 // ---------------------------------------------------------------------------
 // apiweb relay (read) — any active user
 // ---------------------------------------------------------------------------
-app.post('/api/inmovilla', requireUser, requireKeys, express.json({ limit: '64kb' }), async (req, res) => {
+app.post('/api/inmovilla', requireUser, requireApiweb, express.json({ limit: '64kb' }), async (req, res) => {
   const { requests, idioma } = req.body || {}
   let normalized
   try {
@@ -171,7 +186,7 @@ app.post('/api/inmovilla', requireUser, requireKeys, express.json({ limit: '64kb
 // ---------------------------------------------------------------------------
 // REST relay (write) — roles: readonly may only GET; agents may not DELETE
 // ---------------------------------------------------------------------------
-app.use('/api/rest', requireUser, requireKeys, express.raw({ type: () => true, limit: MAX_BODY }), async (req, res) => {
+app.use('/api/rest', requireUser, requireRest, express.raw({ type: () => true, limit: MAX_BODY }), async (req, res) => {
   const method = req.method.toUpperCase()
   if (method !== 'GET' && locked(req)) return lockedResponse(res)
   if (method !== 'GET' && !canWrite(req.user.role)) return res.status(403).json({ error: 'Tu cuenta es de solo lectura', code: 'role' })
@@ -187,7 +202,7 @@ app.use('/api/rest', requireUser, requireKeys, express.raw({ type: () => true, l
 // ---------------------------------------------------------------------------
 // Valuation with Claude — write roles only, needs the agency's Anthropic key
 // ---------------------------------------------------------------------------
-app.post('/api/estimate', requireUser, requireKeys, express.json({ limit: '256kb' }), async (req, res) => {
+app.post('/api/estimate', requireUser, requireApiweb, express.json({ limit: '256kb' }), async (req, res) => {
   if (!canWrite(req.user.role)) return res.status(403).json({ error: 'Tu cuenta es de solo lectura', code: 'role' })
   if (!req.creds.anthropicKey) return res.status(409).json({ error: 'La agencia aún no tiene configurada la clave de Anthropic', code: 'anthropic' })
   const { property, locale } = req.body || {}

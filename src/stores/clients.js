@@ -91,7 +91,7 @@ export const useClientsStore = defineStore('clients', {
     async searchRemote(query = this.query) {
       const auth = useAuthStore()
       const q = String(query || '').trim()
-      if (!auth.hasKeys || navigator.onLine === false || !(looksLikePhone(q) || looksLikeEmail(q))) return []
+      if (!auth.hasRest || navigator.onLine === false || !(looksLikePhone(q) || looksLikeEmail(q))) return []
       this.searching = true
       try {
         await this.ensureLoaded()
@@ -115,7 +115,7 @@ export const useClientsStore = defineStore('clients', {
     async refresh(id) {
       const auth = useAuthStore()
       const local = this.byId(id)
-      if (!local?.remoteId || local.dirty || !auth.hasKeys || navigator.onLine === false) return
+      if (!local?.remoteId || local.dirty || !auth.hasRest || navigator.onLine === false) return
       try {
         const fresh = await getClient(local.remoteId)
         if (fresh) {
@@ -141,7 +141,7 @@ export const useClientsStore = defineStore('clients', {
     async sync() {
       const auth = useAuthStore()
       const agency = auth.numagencia
-      if (!agency || !auth.hasKeys || !auth.canWrite || this.syncing) return false
+      if (!agency || !auth.hasRest || !auth.canWrite || this.syncing) return false
       if (typeof navigator !== 'undefined' && navigator.onLine === false) return false
       if (this.rateLimitedUntil > Date.now()) {
         setTimeout(() => this.sync(), this.rateLimitedUntil - Date.now() + 500)

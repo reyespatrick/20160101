@@ -54,6 +54,7 @@ export default {
   },
   estimate: {
     button: 'Estimar valor', addKeyHint: 'Añade la clave de Anthropic en Perfil › Claves para activarlo.', title: 'Valoración', working: 'Claude está valorando la propiedad…', workingHint: 'Compara con los inmuebles de la agencia; suele tardar menos de un minuto.',
+    needsApiweb: 'La valoración necesita la clave web de Inmovilla, que da acceso a los inmuebles comparables.', 
     needsPrice: 'La propiedad necesita un precio para poder valorarla.', addKey: 'Añadir la clave de Anthropic', askAdmin: 'Pide al administrador que añada la clave de Anthropic en el perfil.',
     estimatedValue: 'Valor estimado', between: 'Entre {low} y {high}', askingDiff: 'precio pedido {pct} % respecto a la estimación', confidence: 'Confianza', demo: 'valoración de demostración',
     verdicts: { underpriced: 'Por debajo del mercado', fair: 'Precio ajustado al mercado', overpriced: 'Por encima del mercado' }, confidences: { low: 'baja', medium: 'media', high: 'alta' },
@@ -77,6 +78,7 @@ export default {
     inmovilla: 'Inmovilla', mine: 'Mis propiedades', newProperty: 'Nueva propiedad', searchPlaceholder: 'Buscar por referencia o ciudad', all: 'Todo', allTypes: 'Todos los tipos',
     sortRecent: 'Más recientes', sortPriceAsc: 'Precio: menor a mayor', sortPriceDesc: 'Precio: mayor a menor', sortRef: 'Referencia',
     count: '{n} propiedades', noMatch: 'No hay propiedades que coincidan', cached: 'Sin conexión con Inmovilla. Mostrando el último listado guardado.', loadMore: 'Cargar más',
+    needsApiweb: 'El listado de Inmovilla necesita la clave web.', needsApiwebBody: 'Inmovilla la facilita aparte de la clave REST. Mientras tanto, clientes, agenda, propietarios y tus propias propiedades funcionan con normalidad.', 
     mineSearch: 'Buscar por referencia, ciudad, título…', allStates: 'Todos los estados', mineEmpty: 'Aún no has dado de alta propiedades', mineEmptyBody: 'Crea una ficha con fotos desde el móvil, incluso sin conexión.',
     noMatchFilter: 'Ninguna propiedad coincide con el filtro.', syncingPhotos: 'Sincronizando fotos…',
     description: 'Descripción', features: 'Características', extras: 'Extras', details: 'Detalles', contact: 'Contacto', followUps: 'Seguimientos', noFollowUps: 'Sin seguimientos para esta propiedad en este dispositivo.',

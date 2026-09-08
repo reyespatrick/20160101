@@ -114,10 +114,10 @@ async function reactivate() {
         <span>· {{ t('props.form.complete', { n: completeness(p) }) }}</span>
       </p>
       <div v-if="auth.canEstimate && (Number(p.operation) === 2 ? p.priceRent : p.price)" class="estimate-cta">
-        <RouterLink v-if="auth.hasAnthropic" :to="{ name: 'estimate', params: { source: 'local', id } }" class="btn">✦ {{ t('estimate.button') }}</RouterLink>
+        <RouterLink v-if="auth.hasAnthropic && auth.hasApiweb" :to="{ name: 'estimate', params: { source: 'local', id } }" class="btn">✦ {{ t('estimate.button') }}</RouterLink>
         <template v-else>
           <button type="button" class="btn" disabled>✦ {{ t('estimate.button') }}</button>
-          <small class="muted">{{ auth.isAdmin ? t('estimate.addKeyHint') : t('estimate.askAdmin') }}</small>
+          <small class="muted">{{ !auth.hasApiweb ? t('estimate.needsApiweb') : auth.isAdmin ? t('estimate.addKeyHint') : t('estimate.askAdmin') }}</small>
         </template>
       </div>
       <p v-if="p.syncError" class="alert">{{ t('props.detail.rejected', { msg: p.syncError }) }}</p>

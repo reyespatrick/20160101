@@ -3,14 +3,14 @@
  * token; what is enforced here is the agency write lock first, then the caller's role.
  * Reads stay open to everyone, so a locked agency remains fully browsable.
  */
-import { authenticate, requireKeys, requireWrite } from '../../_shared/auth.js'
+import { authenticate, requireRest, requireWrite } from '../../_shared/auth.js'
 import { guard } from '../../_shared/http.js'
 import { rest } from '../../_shared/inmovilla.js'
 
 export const onRequest = guard(async (context) => {
   const session = await authenticate(context)
   if (session.response) return session.response
-  const missing = requireKeys(session)
+  const missing = requireRest(session)
   if (missing) return missing
 
   const method = context.request.method.toUpperCase()

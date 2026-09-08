@@ -46,9 +46,13 @@ export async function authenticate(context) {
 /** Admin-only routes. */
 export const requireAdmin = (session) => (session.user.role === 'admin' ? null : fail('Solo un administrador puede hacer esto', 403, 'role'))
 
-/** The agency's Inmovilla keys must be configured. */
-export const requireKeys = (session) =>
-  session.agency.hasKeys ? null : fail('La agencia aún no tiene configuradas las claves de Inmovilla', 409, 'keys')
+/** The listing needs the apiweb key (agency number + web key). */
+export const requireApiweb = (session) =>
+  session.agency.hasApiweb ? null : fail('La agencia no tiene configurada la clave web de Inmovilla (listado)', 409, 'keys')
+
+/** Everything written to Inmovilla goes through the REST API, which needs only its token. */
+export const requireRest = (session) =>
+  session.agency.hasRest ? null : fail('La agencia no tiene configurada la clave de la API REST de Inmovilla', 409, 'keys')
 
 /**
  * Anything that would create, modify or delete in Inmovilla. The agency-wide lock is checked

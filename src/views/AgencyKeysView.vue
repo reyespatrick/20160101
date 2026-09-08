@@ -1,5 +1,5 @@
 <script setup>
-import { onMounted, ref } from 'vue'
+import { computed, onMounted, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useRoute, useRouter } from 'vue-router'
 import { useAuthStore } from '../stores/auth'
@@ -26,6 +26,13 @@ const LANGUAGES = [
 const form = ref({ numagencia: auth.agency?.numagencia || '', apiwebPassword: '', restToken: '', anthropicKey: '', idioma: auth.agency?.idioma || 1 })
 const info = ref(null)
 const touched = ref({ idioma: false })
+/**
+ * The two Inmovilla keys are independent — an agency often holds the REST token before
+ * Inmovilla issues the web key — so any single field is enough to save.
+ */
+const somethingToSave = computed(() =>
+  Boolean(form.value.numagencia || form.value.apiwebPassword || form.value.restToken || form.value.anthropicKey || touched.value.idioma),
+)
 const show = ref(false)
 const saving = ref(false)
 const error = ref('')
@@ -74,7 +81,8 @@ async function submit() {
     notifications.notify(t('keys.saved'), { kind: 'success' })
     usePropertiesStore().reset()
     useEnumsStore().warm()
-    if (route.query.first) router.replace({ name: 'properties' })
+    // Without the web key the Inmovilla listing cannot load; send the admin somewhere useful.
+    if (route.query.first) router.replace(info.value?.hasApiweb ? { name: 'properties' } : { name: 'clients' })
   } catch (err) {
     error.value = err.message
   } finally {
@@ -111,7 +119,7 @@ async function submit() {
       <p v-if="info?.name" class="agency-name">{{ info.name }} <span class="muted">· {{ t('keys.fromInmovilla') }}</span></p>
       <div class="field">
         <label for="num">{{ t('keys.numagencia') }}</label>
-        <input id="num" v-model.trim="form.numagencia" autocapitalize="off" autocorrect="off" spellcheck="false" required />
+        <input id="num" v-model.trim="form.numagencia" autocapitalize="off" autocorrect="off" spellcheck="false" />
         <small class="muted">{{ t('keys.numagenciaHint') }}</small>
       </div>
       <div class="field">
@@ -134,7 +142,7 @@ async function submit() {
         <select id="lang" v-model.number="form.idioma" @change="touched.idioma = true"><option v-for="l in LANGUAGES" :key="l.value" :value="l.value">{{ l.label }}</option></select>
       </div>
       <p v-if="error" class="alert">{{ error }}</p>
-      <button type="submit" class="btn" :disabled="saving || (!form.numagencia && !form.anthropicKey)">{{ saving ? t('auth.checking') : t('keys.verifyAndSave') }}</button>
+      <button type="submit" class="btn" :disabled="saving || !somethingToSave">{{ saving ? t('auth.checking') : t('keys.verifyAndSave') }}</button>
     </form>
   </section>
 </template>

@@ -4,7 +4,7 @@
  * property. The role check stays — a read-only account has no reason to spend the agency's
  * Anthropic credit.
  */
-import { authenticate, canWrite, requireKeys } from '../_shared/auth.js'
+import { authenticate, canWrite, requireApiweb } from '../_shared/auth.js'
 import { fail, guard, json, readJson } from '../_shared/http.js'
 import { apiweb } from '../_shared/inmovilla.js'
 import { estimateProperty } from '../../server/estimate.js'
@@ -12,7 +12,7 @@ import { estimateProperty } from '../../server/estimate.js'
 export const onRequestPost = guard(async (context) => {
   const session = await authenticate(context)
   if (session.response) return session.response
-  const missing = requireKeys(session)
+  const missing = requireApiweb(session) // comparables come from the listing
   if (missing) return missing
   if (!canWrite(session.user.role)) return fail('Tu cuenta es de solo lectura', 403, 'role')
 

@@ -162,7 +162,7 @@ export const useLocalPropertiesStore = defineStore('localProperties', {
     async sync() {
       const auth = useAuthStore()
       const agency = auth.numagencia
-      if (!agency || !auth.hasKeys || !auth.canWrite || this.syncing) return false
+      if (!agency || !auth.hasRest || !auth.canWrite || this.syncing) return false
       if (typeof navigator !== 'undefined' && navigator.onLine === false) return false
       if (this.rateLimitedUntil > Date.now()) {
         setTimeout(() => this.sync(), this.rateLimitedUntil - Date.now() + 500)

@@ -72,15 +72,20 @@ export async function rest(env, token, method, path, contentType, body) {
 }
 
 /**
- * Both keys must be accepted by Inmovilla before an admin's change is stored.
+ * The two Inmovilla keys are independent and are verified separately: an agency may hold the
+ * REST token (writes) without the apiweb key (listing), which Inmovilla issues on request.
+ *
  * The caller's IP must be forwarded: apiweb refuses a call without it
  * ("NECESITAMOS RECIBIR LA IP"), so verification would always fail otherwise.
  */
-export async function verifyKeys(env, creds, { clientIp = '' } = {}) {
+export async function verifyApiweb(env, creds, { clientIp = '' } = {}) {
   const listing = await apiweb(env, creds, [{ type: 'paginacion', pos: 1, num: 1 }], { clientIp })
-  const r = await rest(env, creds.restToken, 'GET', '/clientes/buscar/?telefono=000000000', null, null)
-  if (r.status === 401 || r.status === 403) throw Object.assign(new Error('Inmovilla rechazó la clave de la API REST'), { status: 401 })
   return { agencyName: await agencyName(env, creds, listing, { clientIp }) }
+}
+
+export async function verifyRest(env, restToken) {
+  const r = await rest(env, restToken, 'GET', '/clientes/buscar/?telefono=000000000', null, null)
+  if (r.status === 401 || r.status === 403) throw Object.assign(new Error('Inmovilla rechazó la clave de la API REST'), { status: 401 })
 }
 
 /**

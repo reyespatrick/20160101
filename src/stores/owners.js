@@ -51,7 +51,7 @@ export const useOwnersStore = defineStore('owners', {
       await this.ensureLoaded()
       const auth = useAuthStore()
       const key = String(codOfer)
-      if (!auth.hasKeys || navigator.onLine === false || this.loadingFor[key]) return this.forProperty(codOfer)
+      if (!auth.hasRest || navigator.onLine === false || this.loadingFor[key]) return this.forProperty(codOfer)
       if (!force && Date.now() - (this.checkedFor[key] || 0) < 60 * 60_000) return this.forProperty(codOfer)
       this.loadingFor[key] = true
       try {
@@ -110,7 +110,7 @@ export const useOwnersStore = defineStore('owners', {
     async sync() {
       const auth = useAuthStore()
       const agency = auth.numagencia
-      if (!agency || !auth.hasKeys || !auth.canWrite || this.syncing) return false
+      if (!agency || !auth.hasRest || !auth.canWrite || this.syncing) return false
       if (typeof navigator !== 'undefined' && navigator.onLine === false) return false
       if (this.rateLimitedUntil > Date.now()) {
         setTimeout(() => this.sync(), this.rateLimitedUntil - Date.now() + 500)

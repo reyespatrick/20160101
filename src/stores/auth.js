@@ -57,7 +57,10 @@ export const useAuthStore = defineStore('auth', {
     canEstimate() {
       return this.roleCanWrite
     },
-    hasKeys: (s) => Boolean(s.agency?.hasKeys),
+    /** apiweb (listing, ficha, comparables) and the REST API (everything written) are separate. */
+    hasApiweb: (s) => Boolean(s.agency?.hasApiweb),
+    hasRest: (s) => Boolean(s.agency?.hasRest),
+    hasKeys: (s) => Boolean(s.agency?.hasApiweb || s.agency?.hasRest),
     hasAnthropic: (s) => Boolean(s.agency?.hasAnthropic),
     numagencia: (s) => s.agency?.numagencia || (s.agency ? `agency-${s.agency.id}` : ''),
     idioma: (s) => s.agency?.idioma || 1,

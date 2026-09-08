@@ -113,7 +113,11 @@ export function createAgency({ name }) {
 }
 export function getAgency(id) {
   const row = db.prepare('SELECT * FROM agencies WHERE id = ?').get(id)
-  return row ? { ...row, hasKeys: Boolean(row.numagencia && row.apiweb_password && row.rest_token), hasAnthropic: Boolean(row.anthropic_key), readOnly: row.read_only !== 0 } : null
+  if (!row) return null
+  // The two Inmovilla APIs are configured independently.
+  const hasApiweb = Boolean(row.numagencia && row.apiweb_password)
+  const hasRest = Boolean(row.rest_token)
+  return { ...row, hasApiweb, hasRest, hasKeys: hasApiweb || hasRest, hasAnthropic: Boolean(row.anthropic_key), readOnly: row.read_only !== 0 }
 }
 /** Decrypted Inmovilla credentials of an agency (server side only). */
 export function agencyCredentials(id) {
