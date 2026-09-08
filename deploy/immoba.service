@@ -1,0 +1,24 @@
+# systemd unit for the Immoba relay. Installed by deploy/setup.sh to /etc/systemd/system/immoba.service
+[Unit]
+Description=Immoba relay (Inmovilla gateway + PWA)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=immoba
+Group=immoba
+WorkingDirectory=/opt/immoba
+EnvironmentFile=/etc/immoba/env
+ExecStart=/usr/bin/node server/index.js
+Restart=always
+RestartSec=3
+# Hardening
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/var/lib/immoba
+
+[Install]
+WantedBy=multi-user.target

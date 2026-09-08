@@ -145,6 +145,10 @@ Deploy `server/` + `dist/` to any Node host (Render, Railway, Fly, a VPS…). En
 
 Whitelist the server's public IP in Inmovilla if the agency's account restricts API access by IP.
 
+**Oracle Cloud (free, fixed IP):** see [`deploy/oracle.md`](deploy/oracle.md). `deploy/setup.sh` installs Node,
+Caddy (automatic HTTPS), the systemd service and the data directory on a fresh Ubuntu VM in one go;
+`deploy/update.sh` redeploys and `deploy/backup.sh` backs up the accounts database.
+
 ## New listings module
 
 1. The form saves the draft to **IndexedDB** immediately; photos are resized to 1600 px JPEG on the device and

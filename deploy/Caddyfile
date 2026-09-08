@@ -1,0 +1,9 @@
+# Reverse proxy with automatic HTTPS (Let's Encrypt). Installed to /etc/caddy/Caddyfile by deploy/setup.sh,
+# which replaces DOMAIN with the host name you give it.
+DOMAIN {
+	encode zstd gzip
+	reverse_proxy 127.0.0.1:3000
+	# Photos are immutable and public (Inmovilla downloads them); the app itself must not be cached by proxies.
+	@photos path /photos/*
+	header @photos Cache-Control "public, max-age=31536000, immutable"
+}
