@@ -1,0 +1,50 @@
+# Immoba on Supabase + Cloudflare Pages
+
+Target architecture, replacing the single Node relay:
+
+```
+ phone / PWA ──► Cloudflare Pages          (static PWA + Pages Functions, same domain)
+                   │  Functions:  /api/inmovilla   apiweb proxy (read)
+                   │              /api/rest/*      Inmovilla REST proxy (write, roles + lock)
+                   │              /api/estimate    comparables + Claude
+                   │              /api/photos      upload to Storage
+                   ├──► Supabase Auth      sign-in, password reset (the PWA talks to it directly)
+                   ├──► Supabase Postgres  agencies (encrypted keys, write lock) + profiles (agency, role)
+                   └──► Supabase Storage   listing photos Inmovilla downloads by URL
+```
+
+## Project settings
+
+Create the project in the **Europe** region, then:
+
+| Setting | Value | Why |
+| --- | --- | --- |
+| Enable Data API | **on** | Pages Functions run on Workers, which cannot open a TCP connection to Postgres, so they reach it over the Data API with `supabase-js`. |
+| Automatically expose new tables | **off** | No role gets a grant by default; the migration grants `service_role` only. |
+| Enable automatic RLS | **on** | Every new table is locked from the start. |
+
+With that combination the browser can reach **Auth and nothing else**: `anon` and `authenticated`
+hold no grant on any table, and RLS is on with no policy.
+
+## Install
+
+1. SQL Editor → run [`migrations/0001_immoba.sql`](migrations/0001_immoba.sql).
+2. Settings → API: copy the **Project URL** and the **`service_role`** key.
+3. Put them in the Pages Function secrets, never in the PWA build:
+
+| Secret | Purpose |
+| --- | --- |
+| `SUPABASE_URL` | project URL |
+| `SUPABASE_SERVICE_ROLE_KEY` | server-side database and storage access |
+| `APP_SECRET` | encrypts the Inmovilla and Anthropic keys before they are stored |
+| `APIWEB_MAX_PER_MIN` | cap on apiweb calls (60; Inmovilla blocks an IP at 70/min) |
+
+The PWA itself only ever receives the project URL and the **anon** key, which grant access to
+Auth alone.
+
+## Why the keys stay encrypted in the application layer
+
+The Inmovilla and Anthropic keys are encrypted with `APP_SECRET` before they are written, and
+decrypted only inside a Pages Function. Supabase stores ciphertext it cannot read, so losing the
+database does not lose the agencies' credentials. Keep `APP_SECRET` safe: without it those keys
+are unrecoverable and an admin has to enter them again.
