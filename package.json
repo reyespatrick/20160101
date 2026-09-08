@@ -7,13 +7,15 @@
   "scripts": {
     "dev": "concurrently -k \"npm:dev:server\" \"npm:dev:client\"",
     "dev:client": "vite",
-    "dev:server": "node server/index.js",
+    "dev:server": "node --env-file-if-exists=.env server/index.js",
     "dev:mock": "cross-env INMOVILLA_MOCK=1 npm run dev",
     "build": "vite build",
     "preview": "vite preview",
-    "start": "node server/index.js",
+    "start": "node --env-file-if-exists=.env server/index.js",
     "test": "vitest run",
-    "icons": "node scripts/generate-icons.mjs"
+    "icons": "node scripts/generate-icons.mjs",
+    "predev:mock": "node scripts/generate-mock-photos.mjs --if-missing",
+    "mock:photos": "node scripts/generate-mock-photos.mjs"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.124.0",

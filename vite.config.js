@@ -45,9 +45,12 @@ export default defineConfig({
     }),
   ],
   server: {
+    host: true, // also reachable from a phone on the same Wi-Fi: http://<pc-ip>:5173
     port: 5173,
     proxy: {
       '/api': { target: 'http://localhost:3000', changeOrigin: true },
+      '/photos': { target: 'http://localhost:3000', changeOrigin: true },
+      '/mock-photos': { target: 'http://localhost:3000', changeOrigin: true },
     },
   },
   test: {

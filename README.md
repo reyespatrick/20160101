@@ -107,18 +107,28 @@ code for that. Everything is per agency: users, keys, quotas.
 
 ## Run locally
 
+Requirements: Node 22.5 or newer (the accounts database uses `node:sqlite`).
+
 ```bash
+git clone https://github.com/reyespatrick/20160101.git immoba && cd immoba
 npm install
-cp .env.example .env         # adjust if needed
+cp .env.example .env         # optional; loaded by the server when present
 
 # Development with sample data (no Inmovilla account required)
-npm run dev:mock             # first start: create the agency + admin, then set the mock keys in the profile:
-                             # agency 1234 / web key "demo" / REST token "demo-token"
-                             # listings created through the fake REST show up in the fake apiweb listing
+npm run dev:mock             # http://localhost:5173 — first start: create the agency + admin, then set the
+                             # mock keys in Perfil › Claves: agency 1234 / web key "demo" / REST token "demo-token"
+                             # (any value works as Anthropic key: valuations are simulated in mock mode)
 
-# Development against the real API
-npm run dev                  # Vite on :5173, proxy on :3000
+# Development against the real Inmovilla API (your machine's IP must be whitelisted by Inmovilla)
+npm run dev                  # Vite on :5173 with hot reload, relay on :3000
+
+# Production-like run (single process serving the built app)
+npm run build && npm start   # http://localhost:3000
 ```
+
+The dev server listens on all interfaces, so a phone on the same Wi-Fi can open `http://<your-pc-ip>:5173`.
+Browsers only allow installing a PWA and the service worker over HTTPS or `localhost`, so on the phone the app
+runs as a normal web page; installation and offline mode are tested on `localhost` or on the deployed HTTPS server.
 
 ## Production
 

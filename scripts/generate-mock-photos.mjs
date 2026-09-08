@@ -1,9 +1,12 @@
 // Generates 12 fake "property photos" (SVG scenes rendered to JPEG) for the mock server.
 import sharp from 'sharp'
+import { existsSync } from 'node:fs'
 import { mkdir } from 'node:fs/promises'
 import path from 'node:path'
 
 const OUT = process.env.MOCK_PHOTOS_DIR || path.join(process.cwd(), 'data', 'mock-photos')
+// `--if-missing` (used by `npm run dev:mock`) skips the work when the photos already exist
+if (process.argv.includes('--if-missing') && existsSync(path.join(OUT, '12.jpg'))) process.exit(0)
 await mkdir(OUT, { recursive: true })
 
 const palettes = [
