@@ -41,6 +41,12 @@ is stored or logged.
 The Node relay honours the same two variables (`INMOVILLA_API_URL`, `APIWEB_HOP_SECRET`), so a relay
 hosted elsewhere can use the hop too.
 
+**If a call answers a bare `403 Forbidden` HTML page**: that is the handler rejecting the shared secret,
+with IIS replacing its JSON explanation. The shipped `web.config` sets `httpErrors existingResponse="PassThrough"`
+so the real message comes through — if you deployed an earlier copy, add that line and the response becomes
+`{"error":"hop secret missing or wrong"}`. Then compare `HopSecret` in `web.config` with the value sent as
+`X-Hop-Secret`; a leftover `CHANGE_ME_LONG_RANDOM` rejects every call.
+
 **If IIS shows "Server Error in '/immoba' Application · Runtime Error"**: the shipped `web.config` has
 `customErrors mode="Off"`, so the real message appears in the browser; if you had changed it, set it back
 while setting up. The usual causes: the folder is not an *Application* in IIS (only a virtual directory), the
