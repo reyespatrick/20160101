@@ -33,9 +33,12 @@ export async function apiweb(env, creds, requests, { clientIp = '' } = {}) {
   const normalized = requests.map(normalizeRequest)
   await slot(env)
   return withTimeout(async (signal) => {
+    const headers = { 'Content-Type': 'application/x-www-form-urlencoded', Accept: 'application/json' }
+    // When apiweb is reached through a fixed-IP hop (deploy/iis-hop), the hop checks this shared secret.
+    if (env.APIWEB_HOP_SECRET) headers['X-Hop-Secret'] = env.APIWEB_HOP_SECRET
     const res = await fetch(env.INMOVILLA_API_URL || APIWEB_URL, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/x-www-form-urlencoded', Accept: 'application/json' },
+      headers,
       body: buildFormBody({ numagencia: creds.numagencia, password: creds.password, idioma: creds.idioma }, normalized, { clientIp, domain: env.INMOVILLA_DOMAIN || '' }),
       signal,
     })

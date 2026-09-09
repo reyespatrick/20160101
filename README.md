@@ -156,6 +156,7 @@ Deploy `server/` + `dist/` to any Node host (Render, Railway, Fly, a VPS…). En
 | `PORT` | `3000` | HTTP port |
 | `INMOVILLA_API_URL` | `https://apiweb.inmovilla.com/apiweb/apiweb.php` | Legacy read endpoint |
 | `APIWEB_MAX_PER_MIN` | `60` | Cap on outgoing apiweb calls; Inmovilla blocks the IP at 70/min |
+| `APIWEB_HOP_SECRET` | *(empty)* | Sent as `X-Hop-Secret` when `INMOVILLA_API_URL` points at the fixed-IP hop (`deploy/iis-hop`) |
 | `INMOVILLA_DOMAIN` | *(empty)* | Sent as `elDominio` |
 | `INMOVILLA_REST_URL` | `https://procesos.inmovilla.com/api/v1` | REST API v1 base URL |
 | `PUBLIC_URL` | request host | Public base URL of this server, used in the photo URLs Inmovilla downloads |
@@ -171,8 +172,9 @@ it reaches 70 requests in a minute, and permanently after 10 such blocks. The re
 apiweb rate at `APIWEB_MAX_PER_MIN` (60 by default), queuing callers and answering `429` rather than risking
 a block. Keep that in mind on shared hosting, where the egress IP is shared with other tenants.
 
-**Windows server with IIS (fixed IP):** see [`deploy/windows-iis.md`](deploy/windows-iis.md): `deploy/install-windows.ps1`
-installs the relay as a Windows service and `deploy/web.config` makes IIS the HTTPS reverse proxy.
+**Windows server with IIS (fixed IP):** see [`deploy/windows-iis.md`](deploy/windows-iis.md). Option A hosts only the
+apiweb hop (`deploy/iis-hop/apiweb.ashx`, C#) so the Pages deployment reaches Inmovilla from a fixed IP; option B runs
+the whole relay there (`deploy/install-windows.ps1` + `deploy/web.config`).
 
 **Oracle Cloud (free, fixed IP):** see [`deploy/oracle.md`](deploy/oracle.md). `deploy/setup.sh` installs Node,
 Caddy (automatic HTTPS), the systemd service and the data directory on a fresh Ubuntu VM in one go;

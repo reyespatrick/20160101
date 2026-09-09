@@ -17,7 +17,7 @@ Owner: preyes@dpcsolutions.com (writes in French/English/Spanish; the app's UI i
 ```bash
 npm install
 npm run dev:mock      # sample data, fake Inmovilla; open http://localhost:5173
-npm run dev           # real Inmovilla (server IP must be whitelisted for apiweb)
+npm run dev           # real Inmovilla (stay under 70 apiweb calls/min per IP)
 npm test              # vitest (55 tests)
 npm run build && npm start   # production: Express serves dist/ + /api on :3000
 ```
@@ -28,8 +28,8 @@ REST token `demo-token`, any text as Anthropic key (valuations are simulated in 
 ## Non-negotiable decisions (from the owner)
 
 - Inmovilla **REST API v1** is used for every write (clients, listings, owners, follow-ups); the legacy
-  **apiweb** is used for reading because it is fast and supports rich `where` filters. Both lack CORS and
-  apiweb is IP-whitelisted, hence the relay.
+  **apiweb** is used for reading because it is fast and supports rich `where` filters. Both lack CORS,
+  hence a server-side hop (Pages Functions or the Node relay).
 - Inmovilla and Anthropic keys belong to the **agency**, are entered **only by an admin** in the profile,
   verified live, encrypted at rest (`APP_SECRET`) and never sent to phones.
 - Roles: `admin` (everything), `agent` (create/edit, no delete), `readonly` (GET only). Enforced by the relay.
@@ -77,6 +77,8 @@ Pure modules shared by both runtimes: `server/inmovilla.js`, `server/estimate.js
   it cannot be settled without valid apiweb credentials. Consequence if IP validation is real: apiweb cannot be
   called from Pages Functions (no stable egress IP) and needs a fixed-IP hop, while the REST write path is fine
   since it authenticates by token alone. Ask Inmovilla before designing around either answer.
+  The fixed-IP hop exists: `deploy/iis-hop/apiweb.ashx` (C#, for the owner's IIS server); both runtimes
+  send `X-Hop-Secret` when `APIWEB_HOP_SECRET` is set and point `INMOVILLA_API_URL` at the hop.
 - `ia` (the visitor IP) is **required** by apiweb; forgetting it on the key-verification call made verification
   fail every time against the real API.
 - The apiweb credential is the full `USUARIO_API` and may carry a suffix (`123_244_ext`); it goes in the first
@@ -88,9 +90,10 @@ Pure modules shared by both runtimes: `server/inmovilla.js`, `server/estimate.js
 
 ## Open topics discussed with the owner (not implemented)
 
-- Hosting: the owner has a Windows/IIS server with a fixed IP (projets.digitalpencorp.ch) — runbook
-  `deploy/windows-iis.md` (NSSM service + IIS ARR reverse proxy). Oracle Always Free VM is the alternative
-  (`deploy/oracle.md`).
+- Hosting: production is Cloudflare Pages + Supabase (`supabase/README.md`, deployed at immoba.pages.dev).
+  The owner's Windows/IIS server with a fixed IP (projets.digitalpencorp.ch) hosts the apiweb hop
+  (`deploy/windows-iis.md`, option A); running the whole Node relay there (option B) or on an Oracle VM
+  (`deploy/oracle.md`) are the fallbacks.
   Alternative considered: Cloudflare Pages + Supabase, but apiweb needs a fixed egress IP, so a small
   relay stays; Supabase could replace SQLite (accounts) and photo hosting. Not started.
 - Native app not possible from the cloud session; PWA installs from the browser.

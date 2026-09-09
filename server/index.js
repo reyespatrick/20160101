@@ -38,6 +38,7 @@ const PUBLIC_URL = (process.env.PUBLIC_URL || '').replace(/\/+$/, '')
 const UPSTREAM_TIMEOUT_MS = 30_000
 // Inmovilla blocks the caller's IP at 70 apiweb requests per minute; stay clearly under it.
 const APIWEB_MAX_PER_MIN = Number(process.env.APIWEB_MAX_PER_MIN || 60)
+const APIWEB_HOP_SECRET = process.env.APIWEB_HOP_SECRET || ''
 const MAX_BODY = '12mb'
 const MAX_PHOTO_BYTES = 8 * 1024 * 1024
 
@@ -77,9 +78,11 @@ async function apiwebQuery(creds, normalized, clientIp) {
   }
   await apiwebSlot()
   return withTimeout(async (signal) => {
+    const headers = { 'Content-Type': 'application/x-www-form-urlencoded', Accept: 'application/json', 'User-Agent': 'immoba/0.4' }
+    if (APIWEB_HOP_SECRET) headers['X-Hop-Secret'] = APIWEB_HOP_SECRET // apiweb reached through deploy/iis-hop
     const upstream = await fetch(API_URL, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/x-www-form-urlencoded', Accept: 'application/json', 'User-Agent': 'immoba/0.4' },
+      headers,
       body: buildFormBody({ numagencia: creds.numagencia, password: creds.password, idioma: creds.idioma }, normalized, { clientIp, domain: DOMAIN }),
       signal,
     })

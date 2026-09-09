@@ -1,19 +1,67 @@
-# Hosting Immoba on a Windows server with IIS
+# Using a Windows/IIS server with a fixed IP
 
-Use this when you already have a Windows server with a fixed public IP and IIS (for example
-`projets.digitalpencorp.ch`). The Node relay runs as a Windows service on `localhost:3000`; IIS terminates
-HTTPS and reverse-proxies to it. Inmovilla's apiweb is called from the server's fixed IP.
+Immoba's production target is Cloudflare Pages + Supabase (see `supabase/README.md`). One thing may not
+run there: Inmovilla's **apiweb** (the listing/ficha read API) has refused calls from Cloudflare with
+`xIP NO VALIDADA`. A server you control with a fixed public IP, such as `projets.digitalpencorp.ch`, solves
+that in one of two ways.
 
-## 0. Choose the address
+| | Option A — apiweb hop (recommended) | Option B — whole relay on IIS |
+| --- | --- | --- |
+| What runs on IIS | one `.ashx` handler, ~120 lines of C# | the Node relay as a Windows service behind IIS |
+| What stays on Pages/Supabase | everything: PWA, accounts, REST writes, photos, valuations | nothing (SQLite + local photos instead of Supabase) |
+| Needs on the server | .NET Framework 4.6+, already part of IIS | Node.js 22, NSSM, URL Rewrite + ARR |
+| Inmovilla sees | the IIS server's IP for apiweb only | the IIS server's IP for everything |
 
-Give the app its **own host name**, e.g. `immoba.digitalpencorp.ch` (a DNS `A` or `CNAME` record pointing to
-the server), and its own IIS site with that host header. The PWA is built for the root path (`/`); hosting
-it under a sub-folder of an existing site (`projets.digitalpencorp.ch/immoba`) would need a rebuild with a
-base path and is not covered here.
+---
 
-## 1. Install the relay service
+## Option A — the apiweb hop (`deploy/iis-hop/`)
 
-In an elevated PowerShell on the server:
+The Pages Function keeps building the apiweb form body itself; it just POSTs it to the hop instead of to
+`apiweb.inmovilla.com`. The hop checks a shared secret, caps the rate at 60 calls/minute (Inmovilla blocks
+an IP at 70), forwards the body unchanged and returns Inmovilla's answer. Credentials pass through, nothing
+is stored or logged.
+
+1. On the server, create a folder, e.g. `C:\inetpub\immoba-hop`, and copy into it
+   `deploy/iis-hop/apiweb.ashx` and `deploy/iis-hop/web.config`.
+2. In `web.config` set `HopSecret` to a long random value (for example 48 characters from a password
+   manager). Leave `MaxPerMinute` at 60.
+3. IIS Manager › your site (`projets.digitalpencorp.ch`) › **Add Application**: alias `immoba-hop`, physical
+   path the folder above, application pool on **.NET CLR v4.0, integrated** (the default `DefaultAppPool`
+   is fine). No compilation: IIS compiles the `.ashx` on the first request.
+4. Check `https://projets.digitalpencorp.ch/immoba-hop/apiweb.ashx` in a browser: it answers
+   `{"ok":true,"hop":"apiweb"}`.
+5. In the Cloudflare Pages project › Settings › Variables and secrets, for Production:
+   - `INMOVILLA_API_URL` = `https://projets.digitalpencorp.ch/immoba-hop/apiweb.ashx`
+   - `APIWEB_HOP_SECRET` = the same value as `HopSecret` (as a **secret**)
+   then redeploy (or trigger a new build) so the functions pick them up.
+6. In the app, as admin, save the apiweb key again in *Perfil › Claves*: the verification call now goes
+   through the hop. If Inmovilla answers, the listing works; if it still says `IP NO VALIDADA`, the answer
+   is about the credentials, not the IP, and Inmovilla support is the next step.
+
+The Node relay honours the same two variables (`INMOVILLA_API_URL`, `APIWEB_HOP_SECRET`), so a relay
+hosted elsewhere can use the hop too.
+
+**Security notes.** The secret is the only thing standing between the internet and your IP's apiweb
+reputation, so keep it long and rotate it if it leaks. The hop accepts at most 64 KB per request and never
+returns anything but Inmovilla's own answer. If you prefer, also restrict the IIS application to
+Cloudflare's IP ranges with *IP Address and Domain Restrictions*.
+
+---
+
+## Option B — the whole relay on IIS
+
+Use this only if you do not want Cloudflare Pages and Supabase at all. The Node relay runs as a Windows
+service on `localhost:3000` with SQLite and local photo storage; IIS terminates HTTPS and proxies to it.
+
+### 0. Address
+
+Give the app its **own host name**, e.g. `immoba.digitalpencorp.ch` (DNS `A`/`CNAME` to the server), and
+its own IIS site with that host header. The PWA is built for the root path; a sub-folder of an existing
+site would need a rebuild with a base path.
+
+### 1. Install the relay service
+
+In an elevated PowerShell:
 
 ```powershell
 # prerequisites once: Node.js 22 LTS (nodejs.org) and Git for Windows
@@ -21,57 +69,42 @@ git clone -b <branch> https://github.com/reyespatrick/20160101.git C:\immoba
 powershell -ExecutionPolicy Bypass -File C:\immoba\deploy\install-windows.ps1 -Domain immoba.digitalpencorp.ch -Branch <branch>
 ```
 
-The script installs the NSSM service wrapper (through winget), builds the PWA, creates `C:\immoba-data`
-(accounts database, secret, photos), writes `C:\immoba\.env` with a random `APP_SECRET`, registers the
-Windows service **immoba** (automatic start, log in `C:\immoba-data\immoba.log`) and checks
-`http://localhost:3000/api/health`.
+The script installs NSSM (through winget), builds the PWA, creates `C:\immoba-data` (database, secret,
+photos), writes `C:\immoba\.env` with a random `APP_SECRET`, registers the Windows service **immoba**
+(automatic start, log in `C:\immoba-data\immoba.log`) and checks `http://localhost:3000/api/health`.
 
-## 2. IIS reverse proxy
+### 2. IIS reverse proxy
 
-1. Install two IIS modules if they are not there yet (Microsoft downloads, or `winget install
-   Microsoft.UrlRewrite` / the *Application Request Routing 3.0* installer):
-   - **URL Rewrite**
-   - **Application Request Routing (ARR)**
-2. Enable the proxy once, at server level: IIS Manager › *server node* › **Application Request Routing
-   Cache** › *Server Proxy Settings…* › tick **Enable proxy** › Apply.
-   Also set *Preserve client IP in the following header: X-Forwarded-For* (default).
-3. Create the site: **Sites › Add Website**
-   - Site name `Immoba`, physical path `C:\inetpub\immoba` (an empty folder)
-   - Binding **https**, host name `immoba.digitalpencorp.ch`, your certificate (the server's wildcard one,
-     or a Let's Encrypt certificate obtained with *win-acme*); add an **http** binding too and let it redirect.
-   - Application pool: *No Managed Code* is fine, nothing runs in .NET.
-4. Copy `C:\immoba\deploy\web.config` into `C:\inetpub\immoba\`. It rewrites every request to
-   `http://localhost:3000`, forwards `X-Forwarded-Proto/Host`, raises the upload limit to 16 MB for photos,
-   and disables IIS compression/caching of API responses.
-5. Open `https://immoba.digitalpencorp.ch/api/health` in a browser: it must answer JSON from the relay.
+1. Install the IIS modules **URL Rewrite** and **Application Request Routing (ARR)** if missing.
+2. Enable the proxy once at server level: IIS Manager › *server node* › **Application Request Routing
+   Cache** › *Server Proxy Settings…* › **Enable proxy**.
+3. **Sites › Add Website**: name `Immoba`, physical path `C:\inetpub\immoba` (empty folder), binding
+   **https** with host name `immoba.digitalpencorp.ch` and your certificate, plus an **http** binding.
+   Application pool *No Managed Code*.
+4. Copy `C:\immoba\deploy\web.config` into `C:\inetpub\immoba\`: it rewrites every request to
+   `http://localhost:3000`, forwards `X-Forwarded-Proto/Host`, allows 16 MB uploads for photos and
+   disables IIS compression/caching of API responses.
+5. `https://immoba.digitalpencorp.ch/api/health` must answer JSON from the relay.
 
-Windows Firewall: only 80/443 need to be open (they already are for IIS). Port 3000 stays local.
+### 3. First start
 
-## 3. First start
+Open the site on a phone, create the agency and its administrator, enter the Inmovilla keys and the
+Anthropic key in *Perfil › Claves*, add users in *Perfil › Usuarios*. Stay under 70 apiweb calls a minute
+per IP (the relay caps itself at 60).
 
-1. Whitelist the server's public IP in Inmovilla for the apiweb, and note the agency number, web key and
-   REST token (*Ajustes › Opciones › Token para API Rest*).
-2. Open the site on a phone: create the agency and its administrator.
-3. *Perfil › Claves*: Inmovilla keys (checked live) and, for valuations, the Anthropic key.
-4. Add users in *Perfil › Usuarios*; each installs the PWA from the browser ("Add to home screen").
-
-## 4. Day to day
+### 4. Day to day
 
 | Task | How |
 | --- | --- |
-| Deploy a new version | re-run `install-windows.ps1` with the same arguments (pull, build, restart); phones show the update banner |
+| Deploy a new version | re-run `install-windows.ps1` with the same arguments; phones show the update banner |
 | Logs | `C:\immoba-data\immoba.log` (rotated at 10 MB) |
-| Restart / stop | `nssm restart immoba`, `nssm stop immoba`, or Services.msc › *Immoba relay* |
+| Restart / stop | `nssm restart immoba`, `nssm stop immoba`, or Services.msc |
 | Settings | edit `C:\immoba\.env`, then `nssm restart immoba` |
-| Backup | copy `C:\immoba-data\immoba.sqlite` and the `APP_SECRET` line of `C:\immoba\.env` (nightly task) |
+| Backup | copy `C:\immoba-data\immoba.sqlite` and the `APP_SECRET` line of `C:\immoba\.env` nightly |
 
-What must survive: the SQLite file (accounts, roles, encrypted keys) and `APP_SECRET`. Losing the secret
-makes the stored keys unreadable; an admin would simply enter them again. Photos are temporary.
+### Troubleshooting
 
-## Troubleshooting
-
-- **502.3 / 502.4 from IIS**: the relay is not running, check `nssm status immoba` and the log.
-- **Photos never appear in Inmovilla**: Inmovilla could not download them; check that
-  `https://immoba.digitalpencorp.ch/photos/<id>.jpg` opens from outside and that `PUBLIC_URL` is right.
-- **Listing empty, "Inmovilla rechazó las claves"**: the server's IP is not whitelisted for apiweb.
+- **502.3 / 502.4 from IIS**: the relay is not running; `nssm status immoba` and the log.
+- **Photos never appear in Inmovilla**: `https://<domain>/photos/<id>.jpg` must open from outside and
+  `PUBLIC_URL` must match.
 - **Uploads fail with 413**: raise `maxAllowedContentLength` in `web.config`.
