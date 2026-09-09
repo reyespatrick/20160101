@@ -70,15 +70,20 @@ Pure modules shared by both runtimes: `server/inmovilla.js`, `server/estimate.js
 - REST rate limits: 408 = rate limited → outbox pauses 65 s. Enums: 2 calls/min → cached 7 days.
 - apiweb: 70 requests/minute **per IP** or Inmovilla blocks it (10 min, permanent after 10 blocks). The relay
   caps itself via `createRateLimiter` at `APIWEB_MAX_PER_MIN` (60).
-- **apiweb and the caller's IP — unresolved.** The published documentation says there is no allow list, only
-  reactive blocking. The live endpoint disagrees: a call from a Cloudflare Worker is refused with
-  `xIP NO VALIDADA - IP_RECIVED: <egress ip>`, and a call with no `ia` field with `NECESITAMOS RECIBIR LA IP`.
-  This was observed with invalid credentials, so it may also be the generic rejection for an unknown agency —
-  it cannot be settled without valid apiweb credentials. Consequence if IP validation is real: apiweb cannot be
-  called from Pages Functions (no stable egress IP) and needs a fixed-IP hop, while the REST write path is fine
-  since it authenticates by token alone. Ask Inmovilla before designing around either answer.
-  The fixed-IP hop exists: `deploy/iis-hop/apiweb.ashx` (C#, for the owner's IIS server); both runtimes
-  send `X-Hop-Secret` when `APIWEB_HOP_SECRET` is set and point `INMOVILLA_API_URL` at the hop.
+- **apiweb validates the caller's IP — settled.** The published documentation denies it, but the live
+  endpoint refuses a call it does not recognise with `xIP NO VALIDADA - IP_RECIVED: <egress ip>`, naming the
+  address it saw. Reproduced from the fixed-IP hop on 2026-09-09: Inmovilla received `195.15.213.10` and
+  refused it, so the rejection follows the caller's IP, not the runtime. Consequence: apiweb cannot be called
+  straight from Pages Functions (no stable egress IP); it goes through the hop, and **Inmovilla must authorise
+  the hop's IP** (195.15.213.10 — request pending). The REST write path is unaffected, it authenticates by
+  token alone. A call with no `ia` field is refused with `NECESITAMOS RECIBIR LA IP`.
+- **The fixed-IP hop:** `deploy/iis-hop/apiweb.ashx` (C# WebHandler on the owner's IIS,
+  https://projects.digitalpencorp.ch/immoba/apiweb.ashx). Both runtimes point `INMOVILLA_API_URL` at it and
+  send `APIWEB_HOP_SECRET` as `X-Hop-Secret`. The handler is compiled in place by ASP.NET's in-box C# 5
+  compiler, so it uses `HttpWebRequest` (`System.Net.Http` is not referenced by dynamic compilation) and no
+  C# 6+ syntax. Header values are bytes: `headerValue()` in `server/inmovilla.js` re-encodes a non-ASCII
+  secret to its UTF-8 bytes, because a runtime would otherwise emit Latin-1 and IIS reads headers as UTF-8
+  (verified: UTF-8 passes, Latin-1 gives 403). Prefer an ASCII-only secret anyway.
 - `ia` (the visitor IP) is **required** by apiweb; forgetting it on the key-verification call made verification
   fail every time against the real API.
 - The apiweb credential is the full `USUARIO_API` and may carry a suffix (`123_244_ext`); it goes in the first

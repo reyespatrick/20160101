@@ -21,7 +21,7 @@ import { createAccountsRouter } from './accounts.js'
 import { canDelete, canWrite, requireUser } from './auth.js'
 import * as db from './db.js'
 import { estimateProperty, verifyAnthropicKey } from './estimate.js'
-import { buildFormBody, createRateLimiter, normalizeRequest, parseApiResponse } from './inmovilla.js'
+import { buildFormBody, createRateLimiter, headerValue, normalizeRequest, parseApiResponse } from './inmovilla.js'
 import { mockResponse } from './mock.js'
 import { createMockRest } from './mockRest.js'
 
@@ -79,7 +79,7 @@ async function apiwebQuery(creds, normalized, clientIp) {
   await apiwebSlot()
   return withTimeout(async (signal) => {
     const headers = { 'Content-Type': 'application/x-www-form-urlencoded', Accept: 'application/json', 'User-Agent': 'immoba/0.4' }
-    if (APIWEB_HOP_SECRET) headers['X-Hop-Secret'] = APIWEB_HOP_SECRET // apiweb reached through deploy/iis-hop
+    if (APIWEB_HOP_SECRET) headers['X-Hop-Secret'] = headerValue(APIWEB_HOP_SECRET) // apiweb reached through deploy/iis-hop
     const upstream = await fetch(API_URL, {
       method: 'POST',
       headers,

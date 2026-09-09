@@ -2,7 +2,7 @@
  * Inmovilla upstream calls from a Worker. The param building and the rate limiter come from
  * `server/inmovilla.js`, which is pure JS and runs unchanged on both runtimes.
  */
-import { buildFormBody, createRateLimiter, normalizeRequest } from '../../server/inmovilla.js'
+import { buildFormBody, createRateLimiter, headerValue, normalizeRequest } from '../../server/inmovilla.js'
 
 const APIWEB_URL = 'https://apiweb.inmovilla.com/apiweb/apiweb.php'
 const REST_URL = 'https://procesos.inmovilla.com/api/v1'
@@ -35,7 +35,7 @@ export async function apiweb(env, creds, requests, { clientIp = '' } = {}) {
   return withTimeout(async (signal) => {
     const headers = { 'Content-Type': 'application/x-www-form-urlencoded', Accept: 'application/json' }
     // When apiweb is reached through a fixed-IP hop (deploy/iis-hop), the hop checks this shared secret.
-    if (env.APIWEB_HOP_SECRET) headers['X-Hop-Secret'] = env.APIWEB_HOP_SECRET
+    if (env.APIWEB_HOP_SECRET) headers['X-Hop-Secret'] = headerValue(env.APIWEB_HOP_SECRET)
     const res = await fetch(env.INMOVILLA_API_URL || APIWEB_URL, {
       method: 'POST',
       headers,

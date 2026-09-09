@@ -57,14 +57,25 @@ credentials stay the same as before — agency `1234`, web key `demo`, REST toke
 The functions talk to the real Supabase project even in development. That is deliberate: it is the
 part worth exercising for real, and nothing there is destructive.
 
-## Known open point: apiweb and the caller's IP
+## apiweb and the caller's IP: use the fixed-IP hop
 
-Everything except the apiweb read path is verified in production. apiweb itself refuses calls coming from a
-Cloudflare Worker with `xIP NO VALIDADA`, naming the egress IP. If Inmovilla really validates caller IPs — the
-documentation says it does not — the listing has to be fetched through a host with a fixed, authorised IP
-while writes, photos, valuations and accounts stay on Pages, since the REST API authenticates by token alone.
-That hop is ready: `deploy/iis-hop/apiweb.ashx` runs on the owner's IIS server; set the Pages secrets
-`INMOVILLA_API_URL` (the hop URL) and `APIWEB_HOP_SECRET` and the functions use it (`deploy/windows-iis.md`).
+Everything except the apiweb read path is verified in production. apiweb itself refuses calls whose source
+IP it does not know, answering `xIP NO VALIDADA - IP_RECIVED: <ip>` and naming the address it saw — the
+documentation's claim that there is no allow list does not match the live endpoint. Cloudflare has no stable
+egress IP, so the listing goes through the hop on the owner's IIS server
+(`deploy/iis-hop/apiweb.ashx`, `deploy/windows-iis.md`). Writes, photos, valuations and accounts stay on
+Pages: the REST API authenticates by token alone.
+
+Set these two on the Pages project (Production **and** Preview) and redeploy:
+
+| Setting | Value |
+| --- | --- |
+| `INMOVILLA_API_URL` | `https://projects.digitalpencorp.ch/immoba/apiweb.ashx` |
+| `APIWEB_HOP_SECRET` (secret) | the same string as `HopSecret` in the hop's `web.config` |
+
+Inmovilla must still authorise the hop's IP (`195.15.213.10`) for the agency; until it does, the listing
+answers `IP NO VALIDADA` no matter what else is configured. Prefer an ASCII-only shared secret: a non-ASCII
+one only works because `headerValue()` re-encodes it to UTF-8 bytes on the way out.
 
 ## Why the keys stay encrypted in the application layer
 

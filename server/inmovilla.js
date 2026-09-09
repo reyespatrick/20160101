@@ -81,6 +81,20 @@ export function createRateLimiter({ limit, windowMs = 60_000, maxWaitMs = 15_000
   return slot
 }
 
+/**
+ * An HTTP header value travels as bytes, and both runtimes turn a JS string into bytes as Latin-1.
+ * A secret carrying an accent would therefore leave as 0xE9 while the IIS hop reads its headers as
+ * UTF-8 and expects 0xC3 0xA9, so the comparison fails. Re-encode non-ASCII values to their UTF-8
+ * bytes; pure ASCII (the usual case) is returned untouched.
+ */
+export function headerValue(value) {
+  const text = String(value == null ? '' : value)
+  if (!/[^\x20-\x7e]/.test(text)) return text
+  let out = ''
+  for (const byte of new TextEncoder().encode(text)) out += String.fromCharCode(byte)
+  return out
+}
+
 export function buildParam({ numagencia, password, idioma = 1 }, requests) {
   if (!clean(numagencia)) throw new Error('numagencia is required')
   if (!clean(password)) throw new Error('password is required')
