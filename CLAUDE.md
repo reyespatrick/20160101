@@ -88,7 +88,9 @@ Pure modules shared by both runtimes: `server/inmovilla.js`, `server/estimate.js
 
 ## Open topics discussed with the owner (not implemented)
 
-- Hosting: Oracle Always Free VM (fixed IP for the apiweb whitelist) — runbook in `deploy/`.
+- Hosting: the owner has a Windows/IIS server with a fixed IP (projets.digitalpencorp.ch) — runbook
+  `deploy/windows-iis.md` (NSSM service + IIS ARR reverse proxy). Oracle Always Free VM is the alternative
+  (`deploy/oracle.md`).
   Alternative considered: Cloudflare Pages + Supabase, but apiweb needs a fixed egress IP, so a small
   relay stays; Supabase could replace SQLite (accounts) and photo hosting. Not started.
 - Native app not possible from the cloud session; PWA installs from the browser.
