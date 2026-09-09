@@ -2,7 +2,7 @@
 
 Immoba's production target is Cloudflare Pages + Supabase (see `supabase/README.md`). One thing may not
 run there: Inmovilla's **apiweb** (the listing/ficha read API) has refused calls from Cloudflare with
-`xIP NO VALIDADA`. A server you control with a fixed public IP, such as `projets.digitalpencorp.ch`, solves
+`xIP NO VALIDADA`. A server you control with a fixed public IP, such as `projects.digitalpencorp.ch`, solves
 that in one of two ways.
 
 | | Option A — apiweb hop (recommended) | Option B — whole relay on IIS |
@@ -21,17 +21,17 @@ The Pages Function keeps building the apiweb form body itself; it just POSTs it 
 an IP at 70), forwards the body unchanged and returns Inmovilla's answer. Credentials pass through, nothing
 is stored or logged.
 
-1. On the server, create a folder, e.g. `C:\inetpub\immoba-hop`, and copy into it
+1. On the server, create a folder, e.g. `C:\inetpub\immoba`, and copy into it
    `deploy/iis-hop/apiweb.ashx` and `deploy/iis-hop/web.config`.
 2. In `web.config` set `HopSecret` to a long random value (for example 48 characters from a password
    manager). Leave `MaxPerMinute` at 60.
-3. IIS Manager › your site (`projets.digitalpencorp.ch`) › **Add Application**: alias `immoba-hop`, physical
+3. IIS Manager › your site (`projects.digitalpencorp.ch`) › **Add Application**: alias `immoba`, physical
    path the folder above, application pool on **.NET CLR v4.0, integrated** (the default `DefaultAppPool`
    is fine). No compilation: IIS compiles the `.ashx` on the first request.
-4. Check `https://projets.digitalpencorp.ch/immoba-hop/apiweb.ashx` in a browser: it answers
+4. Check `https://projects.digitalpencorp.ch/immoba/apiweb.ashx` in a browser: it answers
    `{"ok":true,"hop":"apiweb"}`.
 5. In the Cloudflare Pages project › Settings › Variables and secrets, for Production:
-   - `INMOVILLA_API_URL` = `https://projets.digitalpencorp.ch/immoba-hop/apiweb.ashx`
+   - `INMOVILLA_API_URL` = `https://projects.digitalpencorp.ch/immoba/apiweb.ashx`
    - `APIWEB_HOP_SECRET` = the same value as `HopSecret` (as a **secret**)
    then redeploy (or trigger a new build) so the functions pick them up.
 6. In the app, as admin, save the apiweb key again in *Perfil › Claves*: the verification call now goes

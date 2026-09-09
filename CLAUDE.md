@@ -91,7 +91,7 @@ Pure modules shared by both runtimes: `server/inmovilla.js`, `server/estimate.js
 ## Open topics discussed with the owner (not implemented)
 
 - Hosting: production is Cloudflare Pages + Supabase (`supabase/README.md`, deployed at immoba.pages.dev).
-  The owner's Windows/IIS server with a fixed IP (projets.digitalpencorp.ch) hosts the apiweb hop
+  The owner's Windows/IIS server with a fixed IP (projects.digitalpencorp.ch) hosts the apiweb hop
   (`deploy/windows-iis.md`, option A); running the whole Node relay there (option B) or on an Oracle VM
   (`deploy/oracle.md`) are the fallbacks.
   Alternative considered: Cloudflare Pages + Supabase, but apiweb needs a fixed egress IP, so a small
