@@ -41,6 +41,12 @@ is stored or logged.
 The Node relay honours the same two variables (`INMOVILLA_API_URL`, `APIWEB_HOP_SECRET`), so a relay
 hosted elsewhere can use the hop too.
 
+**If IIS shows "Server Error in '/immoba' Application · Runtime Error"**: the shipped `web.config` has
+`customErrors mode="Off"`, so the real message appears in the browser; if you had changed it, set it back
+while setting up. The usual causes: the folder is not an *Application* in IIS (only a virtual directory), the
+application pool is not .NET CLR v4.0 / integrated, or `targetFramework` in `web.config` is newer than the
+.NET Framework installed (lower it, e.g. to 4.6.1). Put `customErrors` back to `On` once the GET answers.
+
 **Security notes.** The secret is the only thing standing between the internet and your IP's apiweb
 reputation, so keep it long and rotate it if it leaks. The hop accepts at most 64 KB per request and never
 returns anything but Inmovilla's own answer. If you prefer, also restrict the IIS application to

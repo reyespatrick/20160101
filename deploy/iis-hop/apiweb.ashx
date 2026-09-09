@@ -1,6 +1,6 @@
 <%@ WebHandler Language="C#" Class="ApiwebHop" %>
 /*
-  Immoba apiweb hop — a fixed-IP relay for Inmovilla's apiweb, for IIS (.NET Framework 4.6+).
+  Immoba apiweb hop — a fixed-IP relay for Inmovilla's apiweb, for IIS (.NET Framework 4.6.1+).
 
   Cloudflare Pages Functions (or any host without a stable egress IP) POST the exact apiweb form body
   here instead of to apiweb.inmovilla.com; this handler forwards it unchanged and returns the answer.
@@ -30,7 +30,9 @@ public class ApiwebHop : HttpTaskAsyncHandler
 
     static HttpClient CreateClient()
     {
-        ServicePointManager.SecurityProtocol = SecurityProtocolType.Tls12 | SecurityProtocolType.Tls13;
+        // TLS 1.2 is enough for Inmovilla; TLS 1.3 only exists from .NET Framework 4.8, so it is optional.
+        try { ServicePointManager.SecurityProtocol = SecurityProtocolType.Tls12 | (SecurityProtocolType)12288; }
+        catch (NotSupportedException) { ServicePointManager.SecurityProtocol = SecurityProtocolType.Tls12; }
         var c = new HttpClient { Timeout = TimeSpan.FromSeconds(30) };
         c.DefaultRequestHeaders.UserAgent.ParseAdd("immoba-hop/1.0");
         c.DefaultRequestHeaders.Accept.ParseAdd("application/json");
