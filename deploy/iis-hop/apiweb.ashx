@@ -9,34 +9,30 @@
   - Requires the shared secret in the X-Hop-Secret header (appSettings/HopSecret in web.config).
   - Caps outgoing calls at MaxPerMinute (default 60; Inmovilla blocks the IP at 70/min).
   - Never logs or stores credentials: the body is streamed through.
-  No compilation step: IIS compiles this file on first request.
+  No compilation step: IIS compiles this file on first request with the in-box C# 5 compiler, hence
+  HttpWebRequest (System.Net.Http is not referenced by dynamic compilation) and no C# 6+ syntax.
 */
 using System;
 using System.Collections.Generic;
 using System.Configuration;
 using System.IO;
 using System.Net;
-using System.Net.Http;
 using System.Text;
-using System.Threading;
 using System.Threading.Tasks;
 using System.Web;
 
 public class ApiwebHop : HttpTaskAsyncHandler
 {
-    static readonly HttpClient Client = CreateClient();
     static readonly object Gate = new object();
     static readonly Queue<DateTime> Calls = new Queue<DateTime>();
+    static readonly bool TlsReady = SetupTls();
 
-    static HttpClient CreateClient()
+    static bool SetupTls()
     {
         // TLS 1.2 is enough for Inmovilla; TLS 1.3 only exists from .NET Framework 4.8, so it is optional.
         try { ServicePointManager.SecurityProtocol = SecurityProtocolType.Tls12 | (SecurityProtocolType)12288; }
         catch (NotSupportedException) { ServicePointManager.SecurityProtocol = SecurityProtocolType.Tls12; }
-        var c = new HttpClient { Timeout = TimeSpan.FromSeconds(30) };
-        c.DefaultRequestHeaders.UserAgent.ParseAdd("immoba-hop/1.0");
-        c.DefaultRequestHeaders.Accept.ParseAdd("application/json");
-        return c;
+        return true;
     }
 
     static string Setting(string name, string fallback)
@@ -97,28 +93,44 @@ public class ApiwebHop : HttpTaskAsyncHandler
         if (body.Length == 0 || body.Length > 64 * 1024) { res.StatusCode = 400; return; }
 
         var upstream = Setting("ApiwebUrl", "https://apiweb.inmovilla.com/apiweb/apiweb.php");
+        var payload = Encoding.UTF8.GetBytes(body);
         try
         {
-            using (var content = new StringContent(body, Encoding.UTF8, "application/x-www-form-urlencoded"))
-            using (var answer = await Client.PostAsync(upstream, content))
+            var call = (HttpWebRequest)WebRequest.Create(upstream);
+            call.Method = "POST";
+            call.ContentType = "application/x-www-form-urlencoded";
+            call.Accept = "application/json";
+            call.UserAgent = "immoba-hop/1.0";
+            call.Timeout = 30000;
+            call.ReadWriteTimeout = 30000;
+            call.ContentLength = payload.Length;
+            using (var stream = await call.GetRequestStreamAsync()) await stream.WriteAsync(payload, 0, payload.Length);
+
+            HttpWebResponse answer;
+            try
+            {
+                answer = (HttpWebResponse)await call.GetResponseAsync();
+            }
+            catch (WebException ex)
+            {
+                // non-2xx: pass Inmovilla's own answer through; anything else is handled below
+                if (!(ex.Response is HttpWebResponse)) throw;
+                answer = (HttpWebResponse)ex.Response;
+            }
+            using (answer)
+            using (var upstreamBody = answer.GetResponseStream())
             {
                 res.StatusCode = (int)answer.StatusCode;
-                res.ContentType = answer.Content.Headers.ContentType != null ? answer.Content.Headers.ContentType.ToString() : "application/json";
-                var bytes = await answer.Content.ReadAsByteArrayAsync();
-                res.OutputStream.Write(bytes, 0, bytes.Length);
+                res.ContentType = string.IsNullOrEmpty(answer.ContentType) ? "application/json" : answer.ContentType;
+                if (upstreamBody != null) await upstreamBody.CopyToAsync(res.OutputStream);
             }
         }
-        catch (TaskCanceledException)
+        catch (WebException ex)
         {
-            res.StatusCode = 504;
+            var timeout = ex.Status == WebExceptionStatus.Timeout;
+            res.StatusCode = timeout ? 504 : 502;
             res.ContentType = "application/json";
-            res.Write("{\"error\":\"Inmovilla no responde\"}");
-        }
-        catch (HttpRequestException ex)
-        {
-            res.StatusCode = 502;
-            res.ContentType = "application/json";
-            res.Write("{\"error\":\"" + HttpUtility.JavaScriptStringEncode(ex.Message) + "\"}");
+            res.Write(timeout ? "{\"error\":\"Inmovilla no responde\"}" : "{\"error\":\"" + HttpUtility.JavaScriptStringEncode(ex.Message) + "\"}");
         }
     }
 
