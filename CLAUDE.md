@@ -18,7 +18,7 @@ Owner: preyes@dpcsolutions.com (writes in French/English/Spanish; the app's UI i
 npm install
 npm run dev:mock      # sample data, fake Inmovilla; open http://localhost:5173
 npm run dev           # real Inmovilla (stay under 70 apiweb calls/min per IP)
-npm test              # vitest (55 tests)
+npm test              # vitest (82 tests)
 npm run build && npm start   # production: Express serves dist/ + /api on :3000
 ```
 
@@ -92,6 +92,34 @@ Pure modules shared by both runtimes: `server/inmovilla.js`, `server/estimate.js
 - Claude: `claude-opus-5`, structured output via `betaZodOutputFormat`, `fallbacks: 'default'` with beta
   `server-side-fallback-2026-07-01`; errors mapped to `{status, code:'anthropic'}`.
 - Commit messages: imperative, describe the user-visible change; no model names in committed files.
+
+## Note from the cloud session (9 Sept 2026) — what it changed and why
+
+Two sessions worked on this branch in parallel: a **local** one (Supabase Auth, Cloudflare Pages Functions,
+the write lock, the apiweb facts) and this **cloud** one (session_01BXvRDE61EvG37LF9eu1GyQ). Everything below
+is already merged and pushed; nothing is pending on the cloud side.
+
+1. **Valuation with Claude** (`server/estimate.js`, `src/views/EstimateView.vue`, `src/components/charts/`,
+   `src/stores/estimates.js`, `POST /api/estimate` in both runtimes). "Estimar valor" on a ficha or an app
+   listing; comparables from apiweb (same operation/type/city), €/m² stats, `claude-opus-5` structured output.
+   The Anthropic key is an agency key, admin-only, encrypted like the Inmovilla ones. Mock mode simulates it.
+2. **The apiweb hop for the owner's IIS server** (`deploy/iis-hop/apiweb.ashx` + `web.config`). Inmovilla's
+   apiweb refused calls from Cloudflare ("IP NO VALIDADA"); the owner has a fixed IP at
+   `projects.digitalpencorp.ch`. The hop is a single C# `.ashx` (HttpWebRequest, C# 5 syntax on purpose: ASP.NET
+   compiles it in place without extra assembly references) that checks `X-Hop-Secret`, caps at 60 calls/min and
+   forwards the apiweb form body unchanged. Both runtimes send the secret when `APIWEB_HOP_SECRET` is set and
+   reach the hop through `INMOVILLA_API_URL`. Live at `https://projects.digitalpencorp.ch/immoba/apiweb.ashx`
+   (GET answers `{"ok":true,"hop":"apiweb"}`). The local session then verified it end to end and made the
+   secret UTF-8 safe. Runbook: `deploy/windows-iis.md` (option A = hop only, option B = whole relay on IIS).
+3. **Other deployment material**, all optional fallbacks: `deploy/oracle.md` + `setup.sh` (Ubuntu VM),
+   `deploy/install-windows.ps1` + `deploy/web.config` (Node relay as a Windows service behind IIS ARR).
+4. **Local run made self-contained**: `.env` is loaded by `node --env-file-if-exists`, mock photos are
+   generated on `npm run dev:mock`, the Vite dev proxy forwards `/photos` and `/mock-photos`.
+5. **Mock data** now spreads listings across all types and cities (they were all "Piso" before), so the
+   comparables logic is visible in demo mode; `mock.js` also filters `ciudad='…'`.
+
+Still to do by the owner, not by code: set `INMOVILLA_API_URL` and `APIWEB_HOP_SECRET` in the Pages project
+(done if the local session verified the hop), and have Inmovilla authorise 195.15.213.10 for the agency.
 
 ## Open topics discussed with the owner (not implemented)
 
