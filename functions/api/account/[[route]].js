@@ -9,6 +9,9 @@ import { createData, ROLES } from '../../_shared/data.js'
 import { fail, guard, json, readJson } from '../../_shared/http.js'
 import { verifyApiweb, verifyRest } from '../../_shared/inmovilla.js'
 
+/** The last four characters of a secret, or '' when there is none. */
+const tailOf = (v) => (v && String(v).length >= 4 ? String(v).slice(-4) : '')
+
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
 const path = (context) => '/' + (context.params.route || []).join('/')
 
@@ -93,7 +96,13 @@ export const onRequest = guard(async (context) => {
     return json({ user: b.name !== undefined ? await data.updateProfile(user.id, { name: b.name }) : user })
   }
 
-  if (route === '/agency' && method === 'GET') return json({ agency })
+  if (route === '/agency' && method === 'GET') {
+    // The last four characters of each secret, for administrators only. Enough to recognise which
+    // key is in place — "is that the one I rotated?" — without the key ever leaving the server.
+    if (session.user.role !== 'admin') return json({ agency })
+    const creds = await data.agencyCredentials(agency.id)
+    return json({ agency: { ...agency, tails: { apiweb: tailOf(creds.password), rest: tailOf(creds.restToken), anthropic: tailOf(creds.anthropicKey) } } })
+  }
 
   if (route === '/agency' && method === 'PUT') {
     const denied = requireAdmin(session)

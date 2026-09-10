@@ -48,10 +48,10 @@ export default {
   },
   keys: {
     title: 'Clés Inmovilla', intro: "Elles sont chiffrées sur le serveur et ne sont jamais envoyées aux téléphones. Inmovilla les vérifie avant l'enregistrement.",
-    numagencia: "Numéro d'agence", apiweb: 'Clé web (apiweb) · listing', rest: 'Clé API REST · écriture', restHint: 'Inmovilla › Ajustes › Opciones › Token para API Rest',
+    numagencia: "Numéro d'agence", apiweb: 'Mot de passe apiweb · lecture', rest: 'Jeton API REST · écriture', restHint: 'Inmovilla › Ajustes › Opciones › Token para API Rest',
     numagenciaHint: 'L’USUARIO_API complet d’Inmovilla. Il peut comporter un suffixe, par exemple 123_244_ext.',
     fromInmovilla: 'selon Inmovilla',
-    keep: 'Laisser vide pour conserver la clé actuelle', dataLanguage: 'Langue des données', configured: 'Configurées', notConfigured: 'Non configurées', verifyAndSave: 'Vérifier et enregistrer',
+    keep: 'Laisser vide pour conserver la clé actuelle', dataLanguage: 'Langue des données', configured: 'Configurée', keepTail: '•••• {tail} — laisser vide pour conserver', notConfigured: 'Non configurée', verifyAndSave: 'Vérifier et enregistrer',
     saved: 'Clés vérifiées et enregistrées',
     anthropic: 'Clé API Anthropic · estimations avec Claude', anthropicHint: 'console.anthropic.com › API keys. Nécessaire pour le bouton « Estimer la valeur ». Facturée au compte de l’agence.',
   },

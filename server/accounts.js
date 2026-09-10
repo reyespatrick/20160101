@@ -67,7 +67,16 @@ export function createAccountsRouter({ verifyApiwebKey, verifyRestKey, verifyAnt
 
   /** Agency settings (admin): name, Inmovilla keys, Anthropic key. Keys are verified against their provider before being saved. */
   const agencyView = (a) => ({ id: a.id, name: a.name, numagencia: a.numagencia, idioma: a.idioma, hasKeys: a.hasKeys, hasApiweb: a.hasApiweb, hasRest: a.hasRest, hasAnthropic: a.hasAnthropic, readOnly: a.readOnly })
-  router.get('/agency', requireUser, (req, res) => res.json({ agency: agencyView(db.getAgency(req.user.agency_id)) }))
+  /** The last four characters of a secret, or '' — enough to tell which key is in place. */
+  const tailOf = (v) => (v && String(v).length >= 4 ? String(v).slice(-4) : '')
+
+  router.get('/agency', requireUser, (req, res) => {
+    const agency = agencyView(db.getAgency(req.user.agency_id))
+    // Administrators only: enough to recognise a key, never enough to use one.
+    if (req.user.role !== 'admin') return res.json({ agency })
+    const creds = db.agencyCredentials(req.user.agency_id)
+    res.json({ agency: { ...agency, tails: { apiweb: tailOf(creds.password), rest: tailOf(creds.restToken), anthropic: tailOf(creds.anthropicKey) } } })
+  })
   router.put('/agency', requireUser, requireRole('admin'), async (req, res) => {
     const b = req.body || {}
     const current = db.agencyCredentials(req.user.agency_id)

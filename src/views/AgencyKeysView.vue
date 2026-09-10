@@ -128,16 +128,16 @@ async function submit() {
       </div>
       <div class="field">
         <label for="apiweb">{{ t('keys.apiweb') }} <span class="state" :class="{ ok: info?.hasApiweb }">{{ info?.hasApiweb ? t('keys.configured') : t('keys.notConfigured') }}</span></label>
-        <input id="apiweb" v-model.trim="form.apiwebPassword" :type="show ? 'text' : 'password'" autocomplete="off" :placeholder="info?.hasApiweb ? t('keys.keep') : ''" />
+        <input id="apiweb" v-model.trim="form.apiwebPassword" :type="show ? 'text' : 'password'" autocomplete="off" :placeholder="info?.hasApiweb ? (info?.tails?.apiweb ? t('keys.keepTail', { tail: info.tails.apiweb }) : t('keys.keep')) : ''" />
       </div>
       <div class="field">
         <label for="rest">{{ t('keys.rest') }} <span class="state" :class="{ ok: info?.hasRest }">{{ info?.hasRest ? t('keys.configured') : t('keys.notConfigured') }}</span></label>
-        <input id="rest" v-model.trim="form.restToken" :type="show ? 'text' : 'password'" autocomplete="off" :placeholder="info?.hasRest ? t('keys.keep') : ''" />
+        <input id="rest" v-model.trim="form.restToken" :type="show ? 'text' : 'password'" autocomplete="off" :placeholder="info?.hasRest ? (info?.tails?.rest ? t('keys.keepTail', { tail: info.tails.rest }) : t('keys.keep')) : ''" />
         <small class="muted">{{ t('keys.restHint') }}</small>
       </div>
       <div class="field">
         <label for="anthropic">{{ t('keys.anthropic') }} <span class="state" :class="{ ok: info?.hasAnthropic }">{{ info?.hasAnthropic ? t('keys.configured') : t('keys.notConfigured') }}</span></label>
-        <input id="anthropic" v-model.trim="form.anthropicKey" :type="show ? 'text' : 'password'" autocomplete="off" :placeholder="info?.hasAnthropic ? t('keys.keep') : 'sk-ant-…'" />
+        <input id="anthropic" v-model.trim="form.anthropicKey" :type="show ? 'text' : 'password'" autocomplete="off" :placeholder="info?.hasAnthropic ? (info?.tails?.anthropic ? t('keys.keepTail', { tail: info.tails.anthropic }) : t('keys.keep')) : 'sk-ant-…'" />
         <small class="muted">{{ t('keys.anthropicHint') }}</small>
       </div>
       <label class="show"><input v-model="show" type="checkbox" /> {{ t('common.show') }}</label>
