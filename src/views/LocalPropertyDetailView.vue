@@ -163,7 +163,9 @@ async function findOwner(d) {
         const { next, taken } = applyChoice(base, rows, choice)
         // Taking nothing is a decision too, and it is not a change to send.
         if (!taken) await store.note(d.id, { ownerCheckedAt: next.ownerCheckedAt, ownerRemoteId: next.ownerRemoteId })
-        else await store.save(next)
+        // Every difference resolved in Inmovilla's favour: the owner now says what Inmovilla
+        // says, so there is nothing to write back.
+        else await store.save(next, { ownerIsRemote: taken === rows.length })
         catchUpNote.value = t('merge.ownerFound', { id: next.ownerRemoteId || '—' })
       },
     }

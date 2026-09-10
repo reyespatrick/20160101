@@ -52,25 +52,32 @@ async function findClient() {
   }
   lookup.value = 'searching'
   try {
-    const found = await searchClients({ telefono: digits.slice(-9) })
+    // Through the store, never straight to the API: what Inmovilla answers is written to the
+    // device as a clean record — cached, searchable and readable offline, and never queued for
+    // sending back. A contact met at the door with no network is exactly why this exists.
+    const found = await store.searchRemote(digits)
     const first = Array.isArray(found) ? found[0] : found
     if (first) {
       match.value = first
       lookup.value = 'found'
+    } else if (store.searchOffline) {
+      lookup.value = ''
+      lookupError.value = t('clients.offlineSearch')
     } else {
       lookup.value = 'none'
     }
   } catch (err) {
     lookup.value = ''
-    lookupError.value = err.status === 404 ? '' : err.message || t('common.failed', { where: '' })
-    if (err.status === 404) lookup.value = 'none'
+    lookupError.value = err.message || t('common.failed', { where: '' })
   }
 }
 
-/** Open the contact Inmovilla already has, rather than making a second one. */
-async function openMatch() {
-  const saved = await store.save({ ...emptyClient(), ...match.value, id: undefined, checkedAt: Date.now() }).catch(() => null)
-  if (saved) router.replace({ name: 'client', params: { id: saved.id } })
+/**
+ * Open the contact Inmovilla already has. The search has just written it to the device, so this
+ * is a local record: it opens now, and it will still open next week in a village with no signal.
+ */
+function openMatch() {
+  router.replace({ name: 'client', params: { id: match.value.id || `inmo-${match.value.remoteId}` } })
 }
 
 function onPhoneInput() {

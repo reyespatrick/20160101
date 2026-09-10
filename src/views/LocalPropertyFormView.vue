@@ -277,6 +277,10 @@ async function refreshCadastre() {
  */
 const ownerLookup = ref('') // '' | 'searching' | 'found' | 'none'
 const ownerError = ref('')
+/** Exactly what Inmovilla gave us, so an untouched copy of it is never written back. */
+let ownerFromInmovilla = null
+const OWNER_KEYS = ['ownerName', 'ownerSurname', 'ownerEmail', 'ownerPhone']
+const ownerUntouched = () => Boolean(ownerFromInmovilla) && OWNER_KEYS.every((k) => String(form[k] || '') === String(ownerFromInmovilla[k] || ''))
 
 /**
  * A complaint about the number must not outlive the number it was about. Typing again is the
@@ -304,6 +308,7 @@ async function findOwner() {
       form.ownerSurname = first.surname || first.apellidos || form.ownerSurname
       form.ownerEmail = first.email || form.ownerEmail
       form.ownerRemoteId = first.remoteId || first.cod_cli || null
+      ownerFromInmovilla = Object.fromEntries(OWNER_KEYS.map((k) => [k, form[k]]))
       ownerLookup.value = 'found'
     } else {
       ownerLookup.value = 'none'
@@ -319,6 +324,7 @@ async function findOwner() {
 
 /** "Not this one" / "create": keep the number, clear the identity, let the agent type. */
 function newOwner() {
+  ownerFromInmovilla = null
   form.ownerName = ''
   form.ownerSurname = ''
   form.ownerEmail = ''
@@ -389,7 +395,7 @@ async function submit() {
   }
   saving.value = true
   try {
-    const saved = await store.save(JSON.parse(JSON.stringify(form)))
+    const saved = await store.save(JSON.parse(JSON.stringify(form)), { ownerIsRemote: ownerUntouched() })
     router.replace({ name: 'local-property', params: { id: saved.id }, query: { saved: '1' } })
   } catch (err) {
     errors.value = { form: err.message || t('common.failed', { where: 'save' }) }

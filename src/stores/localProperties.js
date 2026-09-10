@@ -128,13 +128,20 @@ export const useLocalPropertiesStore = defineStore('localProperties', {
       }
     },
 
-    async save(property) {
+    /**
+     * `ownerIsRemote` says the owner's details are exactly what Inmovilla just gave us. Without
+     * it, filling those fields from a lookup counts as a change and the app dutifully writes them
+     * straight back — an update that says nothing, against a real contact, and one the write lock
+     * would refuse anyway. Reading is not editing.
+     */
+    async save(property, { ownerIsRemote = false } = {}) {
       const agency = this.agency()
       const existing = this.items.find((p) => p.id === property.id)
       const ownerChanged =
-        !existing ||
-        ['ownerName', 'ownerSurname', 'ownerPhone', 'ownerEmail'].some((k) => (existing[k] || '') !== (property[k] || '')) ||
-        existing.ownerDirty
+        !ownerIsRemote &&
+        (!existing ||
+          ['ownerName', 'ownerSurname', 'ownerPhone', 'ownerEmail'].some((k) => (existing[k] || '') !== (property[k] || '')) ||
+          existing.ownerDirty)
       const record = { ...emptyProperty(), ...property, id: property.id, updatedAt: Date.now(), deleted: false, syncError: '', ownerDirty: ownerChanged }
       record.photos = (record.photos || []).map((ph, i) => ({ ...ph, order: i }))
       if (!record.createdAt) record.createdAt = record.updatedAt
