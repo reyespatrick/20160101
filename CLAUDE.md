@@ -40,6 +40,19 @@ REST token `demo-token`, any text as Anthropic key (valuations are simulated in 
 - The app must **never crash**: ErrorBoundary per screen, global handlers → toast; OTA updates with a banner.
 - Multi-agency on one server (one row in `agencies` per Inmovilla account).
 
+## Where to deploy — the owner's rule
+
+**Every change goes to `immoba-demo` and stops there.** Production (`immoba.pages.dev`, the real
+agency) is only ever deployed when the owner asks for it, in that message, by name. Working on the
+demo is free to be wrong; production is an agency's working tool.
+
+```bash
+npx wrangler pages deploy dist --project-name immoba-demo --branch main --commit-dirty=true
+```
+
+The two are separate Cloudflare projects, so the demo can run ahead for days without touching the
+agency — which is the point. Expect production to look older; that is not a bug to fix on impulse.
+
 ## Cloudflare Pages Functions (the target runtime)
 
 `functions/` holds the production API: `_shared/` (supabase client, data layer, auth guards, http
