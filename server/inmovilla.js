@@ -176,3 +176,24 @@ export function parseApiResponse(text) {
   }
   return data
 }
+
+/**
+ * What apiweb's refusals actually mean, in a sentence a person can act on.
+ *
+ * A rejected call answers with a fragment of PHP — `die("xIP NO VALIDADA - IP_RECIVED: …")` —
+ * which the app used to show as it stood, on the grounds that it was the only diagnosis
+ * available. It is a diagnosis for whoever wrote apiweb; for an agent in front of a flat it is
+ * frightening noise. The raw text is still carried alongside, for administrators.
+ */
+const REFUSALS = [
+  [/IP\s*NO\s*VALIDADA/i, 'Inmovilla no autoriza a este servidor a leer los datos de la agencia. Un administrador debe pedir a Inmovilla que autorice su dirección.'],
+  [/NECESITAMOS\s*RECIBIR\s*LA\s*IP/i, 'Inmovilla ha rechazado la petición por falta de la IP del visitante.'],
+  [/ERROR\s*VALIDACION\s*AGENCIA/i, 'Inmovilla no reconoce el número de agencia o su contraseña.'],
+  [/USUARIO\s*(NO|SIN)/i, 'Inmovilla no reconoce el usuario de la API de la agencia.'],
+]
+
+export function describeRefusal(plain) {
+  const text = String(plain || '')
+  for (const [pattern, message] of REFUSALS) if (pattern.test(text)) return message
+  return ''
+}

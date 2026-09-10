@@ -2,7 +2,7 @@
  * Inmovilla upstream calls from a Worker. The param building and the rate limiter come from
  * `server/inmovilla.js`, which is pure JS and runs unchanged on both runtimes.
  */
-import { buildFormBody, createRateLimiter, headerValue, normalizeRequest } from '../../server/inmovilla.js'
+import { buildFormBody, createRateLimiter, describeRefusal, headerValue, normalizeRequest } from '../../server/inmovilla.js'
 
 const APIWEB_URL = 'https://apiweb.inmovilla.com/apiweb/apiweb.php'
 const REST_URL = 'https://procesos.inmovilla.com/api/v1'
@@ -48,10 +48,11 @@ export async function apiweb(env, creds, requests, { clientIp = '' } = {}) {
     try {
       data = JSON.parse(text)
     } catch {
-      // apiweb answers plain text on a rejected call ("NECESITAMOS RECIBIR LA IP", …);
-      // pass it through, it is the only diagnosis the admin will get.
+      // apiweb answers a fragment of PHP on a rejected call — die("xIP NO VALIDADA …"). Say what
+      // it means; the raw text travels alongside for whoever can act on it.
       const plain = text.replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 200)
-      throw Object.assign(new Error(plain ? `Inmovilla: ${plain}` : 'Respuesta de Inmovilla ilegible'), { status: 502 })
+      const said = describeRefusal(plain)
+      throw Object.assign(new Error(said || (plain ? `Inmovilla: ${plain}` : 'Respuesta de Inmovilla ilegible')), { status: 502, detail: plain })
     }
     // apiweb reports bad credentials in the body, with a 200
     if (data?.error) throw Object.assign(new Error(data.error), { status: 401 })

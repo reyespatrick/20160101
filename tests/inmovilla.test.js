@@ -103,3 +103,16 @@ describe('client helpers', () => {
     expect(featuresOf({ ascensor: 1, terraza: '1', piscina_com: 0 })).toEqual(['Ascensor', 'Terraza'])
   })
 })
+
+describe('what apiweb means when it refuses', () => {
+  it('turns a fragment of PHP into something a person can act on', async () => {
+    const { describeRefusal } = await import('../server/inmovilla.js')
+    expect(describeRefusal('die("xIP NO VALIDADA - IP_RECIVED: 195.15.213.10 --- logsgenericos");')).toMatch(/autoriz/i)
+    expect(describeRefusal('NECESITAMOS RECIBIR LA IP')).toMatch(/IP del visitante/i)
+    expect(describeRefusal('die("ERROR VALIDACION AGENCIAx");')).toMatch(/número de agencia/i)
+    // Anything it has not seen before is left alone: a wrong guess is worse than the raw text.
+    expect(describeRefusal('algo completamente distinto')).toBe('')
+    expect(describeRefusal('')).toBe('')
+    expect(describeRefusal(null)).toBe('')
+  })
+})
