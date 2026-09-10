@@ -4,13 +4,17 @@
  */
 import { authenticate } from '../_shared/auth.js'
 import { fail, guard, json, readJson } from '../_shared/http.js'
-import { cadastralByAddress, cadastralReference, reverseGeocode } from '../../shared/geocode.js'
+import { cadastralByAddress, cadastralReference, demoPosition, reverseGeocode } from '../../shared/geocode.js'
 
 export const onRequestPost = guard(async (context) => {
   const session = await authenticate(context)
   if (session.response) return session.response
 
-  const { lat, lon, lang, address: typed } = await readJson(context.request, 4096)
+  const body = await readJson(context.request, 4096)
+  const { lang, address: typed } = body
+  const demo = demoPosition(context.env)
+  const lat = demo ? demo.lat : body.lat
+  const lon = demo ? demo.lon : body.lon
 
   // Address sheet: the plot reference straight from a typed address, no map provider involved.
   if (typed) {
@@ -34,5 +38,5 @@ export const onRequestPost = guard(async (context) => {
     }),
   ])
   if (!address && !cadastre) return fail('No se encontró ninguna dirección en ese punto', 404, 'nomatch')
-  return json({ address: address || {}, cadastre, cadastreError })
+  return json({ address: address || {}, cadastre, cadastreError, demo: Boolean(demo) })
 })

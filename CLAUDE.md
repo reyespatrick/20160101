@@ -57,6 +57,9 @@ Pure modules shared by both runtimes: `server/inmovilla.js`, `server/estimate.js
 `functions/api/_mock/[[path]].js`, a fake Inmovilla reached over HTTP like any other upstream — the app
 still has no mock branch. Account `demo@immoba.app` / `Immoba2026!`, agency keys `1234`/`demo`/
 `demo-token`, write lock off, `ESTIMATE_MOCK=1`. Use it to work on screens without a real agency.
+It also carries `GEOCODE_DEMO_POSITION=36.5957,-4.6377` (Plaza Virgen de la Peña, Mijas Pueblo): the
+GPS button reads from there whatever the phone's real position, so the address chain can be tested
+from outside Andalusia. Unset in production, where it changes nothing.
 
 **Trailing slashes matter.** Every Inmovilla REST route carries one (`/clientes/`, `/enums/`) and the
 real API rejects the stripped form. Cloudflare's `[[path]]` parameter drops it, so both the REST relay

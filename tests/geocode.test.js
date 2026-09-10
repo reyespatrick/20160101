@@ -177,3 +177,15 @@ describe('Andalusia', () => {
     expect(findMunicipality('', 'Málaga')).toBe(null)
   })
 })
+
+describe('demo position', () => {
+  it('stands in for the phone only where the variable is set', async () => {
+    const { demoPosition } = await import('../shared/geocode.js')
+    expect(demoPosition({})).toBe(null)
+    expect(demoPosition({ GEOCODE_DEMO_POSITION: '36.5957,-4.6377' })).toEqual({ lat: 36.5957, lon: -4.6377 })
+    expect(demoPosition({ GEOCODE_DEMO_POSITION: ' 36.5957 , -4.6377 ' })).toEqual({ lat: 36.5957, lon: -4.6377 })
+    // Nonsense is ignored rather than sending the agent to the Atlantic.
+    expect(demoPosition({ GEOCODE_DEMO_POSITION: 'Mijas' })).toBe(null)
+    expect(demoPosition({ GEOCODE_DEMO_POSITION: '999,0' })).toBe(null)
+  })
+})

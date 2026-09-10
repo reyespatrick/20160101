@@ -21,7 +21,7 @@ import { createAccountsRouter } from './accounts.js'
 import { canDelete, canWrite, requireUser } from './auth.js'
 import * as db from './db.js'
 import { estimateProperty, verifyAnthropicKey } from './estimate.js'
-import { cadastralByAddress, cadastralReference, reverseGeocode } from '../shared/geocode.js'
+import { cadastralByAddress, cadastralReference, demoPosition, reverseGeocode } from '../shared/geocode.js'
 import { buildFormBody, createRateLimiter, headerValue, normalizeRequest, parseApiResponse } from './inmovilla.js'
 import { mockResponse } from './mock.js'
 import { createMockRest } from './mockRest.js'
@@ -225,7 +225,10 @@ app.post('/api/estimate', requireUser, requireApiweb, express.json({ limit: '256
 // Reverse geocoding for the "read the address" button — any signed-in user
 // ---------------------------------------------------------------------------
 app.post('/api/geocode', requireUser, express.json({ limit: '4kb' }), async (req, res) => {
-  const { lat, lon, lang, address: typed } = req.body || {}
+  const { lang, address: typed } = req.body || {}
+  const demo = demoPosition(process.env)
+  const lat = demo ? demo.lat : req.body?.lat
+  const lon = demo ? demo.lon : req.body?.lon
   try {
     // Address sheet: the plot reference straight from a typed address, no map provider involved.
     if (typed) {
@@ -241,7 +244,7 @@ app.post('/api/geocode', requireUser, express.json({ limit: '4kb' }), async (req
       }),
     ])
     if (!address && !cadastre) return res.status(404).json({ error: 'No se encontró ninguna dirección en ese punto', code: 'nomatch' })
-    res.json({ address: address || {}, cadastre, cadastreError })
+    res.json({ address: address || {}, cadastre, cadastreError, demo: Boolean(demo) })
   } catch (err) {
     res.status(err.status || 502).json({ error: err.message })
   }

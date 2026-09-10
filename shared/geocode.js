@@ -15,6 +15,21 @@ const GOOGLE_URL = 'https://maps.googleapis.com/maps/api/geocode/json'
 const NOMINATIM_URL = 'https://nominatim.openstreetmap.org/reverse'
 const TIMEOUT_MS = 12_000
 
+/**
+ * A fixed position for the demo instance, set as GEOCODE_DEMO_POSITION ("lat,lon").
+ *
+ * The app is built for Andalusia, and the phone testing it is rarely there — a reading taken in
+ * Switzerland has no cadastral parcel and no town in the register, so the whole address chain
+ * looks broken when it is merely somewhere else. Where the variable is set, every reading comes
+ * from that point instead. Unset — production — it changes nothing.
+ */
+export function demoPosition(env = {}) {
+  const raw = env.GEOCODE_DEMO_POSITION
+  if (!raw) return null
+  const [lat, lon] = String(raw).split(',').map((s) => s.trim())
+  return validCoordinates(lat, lon) ? { lat: Number(lat), lon: Number(lon) } : null
+}
+
 export function validCoordinates(lat, lon) {
   // Reject the absent value explicitly: Number(null) and Number('') are 0, which would
   // silently geocode the Atlantic instead of reporting that we have no position.
