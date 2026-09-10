@@ -30,7 +30,8 @@ export const onRequestPost = guard(async (context) => {
       creds,
       input: property,
       locale: ['es', 'fr', 'en'].includes(locale) ? locale : 'es',
-      mock: context.env.INMOVILLA_MOCK === '1',
+      // Simulated answer for demo deployments, so no Anthropic credit is spent
+      mock: context.env.ESTIMATE_MOCK === '1' || context.env.INMOVILLA_MOCK === '1',
     }),
   )
 })

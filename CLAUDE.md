@@ -51,6 +51,17 @@ carry no mock branch.
 
 Pure modules shared by both runtimes: `server/inmovilla.js`, `server/estimate.js`, `server/mock.js`.
 
+## Demo instance
+
+`immoba-demo.pages.dev` (Pages project `immoba-demo`) serves the same build against
+`functions/api/_mock/[[path]].js`, a fake Inmovilla reached over HTTP like any other upstream — the app
+still has no mock branch. Account `demo@immoba.app` / `Immoba2026!`, agency keys `1234`/`demo`/
+`demo-token`, write lock off, `ESTIMATE_MOCK=1`. Use it to work on screens without a real agency.
+
+**Trailing slashes matter.** Every Inmovilla REST route carries one (`/clientes/`, `/enums/`) and the
+real API rejects the stripped form. Cloudflare's `[[path]]` parameter drops it, so both the REST relay
+and the mock derive the path from `url.pathname`, never from `context.params`. Express hid this locally.
+
 ## Layout (short)
 
 - `server/index.js` relay: `/api/account/*` (accounts.js), `POST /api/inmovilla` (apiweb), `ANY /api/rest/*`

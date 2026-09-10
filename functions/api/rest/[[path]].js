@@ -20,7 +20,11 @@ export const onRequest = guard(async (context) => {
   }
 
   const url = new URL(context.request.url)
-  const path = '/' + (context.params.path || []).join('/') + url.search
+  // Read the path off the URL, not context.params: the router drops the trailing slash that
+  // every Inmovilla route carries ("/clientes/", "/propiedades/"), and Inmovilla rejects the
+  // stripped form. Express tolerated it locally, which is why this stayed hidden.
+  const base = '/api/rest'
+  const path = (url.pathname.startsWith(base) ? url.pathname.slice(base.length) || '/' : '/') + url.search
   const creds = await session.data.agencyCredentials(session.agency.id)
   const body = method === 'GET' || method === 'HEAD' ? null : await context.request.arrayBuffer()
 

@@ -1,0 +1,100 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+  <style>
+    body { margin: 0; font-family: system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+           -webkit-font-smoothing: antialiased; background: #f4f5fa; color: #1c1d33; }
+    a { color: #2e3192; } a:hover { color: #1f2166; }
+  </style>
+</helmet>
+
+<div style="width: 390px; height: 844px; display: flex; flex-direction: column; background: #f4f5fa;">
+
+  <div style="display: flex; align-items: center; justify-content: space-between; padding: 12px 16px; background: #ffffff; border-bottom: 1px solid #e1e3ee;">
+    <div style="display: flex; align-items: center; gap: 8px;">
+      <svg viewBox="0 0 24 24" style="width: 22px; height: 22px;" fill="none" stroke="#2e3192" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 11l9-7 9 7"></path><path d="M5 10v10h14V10"></path></svg>
+      <span style="font-weight: 800; font-size: 18px; letter-spacing: -0.2px;">immoba</span>
+    </div>
+    <div style="width: 34px; height: 34px; border-radius: 50%; background: #2e3192; color: #fff; display: grid; place-items: center; font-size: 12px; font-weight: 700;">AG</div>
+  </div>
+
+  <div style="flex: 1; padding: 16px; display: flex; flex-direction: column; gap: 14px; overflow: hidden;">
+
+    <div style="display: flex; align-items: center; gap: 10px;">
+      <div style="width: 44px; height: 44px; border-radius: 10px; border: 1px solid #e1e3ee; background: #ffffff; display: grid; place-items: center;">
+        <svg viewBox="0 0 24 24" style="width: 20px; height: 20px;" fill="none" stroke="#2e3192" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 18l-6-6 6-6"></path></svg>
+      </div>
+      <div>
+        <div style="font-size: 20px; font-weight: 700;">Nouveau bien</div>
+        <div style="font-size: 13px; color: #6b6e85;">Étape 2 sur 3 · Propriétaire</div>
+      </div>
+    </div>
+
+    <div style="display: flex; gap: 4px;">
+      <div style="flex: 1; height: 4px; border-radius: 2px; background: #2e3192;"></div>
+      <div style="flex: 1; height: 4px; border-radius: 2px; background: #2e3192;"></div>
+      <div style="flex: 1; height: 4px; border-radius: 2px; background: #e1e3ee;"></div>
+    </div>
+
+    <div style="background: #ffffff; border-radius: 14px; box-shadow: 0 2px 10px rgba(30,33,100,0.08); padding: 16px 18px; display: flex; flex-direction: column; gap: 14px;">
+      <div>
+        <div style="font-size: 16px; font-weight: 700;">Téléphone du propriétaire</div>
+        <div style="font-size: 13px; color: #6b6e85; margin-top: 4px; line-height: 1.45;">On vérifie d’abord s’il existe déjà dans Inmovilla, pour ne pas créer de doublon.</div>
+      </div>
+
+      <div style="display: flex; flex-direction: column; gap: 6px;">
+        <label style="font-size: 13px; font-weight: 600; color: #6b6e85;">Numéro</label>
+        <div style="display: flex; gap: 8px;">
+          <div style="width: 74px; min-height: 48px; display: flex; align-items: center; justify-content: center; border: 1px solid #e1e3ee; border-radius: 10px; background: #ffffff; font-size: 15px; color: #6b6e85;">+34</div>
+          <div style="flex: 1; min-height: 48px; display: flex; align-items: center; padding: 0 14px; border-radius: 10px; border: 2px solid #2e3192; background: #ffffff; font-size: 17px; font-weight: 600; letter-spacing: 0.5px;">600 777 888</div>
+        </div>
+      </div>
+
+      <div style="display: flex; align-items: center; gap: 8px; padding: 10px 12px; border-radius: 10px; background: #eef0fa;">
+        <svg viewBox="0 0 24 24" style="width: 18px; height: 18px; flex: 0 0 auto;" fill="none" stroke="#2e3192" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="7"></circle><path d="M20 20l-3.5-3.5"></path></svg>
+        <span style="font-size: 13px; color: #1f2166; font-weight: 600;">Trouvé dans Inmovilla</span>
+      </div>
+    </div>
+
+    <div style="background: #ffffff; border-radius: 14px; box-shadow: 0 2px 10px rgba(30,33,100,0.08); padding: 16px 18px; display: flex; flex-direction: column; gap: 12px; border-left: 4px solid #2e7d32;">
+      <div style="display: flex; align-items: center; gap: 12px;">
+        <div style="width: 46px; height: 46px; border-radius: 50%; background: #eef0fa; color: #2e3192; display: grid; place-items: center; font-weight: 700; font-size: 15px;">CO</div>
+        <div style="flex: 1;">
+          <div style="font-size: 16px; font-weight: 700;">Carmen Ortiz</div>
+          <div style="font-size: 13px; color: #6b6e85; margin-top: 2px;">carmen@example.es · nº 4821</div>
+        </div>
+      </div>
+      <div style="font-size: 13px; color: #6b6e85; line-height: 1.45;">Ce contact existe déjà. Il sera rattaché au bien, sans créer de doublon.</div>
+      <div style="display: flex; gap: 8px;">
+        <button type="button" style="flex: 1; min-height: 48px; border: 0; border-radius: 10px; background: #2e3192; color: #fff; font-size: 15px; font-weight: 600;">Le rattacher</button>
+        <button type="button" style="min-height: 48px; padding: 0 16px; border-radius: 10px; border: 1px solid #e1e3ee; background: transparent; color: #2e3192; font-size: 15px; font-weight: 600;">Ce n’est pas lui</button>
+      </div>
+    </div>
+
+    <div style="flex: 1;"></div>
+  </div>
+
+  <div style="display: flex; height: 64px; background: #ffffff; border-top: 1px solid #e1e3ee;">
+    <div style="flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px; color: #2e3192; font-size: 12px; font-weight: 600;">
+      <svg viewBox="0 0 24 24" style="width: 24px; height: 24px;" fill="currentColor"><path d="M3 11l9-7 9 7v9a1 1 0 01-1 1h-5v-6H9v6H4a1 1 0 01-1-1z"></path></svg>
+      Biens
+    </div>
+    <div style="flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px; color: #6b6e85; font-size: 12px; font-weight: 600;">
+      <svg viewBox="0 0 24 24" style="width: 24px; height: 24px;" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M7 2v3M17 2v3M4 9h16M5 5h14a1 1 0 011 1v14a1 1 0 01-1 1H5a1 1 0 01-1-1V6a1 1 0 011-1z"></path></svg>
+      Agenda
+    </div>
+    <div style="flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px; color: #6b6e85; font-size: 12px; font-weight: 600;">
+      <svg viewBox="0 0 24 24" style="width: 24px; height: 24px;" fill="currentColor"><circle cx="12" cy="8" r="3.6"></circle><path d="M4.5 20c0-3.6 3.4-6 7.5-6s7.5 2.4 7.5 6z"></path></svg>
+      Clients
+    </div>
+  </div>
+</div>
+</x-dc>
+</body>
+</html>
