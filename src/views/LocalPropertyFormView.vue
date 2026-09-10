@@ -390,7 +390,7 @@ async function submit() {
 async function cancel() {
   if (!isEdit.value) for (const id of addedPhotoIds) await store.discardPhoto(id)
   if (isEdit.value) router.replace({ name: 'local-property', params: { id: props.id } })
-  else router.replace({ name: 'properties', query: { source: 'mine' } })
+  else router.replace({ name: 'properties' })
 }
 </script>
 

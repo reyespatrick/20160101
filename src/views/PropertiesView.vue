@@ -21,11 +21,16 @@ const router = useRouter()
 const sentinel = ref(null)
 let observer
 
-const source = computed(() => (route.query.source === 'mine' ? 'mine' : 'inmovilla'))
+/**
+ * The agent's own listings are what opens: they are the ones being worked on, they are the only
+ * ones that exist offline, and they are where the create button belongs. Inmovilla's catalogue is
+ * the reference one steps over to, so it is the one that carries a query parameter.
+ */
+const source = computed(() => (route.query.source === 'inmovilla' ? 'inmovilla' : 'mine'))
 /** The empty screen carries its own call to action; a second one in the bar is noise. */
 const emptyCta = computed(() => source.value === 'mine' && !local.loading && !local.active.length)
 function setSource(value) {
-  router.replace({ name: 'properties', query: value === 'mine' ? { source: 'mine' } : {} })
+  router.replace({ name: 'properties', query: value === 'inmovilla' ? { source: 'inmovilla' } : {} })
 }
 
 // Back online while this screen is open: ask Inmovilla again, without the agent doing anything.
@@ -59,10 +64,10 @@ onBeforeUnmount(() => observer?.disconnect())
   <section class="container properties">
     <div class="source-bar">
       <div class="segments" role="tablist" aria-label="Origen">
-        <button type="button" role="tab" :aria-selected="source === 'inmovilla'" :class="{ active: source === 'inmovilla' }" @click="setSource('inmovilla')">{{ t('props.inmovilla') }}</button>
         <button type="button" role="tab" :aria-selected="source === 'mine'" :class="{ active: source === 'mine' }" @click="setSource('mine')">
           {{ t('props.mine') }} <span v-if="local.active.length" class="pill">{{ local.active.length }}</span>
         </button>
+        <button type="button" role="tab" :aria-selected="source === 'inmovilla'" :class="{ active: source === 'inmovilla' }" @click="setSource('inmovilla')">{{ t('props.inmovilla') }}</button>
       </div>
       <RouterLink v-if="auth.canDraft && !emptyCta" :to="{ name: 'local-property-new' }" class="btn new-btn">+ {{ t('props.newProperty') }}</RouterLink>
     </div>

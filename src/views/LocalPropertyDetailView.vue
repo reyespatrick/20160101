@@ -209,7 +209,7 @@ async function remove() {
   const wasDraft = p.value?.status === 'draft'
   await store.remove(props.id)
   confirmRemove.value = false
-  if (wasDraft) router.replace({ name: 'properties', query: { source: 'mine' } })
+  if (wasDraft) router.replace({ name: 'properties' })
   else {
     toast.value = t('props.detail.markedUnavailable')
     setTimeout(() => (toast.value = ''), 2500)
@@ -225,7 +225,7 @@ async function reactivate() {
 <template>
   <section class="container detail">
     <div class="top">
-      <RouterLink :to="{ name: 'properties', query: { source: 'mine' } }" class="btn btn-ghost">← {{ t('props.detail.back') }}</RouterLink>
+      <RouterLink :to="{ name: 'properties' }" class="btn btn-ghost">← {{ t('props.detail.back') }}</RouterLink>
       <RouterLink v-if="p && auth.canDraft" :to="{ name: 'local-property-edit', params: { id } }" class="btn">{{ t('common.edit') }}</RouterLink>
     </div>
 
