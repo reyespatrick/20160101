@@ -74,11 +74,18 @@ export const useAuthStore = defineStore('auth', {
     canEstimate() {
       return this.roleCanWrite
     },
-    /** apiweb (listing, ficha, comparables) and the REST API (everything written) are separate. */
-    hasApiweb: (s) => Boolean(s.agency?.hasApiweb),
-    hasRest: (s) => Boolean(s.agency?.hasRest),
-    hasKeys: (s) => Boolean(s.agency?.hasApiweb || s.agency?.hasRest),
-    hasAnthropic: (s) => Boolean(s.agency?.hasAnthropic),
+    /**
+     * apiweb (listing, ficha, comparables) and the REST API (everything written) are separate.
+     *
+     * An agent is never told whether they are configured — that is an administrator's business,
+     * and nobody is enrolled before it is done — so the flags simply do not reach them. Absent
+     * therefore means "not my business", not "missing": only an explicit `false`, which only an
+     * administrator ever receives, holds a feature back.
+     */
+    hasApiweb: (s) => s.agency?.hasApiweb !== false,
+    hasRest: (s) => s.agency?.hasRest !== false,
+    hasKeys: (s) => s.agency?.hasApiweb !== false || s.agency?.hasRest !== false,
+    hasAnthropic: (s) => s.agency?.hasAnthropic !== false,
     numagencia: (s) => s.agency?.numagencia || (s.agency ? `agency-${s.agency.id}` : ''),
     idioma: (s) => s.agency?.idioma || 1,
   },

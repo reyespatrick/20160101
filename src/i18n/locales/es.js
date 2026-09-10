@@ -28,8 +28,8 @@ export default {
     yourName: 'Tu nombre', signupCode: 'Código de alta', create: 'Crear la cuenta', haveAccount: 'Ya tengo cuenta', newAgency: 'Crear una nueva agencia',
     expired: 'Tu sesión ha caducado. Vuelve a entrar.', passwordRule: 'Mínimo 8 caracteres',
     noKeysAdmin: 'Falta configurar las claves de Inmovilla. Como administrador puedes hacerlo desde tu perfil.',
-    noRestAdmin: 'Falta la clave REST de Inmovilla: se puede consultar, pero no crear ni modificar nada. Añádela en tu perfil.', noRestAgent: 'Falta la clave REST de Inmovilla: se puede consultar, pero no crear ni modificar nada. Pídesela al administrador.', 
-    noKeysAgent: 'La agencia aún no tiene configuradas las claves de Inmovilla. Pide al administrador que las añada.', goKeys: 'Configurar claves',
+    noRestAdmin: 'Falta la clave REST de Inmovilla: se puede consultar, pero no crear ni modificar nada. Añádela en tu perfil.', 
+    goKeys: 'Configurar claves',
   },
   profile: {
     title: 'Perfil', language: 'Idioma', theme: 'Tema', auto: 'Automático', light: 'Claro', dark: 'Oscuro', logout: 'Cerrar sesión', account: 'Mi cuenta',

@@ -15,7 +15,20 @@ const tailOf = (v) => (v && String(v).length >= 4 ? String(v).slice(-4) : '')
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
 const path = (context) => '/' + (context.params.route || []).join('/')
 
-const sessionPayload = (session, user, agency) => ({ ...session, user, agency })
+const sessionPayload = (session, user, agency) => ({ ...session, user, agency: forRole(agency, user?.role) })
+
+/**
+ * What a session is told about its agency's configuration.
+ *
+ * Only an administrator configures keys, and only after that does anyone get enrolled — so an
+ * agent has no use for the answer, and no business knowing the question exists. Their payload
+ * carries the agency, not the state of its secrets.
+ */
+export const forRole = (agency, role) => {
+  if (!agency || role === 'admin') return agency
+  const { hasApiweb, hasRest, hasAnthropic, hasKeys, ...rest } = agency
+  return rest
+}
 
 const validAccount = (b) => {
   if (!EMAIL_RE.test(String(b.email || ''))) return 'Email no válido'
@@ -81,7 +94,7 @@ export const onRequest = guard(async (context) => {
   if (session.response) return session.response
   const { user, agency } = session
 
-  if (route === '/me' && method === 'GET') return json({ user, agency })
+  if (route === '/me' && method === 'GET') return json({ user, agency: forRole(agency, user.role) })
 
   if (route === '/me' && method === 'PUT') {
     const b = await readJson(request)
@@ -99,7 +112,7 @@ export const onRequest = guard(async (context) => {
   if (route === '/agency' && method === 'GET') {
     // The last four characters of each secret, for administrators only. Enough to recognise which
     // key is in place — "is that the one I rotated?" — without the key ever leaving the server.
-    if (session.user.role !== 'admin') return json({ agency })
+    if (session.user.role !== 'admin') return json({ agency: forRole(agency, session.user.role) })
     const creds = await data.agencyCredentials(agency.id)
     return json({ agency: { ...agency, tails: { apiweb: tailOf(creds.password), rest: tailOf(creds.restToken), anthropic: tailOf(creds.anthropicKey) } } })
   }

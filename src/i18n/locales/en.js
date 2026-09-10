@@ -28,8 +28,8 @@ export default {
     yourName: 'Your name', signupCode: 'Signup code', create: 'Create account', haveAccount: 'I already have an account', newAgency: 'Create a new agency',
     expired: 'Your session expired. Please sign in again.', passwordRule: 'At least 8 characters',
     noKeysAdmin: 'The Inmovilla keys are not configured. As administrator you can set them from your profile.',
-    noRestAdmin: 'The Inmovilla REST key is missing: browsing works, but nothing can be created or changed. Add it in your profile.', noRestAgent: 'The Inmovilla REST key is missing: browsing works, but nothing can be created or changed. Ask your administrator for it.', 
-    noKeysAgent: 'The agency has not configured its Inmovilla keys yet. Ask the administrator to add them.', goKeys: 'Set up keys',
+    noRestAdmin: 'The Inmovilla REST key is missing: browsing works, but nothing can be created or changed. Add it in your profile.', 
+    goKeys: 'Set up keys',
   },
   profile: {
     title: 'Profile', language: 'Language', theme: 'Theme', auto: 'Automatic', light: 'Light', dark: 'Dark', logout: 'Log out', account: 'My account',

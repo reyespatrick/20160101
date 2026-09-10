@@ -293,7 +293,7 @@ async function reactivate() {
         <small v-if="savedEstimate?.at && auth.hasAnthropic && auth.hasApiweb" class="muted">{{ t('estimate.savedAt', { at: formatDate(savedEstimate.at) }) }}</small>
         <template v-else>
           <button type="button" class="btn" disabled>✦ {{ t('estimate.button') }}</button>
-          <small class="muted">{{ !auth.hasApiweb ? t('estimate.needsApiweb') : auth.isAdmin ? t('estimate.addKeyHint') : t('estimate.askAdmin') }}</small>
+          <small v-if="auth.isAdmin" class="muted">{{ !auth.hasApiweb ? t('estimate.needsApiweb') : t('estimate.addKeyHint') }}</small>
         </template>
       </div>
       <p v-if="p.syncError" class="alert">{{ t('props.detail.rejected', { msg: p.syncError }) }}</p>

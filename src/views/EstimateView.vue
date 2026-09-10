@@ -118,7 +118,7 @@ onMounted(async () => {
       <div v-else-if="error && !r" class="alert-block">
         <p class="alert" role="alert">{{ error }}</p>
         <RouterLink v-if="isAnthropicMissing && auth.isAdmin" :to="{ name: 'agency-keys' }" class="btn">{{ t('estimate.addKey') }}</RouterLink>
-        <p v-else-if="isAnthropicMissing" class="muted">{{ t('estimate.askAdmin') }}</p>
+
         <button v-else type="button" class="btn" @click="run">{{ t('common.retry') }}</button>
       </div>
 

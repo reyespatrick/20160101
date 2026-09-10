@@ -100,7 +100,6 @@ async function logout() {
       </RouterLink>
       <RouterLink :to="{ name: 'users' }" class="row"><span>👥 {{ t('profile.users') }}</span><span class="muted">›</span></RouterLink>
     </article>
-    <p v-else-if="!auth.hasKeys" class="alert alert-info">{{ t('auth.noKeysAgent') }}</p>
 
     <article class="block">
       <h2>{{ t('profile.account') }}</h2>

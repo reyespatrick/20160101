@@ -107,7 +107,13 @@ describe('accounts API', () => {
     agentToken = login.body.token
     expect((await call('/users', {}, agentToken)).status).toBe(403) // agents cannot manage users
     expect((await call('/agency', { method: 'PUT', body: JSON.stringify({ numagencia: '1' }) }, agentToken)).status).toBe(403)
-    expect((await call('/agency', {}, agentToken)).body.agency.hasKeys).toBe(true) // but can see that keys exist
+    // An agent is told nothing about the agency's keys — not even that there are any. Only an
+    // administrator configures them, and nobody is enrolled before that is done.
+    const asAgent = (await call('/agency', {}, agentToken)).body.agency
+    expect(asAgent.id).toBeTruthy() // the agency itself, minus anything about its secrets
+    for (const flag of ['hasKeys', 'hasApiweb', 'hasRest', 'hasAnthropic', 'tails']) expect(asAgent[flag]).toBeUndefined()
+    const asAdmin = (await call('/agency', {}, adminToken)).body.agency
+    expect(asAdmin.hasKeys).toBe(true)
     expect((await call(`/users/${agentId}`, { method: 'PUT', body: JSON.stringify({ role: 'readonly' }) }, adminToken)).body.user.role).toBe('readonly')
     const me = await call('/me', {}, adminToken)
     expect((await call(`/users/${me.body.user.id}`, { method: 'PUT', body: JSON.stringify({ role: 'agent' }) }, adminToken)).status).toBe(400) // last admin

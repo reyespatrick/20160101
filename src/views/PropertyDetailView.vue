@@ -151,7 +151,7 @@ onMounted(() => {
         <RouterLink v-if="auth.hasAnthropic && auth.hasApiweb" :to="{ name: 'estimate', params: { source: 'inmovilla', id: codOfer } }" class="btn">✦ {{ estimateLabel }}</RouterLink>
         <template v-else>
           <button type="button" class="btn" disabled>✦ {{ t('estimate.button') }}</button>
-          <small class="muted">{{ !auth.hasApiweb ? t('estimate.needsApiweb') : auth.isAdmin ? t('estimate.addKeyHint') : t('estimate.askAdmin') }}</small>
+          <small v-if="auth.isAdmin" class="muted">{{ !auth.hasApiweb ? t('estimate.needsApiweb') : t('estimate.addKeyHint') }}</small>
         </template>
       </div>
 

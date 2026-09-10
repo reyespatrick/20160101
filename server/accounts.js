@@ -18,9 +18,20 @@ export function createAccountsRouter({ verifyApiwebKey, verifyRestKey, verifyAnt
     if (String(b.password || '').length < 8) return 'La contraseña debe tener al menos 8 caracteres'
     return null
   }
+  /**
+   * What a session is told about its agency's configuration. Only an administrator configures
+   * keys, and nobody is enrolled before that is done: an agent has no use for the answer, and no
+   * business knowing the question exists.
+   */
+  const agencyPayload = (a, role) => {
+    if (!a) return null
+    const base = { id: a.id, name: a.name, numagencia: a.numagencia, idioma: a.idioma, readOnly: a.readOnly }
+    return role === 'admin' ? { ...base, hasKeys: a.hasKeys, hasApiweb: a.hasApiweb, hasRest: a.hasRest, hasAnthropic: a.hasAnthropic } : base
+  }
+
   const sessionPayload = (user) => {
     const agency = db.getAgency(user.agency_id)
-    return { ...signSession(user), user: db.publicUser(user), agency: { id: agency.id, name: agency.name, numagencia: agency.numagencia, idioma: agency.idioma, hasKeys: agency.hasKeys, hasApiweb: agency.hasApiweb, hasRest: agency.hasRest, hasAnthropic: agency.hasAnthropic, readOnly: agency.readOnly } }
+    return { ...signSession(user), user: db.publicUser(user), agency: agencyPayload(agency, user.role) }
   }
 
   /** Whether the server still has no users (first start). */
@@ -66,12 +77,13 @@ export function createAccountsRouter({ verifyApiwebKey, verifyRestKey, verifyAnt
   })
 
   /** Agency settings (admin): name, Inmovilla keys, Anthropic key. Keys are verified against their provider before being saved. */
-  const agencyView = (a) => ({ id: a.id, name: a.name, numagencia: a.numagencia, idioma: a.idioma, hasKeys: a.hasKeys, hasApiweb: a.hasApiweb, hasRest: a.hasRest, hasAnthropic: a.hasAnthropic, readOnly: a.readOnly })
+  const agencyView = agencyPayload
+
   /** The last four characters of a secret, or '' — enough to tell which key is in place. */
   const tailOf = (v) => (v && String(v).length >= 4 ? String(v).slice(-4) : '')
 
   router.get('/agency', requireUser, (req, res) => {
-    const agency = agencyView(db.getAgency(req.user.agency_id))
+    const agency = agencyView(db.getAgency(req.user.agency_id), req.user.role)
     // Administrators only: enough to recognise a key, never enough to use one.
     if (req.user.role !== 'admin') return res.json({ agency })
     const creds = db.agencyCredentials(req.user.agency_id)
@@ -116,7 +128,7 @@ export function createAccountsRouter({ verifyApiwebKey, verifyRestKey, verifyAnt
     // Inmovilla is the source of truth for the name; an explicit rename still wins.
     const name = b.name || discovered
     if (name) db.updateAgency(req.user.agency_id, { name: String(name).trim() })
-    res.json({ agency: agencyView(db.getAgency(req.user.agency_id)) })
+    res.json({ agency: agencyView(db.getAgency(req.user.agency_id), req.user.role) })
   })
 
   /** Users of the agency (admin). */
