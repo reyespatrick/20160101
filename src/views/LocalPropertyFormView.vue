@@ -2,13 +2,14 @@
 import { useI18n } from 'vue-i18n'
 import { computed, nextTick, onMounted, reactive, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
+import AddressSheet from '../components/AddressSheet.vue'
 import ChipGroup from '../components/ChipGroup.vue'
-import CityPicker from '../components/CityPicker.vue'
 import PhotoPicker from '../components/PhotoPicker.vue'
 import { ENERGY_RATINGS, FEATURES, OPERATIONS, completeness, emptyProperty, suggestRef, validateProperty } from '../models/property'
+import { findMunicipality, provinceOf } from '../data/andalucia'
 import { useEnumsStore } from '../stores/enums'
 import { useLocalPropertiesStore } from '../stores/localProperties'
-import { reverseGeocode } from '../api/geocode'
+import { cadastreByAddress, reverseGeocode } from '../api/geocode'
 import { searchClients } from '../api/inmovillaRest'
 import { useSettingsStore } from '../stores/settings'
 const { t } = useI18n()
@@ -39,32 +40,27 @@ watch(
   { deep: true },
 )
 
-const city = computed({
-  get: () => ({ key: form.cityKey, name: form.cityName }),
-  set: (v) => {
-    form.cityKey = v.key
-    form.cityName = v.name
-    if (v.key !== form.cityKey || !v.key) {
-      form.zoneKey = null
-    }
-    if (v.key) enums.ensureZonas(v.key)
-  },
-})
 const zoneOptions = computed(() => (form.cityKey ? enums.zoneOptions(form.cityKey) : []))
 const progress = computed(() => completeness(form))
 const typeOptions = computed(() => enums.typeOptions)
 const sentAlready = computed(() => form.status !== 'draft')
 
-/**
- * "Read the address": ask the device where it is, then let the relay turn that into a postal
- * address. Only fields the agent has not already typed are filled — a reading never overwrites
- * what someone entered on purpose.
- */
-const advancedOpen = ref(false)
-const ADVANCED_FIELDS = ['ref', 'cityKey', 'postalCode', 'yearBuilt', 'ownerEmail']
-const locating = ref('')   // '' | 'locating' | 'reading'
+// ---------------------------------------------------------------------------
+// Location: read from the GPS, or edited in the sheet. Never typed in the flow.
+// ---------------------------------------------------------------------------
+const sheetOpen = ref(false)
+const locating = ref('') // '' | 'locating' | 'reading'
 const locateError = ref('')
-const locatedLabel = ref('')
+const cadastre = ref('') // '' | 'looking' | 'ok' | 'none' | 'failed'
+
+/** The address as an agent would read it aloud: street line, then postcode, town and province. */
+const addressLines = computed(() => {
+  const street = [form.street, form.number].filter(Boolean).join(' ')
+  const town = [form.postalCode, form.cityName].filter(Boolean).join(' ')
+  const rest = [form.zoneName, provinceOf(form.province)?.label].filter(Boolean).join(' · ')
+  return [street, [town, rest].filter(Boolean).join(' · ')].filter(Boolean)
+})
+const hasAddress = computed(() => addressLines.value.length > 0)
 
 function currentPosition() {
   return new Promise((resolve, reject) => {
@@ -77,35 +73,26 @@ function currentPosition() {
   })
 }
 
+/**
+ * "GPS": what the device reads wins, every time. An agent presses it standing at the door, so a
+ * leftover address from a previous attempt is never what they meant — the whole block is replaced,
+ * cadastral reference included.
+ */
 async function readAddress() {
   locateError.value = ''
-  locatedLabel.value = ''
   locating.value = 'locating'
   try {
     const coords = await currentPosition()
     form.latitude = coords.latitude
     form.longitude = coords.longitude
     locating.value = 'reading'
-    const { address, cadastre } = await reverseGeocode({ lat: coords.latitude, lon: coords.longitude, lang: useSettingsStore().locale })
-    if (cadastre?.reference && !form.cadastralRef) form.cadastralRef = cadastre.reference
-    if (!form.street) form.street = address.street || ''
-    if (!form.number) form.number = address.number || ''
-    if (!form.postalCode) form.postalCode = address.postalCode || ''
-    if (!form.cityKey && address.city) {
-      // Show the name at once, then resolve Inmovilla's key for it. That lookup must not be
-      // awaited: the enums endpoint allows two calls a minute, so the store spaces them 31 s
-      // apart and the button would appear frozen.
-      city.value = { key: null, name: address.city }
-      enums
-        .ensureCiudades()
-        .then(() => {
-          if (form.cityKey || form.cityName !== address.city) return // the agent has moved on
-          const match = enums.searchCities(address.city, 1)[0]
-          if (match) city.value = { key: match.key_loca, name: match.ciudad }
-        })
-        .catch(() => {})
-    }
-    locatedLabel.value = address.label || cadastre?.label || ''
+    const { address, cadastre: plot } = await reverseGeocode({ lat: coords.latitude, lon: coords.longitude, lang: useSettingsStore().locale })
+    form.street = address.street || ''
+    form.number = address.number || ''
+    form.postalCode = address.postalCode || ''
+    setTown(address.city, address.province)
+    form.cadastralRef = plot?.reference || ''
+    cadastre.value = plot?.reference ? 'ok' : 'none'
   } catch (err) {
     locateError.value = err.code === 'nomatch' ? t('props.form.geoNoAddress') : err.message || t('props.form.geoFailed')
   } finally {
@@ -114,11 +101,100 @@ async function readAddress() {
 }
 
 /**
+ * The town the map provider named, matched against Andalusia's register. Outside it — testing
+ * from elsewhere, or a border town — the name is still kept: the draft lives on the device and
+ * must never be blocked by a list it was not meant to be in.
+ */
+function setTown(city, province) {
+  const hit = findMunicipality(city, province)
+  if (hit) {
+    form.province = hit.province
+    form.cityName = hit.municipality.l
+    form.cityCatastro = hit.municipality.c
+  } else {
+    form.cityName = city || ''
+    form.cityCatastro = ''
+  }
+  form.cityKey = null
+  form.zoneKey = null
+  resolveCityKey()
+}
+
+/**
+ * Inmovilla's key_loca for that town, looked up in the background. The enums endpoint allows two
+ * calls a minute and the store spaces them 31 s apart, so this is never awaited: a missing key
+ * costs nothing at save time, it is only needed when the listing is pushed.
+ */
+function resolveCityKey() {
+  const wanted = form.cityName
+  if (!wanted) return
+  enums
+    .ensureCiudades()
+    .then(() => {
+      if (form.cityName !== wanted || form.cityKey) return
+      const match = enums.searchCities(wanted, 1)[0]
+      if (match) {
+        form.cityKey = match.key_loca
+        enums.ensureZonas(match.key_loca)
+      }
+    })
+    .catch(() => {})
+}
+
+/** The sheet was validated: take its values, then ask the Catastro about the new address. */
+async function applyAddress(next) {
+  const townChanged = next.cityCatastro !== form.cityCatastro || next.cityName !== form.cityName
+  Object.assign(form, {
+    province: next.province,
+    cityName: next.cityName,
+    cityCatastro: next.cityCatastro,
+    zoneKey: next.zoneKey,
+    zoneName: next.zoneName,
+    street: next.street,
+    number: next.number,
+    postalCode: next.postalCode,
+    floor: next.floor,
+    cadastralRef: next.cadastralRef,
+  })
+  if (townChanged) {
+    form.cityKey = null
+    resolveCityKey()
+  }
+  sheetOpen.value = false
+  await refreshCadastre()
+}
+
+/**
+ * The plot reference, refreshed from the address itself. The Catastro answers on province, town,
+ * street and number, so there is no need to turn the address back into coordinates first.
+ */
+async function refreshCadastre() {
+  const province = provinceOf(form.province)
+  if (!province || !form.cityCatastro || !form.street || !form.number) {
+    cadastre.value = ''
+    return
+  }
+  cadastre.value = 'looking'
+  try {
+    const plot = await cadastreByAddress({ province: province.catastro, city: form.cityCatastro, street: form.street, number: form.number })
+    if (plot?.reference) {
+      form.cadastralRef = plot.reference
+      if (plot.postalCode) form.postalCode = plot.postalCode
+      cadastre.value = 'ok'
+    } else {
+      cadastre.value = 'none'
+    }
+  } catch {
+    cadastre.value = 'failed'
+  }
+}
+
+/**
  * The owner is looked up by phone before anything is typed: Inmovilla offers no way to list
  * contacts, so the number is the only way to tell an existing owner from a new one — and the
  * only way to avoid creating a duplicate.
  */
-const ownerLookup = ref('')  // '' | 'searching' | 'found' | 'none'
+const ownerLookup = ref('') // '' | 'searching' | 'found' | 'none'
 const ownerError = ref('')
 
 async function findOwner() {
@@ -159,6 +235,10 @@ function newOwner() {
   ownerLookup.value = 'none'
 }
 
+const advancedOpen = ref(false)
+const ADVANCED_FIELDS = ['yearBuilt']
+const SHEET_FIELDS = ['cityName', 'postalCode']
+
 onMounted(async () => {
   await store.ensureLoaded()
   enums.restore()
@@ -189,10 +269,6 @@ function onTypeChange(e) {
   form.typeKey = e.target.value ? Number(e.target.value) : null
   form.typeName = enums.label('key_tipo', form.typeKey)
 }
-function onZoneChange(e) {
-  form.zoneKey = e.target.value ? Number(e.target.value) : null
-  form.zoneName = form.zoneKey ? zoneOptions.value.find((z) => z.key_zona === form.zoneKey)?.zona || '' : form.zoneName
-}
 
 async function addFiles(files) {
   for (const file of files) {
@@ -213,10 +289,11 @@ async function submit() {
   errors.value = validateProperty(form)
   if (refCheck.value === 'taken') errors.value.ref = t('props.form.refExists')
   if (Object.keys(errors.value).length) {
-    // A field the agent cannot see cannot be fixed: open the accordion when the problem is inside it.
+    // A field the agent cannot see cannot be fixed: open whatever hides the problem.
     if (ADVANCED_FIELDS.some((f) => errors.value[f])) advancedOpen.value = true
+    if (SHEET_FIELDS.some((f) => errors.value[f])) sheetOpen.value = true
     await nextTick()
-    document.querySelector('.field.invalid input, .field.invalid select, .invalid-chips, .city input.invalid')?.scrollIntoView({ block: 'center' })
+    document.querySelector('.field.invalid input, .field.invalid select, .invalid-chips')?.scrollIntoView({ block: 'center' })
     return
   }
   saving.value = true
@@ -256,15 +333,17 @@ async function cancel() {
 
       <!-- L'essentiel : ce qu'on peut saisir devant la porte, en trois minutes -->
       <fieldset>
-        <legend class="legend-row">
-          <span>{{ t('props.form.essentials') }}</span>
-          <button type="button" class="btn btn-ghost small" :disabled="Boolean(locating)" @click="readAddress">
-            <svg viewBox="0 0 24 24" aria-hidden="true" class="pin"><path d="M12 21s7-6.2 7-11a7 7 0 10-14 0c0 4.8 7 11 7 11z" fill="none" stroke="currentColor" stroke-width="2" /><circle cx="12" cy="10" r="2.5" fill="none" stroke="currentColor" stroke-width="2" /></svg>
-            {{ locating === 'locating' ? t('props.form.locating') : locating === 'reading' ? t('props.form.reading') : t('props.form.readAddress') }}
-          </button>
-        </legend>
-        <p v-if="locateError" class="alert geo">{{ locateError }}</p>
-        <p v-else-if="locatedLabel" class="muted geo-ok">{{ locatedLabel }}</p>
+        <div class="field" :class="{ invalid: errors.ref }">
+          <label for="ref">{{ t('props.form.ref') }} * <small class="muted">{{ t('props.form.refHint') }}</small></label>
+          <div class="ref-row">
+            <input id="ref" v-model.trim="form.ref" :readonly="sentAlready" autocapitalize="characters" @blur="checkRef" />
+            <span v-if="refCheck === 'checking'" class="muted">{{ t('props.form.checking') }}</span>
+            <span v-else-if="refCheck === 'ok'" class="ok">{{ t('props.form.available') }}</span>
+            <span v-else-if="refCheck === 'taken'" class="err">{{ t('props.form.taken') }}</span>
+          </div>
+          <small v-if="errors.ref" class="err">{{ errors.ref }}</small>
+          <small v-else-if="sentAlready" class="muted">{{ t('props.form.refLocked') }}</small>
+        </div>
 
         <h3 class="sub">{{ t('props.form.theProperty') }}</h3>
         <div class="field" :class="{ invalid: errors.typeKey }">
@@ -304,6 +383,34 @@ async function cancel() {
           <small v-if="errors.conservation" class="err">{{ errors.conservation }}</small>
         </div>
 
+        <!-- Localisation : lue au GPS, corrigée dans une feuille qui monte du bas -->
+        <h3 class="sub sub-row">
+          <span>{{ t('props.form.location') }} *</span>
+          <span class="loc-actions">
+            <button type="button" class="btn btn-ghost small" :disabled="Boolean(locating)" @click="readAddress">
+              <svg viewBox="0 0 24 24" aria-hidden="true" class="pin"><path d="M12 21s7-6.2 7-11a7 7 0 10-14 0c0 4.8 7 11 7 11z" fill="none" stroke="currentColor" stroke-width="2" /><circle cx="12" cy="10" r="2.5" fill="none" stroke="currentColor" stroke-width="2" /></svg>
+              {{ locating === 'locating' ? t('props.form.locating') : locating === 'reading' ? t('props.form.reading') : t('props.form.gps') }}
+            </button>
+            <button type="button" class="btn btn-ghost small" @click="sheetOpen = true">
+              <svg viewBox="0 0 24 24" aria-hidden="true" class="pin"><path d="M4 20h4l10-10-4-4L4 16zM14.5 5.5l4 4" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round" /></svg>
+              {{ t('props.form.editAddress') }}
+            </button>
+          </span>
+        </h3>
+        <div class="address" :class="{ invalid: errors.cityName || errors.postalCode }">
+          <template v-if="hasAddress">
+            <p v-for="(line, i) in addressLines" :key="i" :class="i === 0 ? 'line-1' : 'line-2'">{{ line }}</p>
+            <p v-if="form.cadastralRef" class="cadastral">{{ t('props.form.cadastral') }} · {{ form.cadastralRef }}</p>
+          </template>
+          <p v-else class="muted">{{ t('props.form.noAddress') }}</p>
+          <p v-if="cadastre === 'looking'" class="muted small-note">{{ t('props.form.cadastralLooking') }}</p>
+          <p v-else-if="cadastre === 'none'" class="muted small-note">{{ t('props.form.cadastralNone') }}</p>
+          <p v-else-if="cadastre === 'failed'" class="err small-note">{{ t('props.form.cadastralFailed') }}</p>
+        </div>
+        <small v-if="errors.cityName" class="err">{{ errors.cityName }}</small>
+        <small v-else-if="errors.postalCode" class="err">{{ errors.postalCode }}</small>
+        <p v-if="locateError" class="alert geo">{{ locateError }}</p>
+
         <h3 class="sub">{{ t('props.form.owner') }}</h3>
 
         <div class="field" :class="{ invalid: errors.ownerPhone }">
@@ -338,6 +445,11 @@ async function cancel() {
             <small v-if="errors.ownerSurname" class="err">{{ errors.ownerSurname }}</small>
           </div>
         </div>
+        <div class="field" :class="{ invalid: errors.ownerEmail }">
+          <label for="ownerEmail">{{ t('props.form.ownerEmail') }}</label>
+          <input id="ownerEmail" v-model.trim="form.ownerEmail" type="email" inputmode="email" autocomplete="email" />
+          <small v-if="errors.ownerEmail" class="err">{{ errors.ownerEmail }}</small>
+        </div>
 
         <h3 class="sub">{{ t('props.form.photos') }} *</h3>
         <PhotoPicker v-model="form.photos" :urls="store.photoUrls" :add-files="addFiles" :remove-photo="removePhoto" />
@@ -350,71 +462,6 @@ async function cancel() {
           <span>{{ t('props.form.advanced') }}</span>
           <small class="muted">{{ t('props.form.advancedHint') }}</small>
         </summary>
-
-        <fieldset>
-          <legend>{{ t('props.form.refOp') }}</legend>
-          <div class="field" :class="{ invalid: errors.ref }">
-            <label for="ref">{{ t('props.form.ref') }} * <small class="muted">{{ t('props.form.refHint') }}</small></label>
-            <div class="ref-row">
-              <input id="ref" v-model.trim="form.ref" :readonly="sentAlready" autocapitalize="characters" @blur="checkRef" />
-              <span v-if="refCheck === 'checking'" class="muted">{{ t('props.form.checking') }}</span>
-              <span v-else-if="refCheck === 'ok'" class="ok">{{ t('props.form.available') }}</span>
-              <span v-else-if="refCheck === 'taken'" class="err">{{ t('props.form.taken') }}</span>
-            </div>
-            <small v-if="errors.ref" class="err">{{ errors.ref }}</small>
-            <small v-else-if="sentAlready" class="muted">{{ t('props.form.refLocked') }}</small>
-          </div>
-          <div class="field">
-            <label for="publish">{{ t('props.form.publish') }}</label>
-            <select id="publish" v-model="form.publish">
-              <option :value="null">{{ t('props.form.publishDefault') }}</option>
-              <option v-for="o in enums.options('eninternet')" :key="o.value" :value="o.value">{{ o.label }}</option>
-            </select>
-          </div>
-        </fieldset>
-
-        <fieldset>
-          <legend>{{ t('props.form.typeLocation') }}</legend>
-          <div class="field" :class="{ invalid: errors.cityKey }">
-            <label>{{ t('props.form.city') }} *</label>
-            <CityPicker v-model="city" :invalid="Boolean(errors.cityKey)" />
-            <small v-if="errors.cityKey" class="err">{{ errors.cityKey }}</small>
-          </div>
-          <div class="field">
-            <label for="zone">{{ t('props.form.zone') }}</label>
-            <select v-if="zoneOptions.length" id="zone" :value="form.zoneKey ?? ''" @change="onZoneChange">
-              <option value="">{{ t('props.form.noZone') }}</option>
-              <option v-for="z in zoneOptions" :key="z.key_zona" :value="z.key_zona">{{ z.zona }}</option>
-            </select>
-            <input v-else id="zone" v-model.trim="form.zoneName" :placeholder="form.cityKey && enums.loading.zonas ? t('props.form.loadingZones') : t('props.form.zoneName')" />
-          </div>
-          <div class="two">
-            <div class="field grow">
-              <label for="street">{{ t('props.form.street') }}</label>
-              <input id="street" v-model.trim="form.street" autocomplete="street-address" />
-            </div>
-            <div class="field">
-              <label for="number">{{ t('props.form.number') }}</label>
-              <input id="number" v-model.trim="form.number" />
-            </div>
-          </div>
-          <div class="two">
-            <div class="field" :class="{ invalid: errors.postalCode }">
-              <label for="cp">{{ t('props.form.cp') }}</label>
-              <input id="cp" v-model.trim="form.postalCode" inputmode="numeric" autocomplete="postal-code" />
-              <small v-if="errors.postalCode" class="err">{{ errors.postalCode }}</small>
-            </div>
-            <div class="field">
-              <label for="floor">{{ t('props.form.floor') }}</label>
-              <input id="floor" v-model.number="form.floor" type="number" inputmode="numeric" min="-5" max="200" />
-            </div>
-          </div>
-          <div class="field">
-            <label for="cadastral">{{ t('props.form.cadastral') }}</label>
-            <input id="cadastral" v-model.trim="form.cadastralRef" autocapitalize="characters" :placeholder="t('props.form.cadastralPh')" />
-            <small class="muted">{{ t('props.form.cadastralHint') }}</small>
-          </div>
-        </fieldset>
 
         <fieldset>
           <legend>{{ t('props.form.characteristics') }}</legend>
@@ -454,24 +501,11 @@ async function cancel() {
         </fieldset>
 
         <fieldset>
-          <legend>{{ t('props.form.titleDesc') }}</legend>
-          <div class="field">
-            <label for="title">{{ t('props.form.titleField') }}</label>
-            <input id="title" v-model.trim="form.title" :placeholder="t('props.form.titlePh')" maxlength="160" />
-          </div>
+          <legend>{{ t('props.form.descField') }}</legend>
           <div class="field">
             <label for="description">{{ t('props.form.descField') }}</label>
             <textarea id="description" v-model="form.description" rows="6" :placeholder="t('props.form.descPh')"></textarea>
             <small class="muted">{{ t('props.form.chars', { n: form.description.length }) }}</small>
-          </div>
-        </fieldset>
-
-        <fieldset>
-          <legend>{{ t('props.form.owner') }} <small class="muted">{{ t('props.form.ownerHint') }}</small></legend>
-          <div class="field" :class="{ invalid: errors.ownerEmail }">
-            <label for="ownerEmail">{{ t('props.form.ownerEmail') }}</label>
-            <input id="ownerEmail" v-model.trim="form.ownerEmail" type="email" inputmode="email" />
-            <small v-if="errors.ownerEmail" class="err">{{ errors.ownerEmail }}</small>
           </div>
           <div class="field">
             <label for="notes">{{ t('props.form.notes') }} <small class="muted">{{ t('props.form.notesHint') }}</small></label>
@@ -482,6 +516,8 @@ async function cancel() {
 
       <p v-if="errors.form" class="alert">{{ errors.form }}</p>
     </form>
+
+    <AddressSheet :open="sheetOpen" :address="form" :zone-options="zoneOptions" @save="applyAddress" @close="sheetOpen = false" />
 
     <div v-if="!notFound" class="save-bar">
       <button type="submit" form="property-form" class="btn save" :disabled="saving || refCheck === 'checking'">
@@ -494,6 +530,17 @@ async function cancel() {
 <style scoped>
 .sub { margin: 1.1rem 0 0.2rem; font-size: 0.82rem; font-weight: 700; color: var(--muted); text-transform: uppercase; letter-spacing: 0.05em; }
 .sub:first-of-type { margin-top: 0; }
+.sub-row { display: flex; align-items: center; justify-content: space-between; gap: 0.5rem; flex-wrap: wrap; }
+.loc-actions { display: flex; gap: 0.4rem; }
+.loc-actions .small, .phone-row .small { padding: 0.4rem 0.7rem; font-size: 0.82rem; font-weight: 600; white-space: nowrap; }
+.pin { width: 15px; height: 15px; }
+.address { border: 1px solid var(--border); border-radius: 10px; padding: 0.75rem 0.9rem; background: var(--surface-2); }
+.address.invalid { border-color: var(--danger); }
+.address p { margin: 0; }
+.address .line-1 { font-weight: 700; font-size: 1.02rem; }
+.address .line-2 { color: var(--muted); font-size: 0.9rem; margin-top: 0.1rem; }
+.address .cadastral { margin-top: 0.35rem; font-size: 0.78rem; color: var(--muted); font-variant-numeric: tabular-nums; }
+.address .small-note { margin-top: 0.35rem; font-size: 0.8rem; }
 .advanced { border: 1px solid var(--border); border-radius: var(--radius); background: var(--surface); margin-bottom: 1rem; }
 .advanced > summary { display: flex; align-items: baseline; gap: 0.5rem; flex-wrap: wrap; padding: 1rem 1.2rem; min-height: 48px; font-weight: 700; cursor: pointer; list-style: none; }
 .advanced > summary::-webkit-details-marker { display: none; }
@@ -501,14 +548,9 @@ async function cancel() {
 .advanced[open] > summary::before { transform: rotate(90deg); }
 .advanced > summary small { font-weight: 400; font-size: 0.82rem; }
 .advanced fieldset { border-top: 1px solid var(--border); border-radius: 0; box-shadow: none; margin: 0; }
-.legend-row { display: flex; align-items: center; justify-content: space-between; gap: 0.75rem; width: 100%; }
-.legend-row .small { padding: 0.4rem 0.7rem; font-size: 0.82rem; font-weight: 600; white-space: nowrap; }
-.pin { width: 16px; height: 16px; }
-.geo { margin: 0 0 0.75rem; }
-.geo-ok { margin: -0.25rem 0 0.75rem; font-size: 0.82rem; }
+.geo { margin: 0.5rem 0 0; }
 .phone-row { display: flex; gap: 0.5rem; align-items: stretch; }
 .phone-row input { flex: 1; min-width: 0; }
-.phone-row .small { padding: 0 0.8rem; font-size: 0.85rem; font-weight: 600; white-space: nowrap; }
 .lookup { display: flex; flex-wrap: wrap; align-items: center; gap: 0.5rem; padding: 0.6rem 0.8rem; border-radius: 10px; font-size: 0.88rem; margin-bottom: 0.25rem; }
 .lookup.found { background: var(--ok-bg); color: var(--ok); }
 .lookup.none { background: var(--surface-2); color: var(--brand-dark); }

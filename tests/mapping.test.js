@@ -69,7 +69,10 @@ describe('property mapping', () => {
     expect(validateProperty(prop({ ...complete, ownerName: '' }))).toHaveProperty('ownerName')
     expect(validateProperty(prop({ ...complete, ownerSurname: '  ' }))).toHaveProperty('ownerSurname')
     expect(validateProperty(prop({ ...complete, typeKey: null }))).toHaveProperty('typeKey')
-    expect(validateProperty(prop({ ...complete, cityKey: null }))).toHaveProperty('cityKey')
+    // The town only has to be named: Inmovilla's key_loca is resolved in the background, and a
+    // draft written in front of the door must not wait for it.
+    expect(validateProperty(prop({ ...complete, cityName: '' }))).toHaveProperty('cityName')
+    expect(validateProperty(prop({ ...complete, cityKey: null }))).toEqual({})
     expect(validateProperty(prop({ ...complete, ref: 'a b' }))).toHaveProperty('ref')
     expect(validateProperty(prop({ ...complete, operation: 2, priceRent: null }))).toHaveProperty('priceRent')
     expect(suggestRef('APP')).toMatch(/^APP-\d{6}-[A-Z0-9]{3}$/)

@@ -134,3 +134,167 @@ export async function reverseGeocode({ lat, lon, lang = 'es', env = {} }) {
   if (payload?.error) return null
   return fromNominatim(payload)
 }
+
+/**
+ * The plot reference from a typed address, no map provider in between.
+ *
+ * The Catastro answers `Consulta_DNPLOC` with the referencia catastral of a street number, which
+ * is exactly what the address sheet has to hand — asking a geocoder for coordinates first would
+ * add a hop, a key and a rounding error for nothing.
+ *
+ * Two things it is fussy about: the province and municipality must be spelled as its own register
+ * spells them (src/data/andalucia.js carries that spelling), and `Sigla` — the street type — is
+ * mandatory: sent empty, an address that exists answers "NO EXISTE NINGÚN INMUEBLE".
+ */
+const CALLEJERO_URL = 'https://ovc.catastro.meh.es/OVCServWeb/OVCWcfCallejero/COVCCallejero.svc/json'
+
+/** Street types as they are written in Spanish, French and English, mapped to the register's code. */
+const SIGLAS = [
+  [/^(av|avd|avda|avenida|avenue)\b/i, 'AV'],
+  [/^(cl|c|calle|carrer|rue|street)\b/i, 'CL'],
+  [/^(pz|pl|plaza|placa|place)\b/i, 'PZ'],
+  [/^(ps|paseo|promenade)\b/i, 'PS'],
+  [/^(cm|camino|chemin|ch)\b/i, 'CM'],
+  [/^(cr|ctra|carretera|route)\b/i, 'CR'],
+  [/^(ur|urb|urbanizacion|urbanización)\b/i, 'UR'],
+  [/^(tr|travesia|travesía)\b/i, 'TR'],
+  [/^(rd|ronda)\b/i, 'RD'],
+  [/^(gl|glorieta)\b/i, 'GL'],
+  [/^(pj|pasaje)\b/i, 'PJ'],
+  [/^(bo|barrio)\b/i, 'BO'],
+  [/^(pg|poligono|polígono)\b/i, 'PG'],
+]
+
+export function plainUpper(s) {
+  return String(s ?? '')
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toUpperCase()
+    .replace(/\s+/g, ' ')
+    .trim()
+}
+
+/** Split "Avenida Ricardo Soriano" into { sigla: 'AV', name: 'RICARDO SORIANO' }. */
+export function splitStreet(street) {
+  const plain = plainUpper(street).replace(/\./g, '')
+  for (const [re, sigla] of SIGLAS) {
+    const m = plain.match(re)
+    if (m) return { sigla, name: plain.slice(m[0].length).trim() || plain }
+  }
+  return { sigla: 'CL', name: plain }
+}
+
+async function catastro(path, params) {
+  const query = Object.entries(params)
+    .map(([k, v]) => `${k}=${encodeURIComponent(v ?? '')}`)
+    .join('&')
+  const call = () =>
+    withTimeout(async (signal) => {
+      const res = await fetch(`${CALLEJERO_URL}/${path}?${query}`, {
+        signal,
+        headers: { 'User-Agent': USER_AGENT, Accept: 'application/json' },
+      })
+      return { status: res.status, text: await res.text() }
+    })
+  // The Catastro drops a connection now and then; one retry turns that into a non-event.
+  const { status, text } = await call().catch(() => call())
+  try {
+    return JSON.parse(text)
+  } catch {
+    const plain = text.replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 160)
+    throw Object.assign(new Error(`Catastro ${status}: ${plain || 'respuesta ilegible'}`), { status: 502 })
+  }
+}
+
+/**
+ * The 14 characters that name the plot; every unit in the building shares them.
+ *
+ * The register answers in two shapes and neither is announced: `bico` when the number holds a
+ * single property, `lrcdnp` when it holds several (a block of flats, where each unit is listed).
+ * Both carry the same plot, so either is read the same way.
+ */
+export function fromDnploc(payload) {
+  const result = payload?.consulta_dnplocResult
+  if (!result || result.control?.cuerr) return null
+  const single = result.bico?.bi
+  const list = result.lrcdnp?.rcdnp
+  const hit = single || (Array.isArray(list) ? list[0] : list)
+  const rc = hit?.rc || hit?.idbi?.rc
+  if (!rc?.pc1 || !rc?.pc2) return null
+  const urban = hit.dt?.locs?.lous?.lourb || {}
+  const dir = urban.dir || {}
+  return {
+    reference: `${rc.pc1}${rc.pc2}`,
+    label: (hit.ldt || dir.td || '').trim(),
+    street: [dir.tv, dir.nv].filter(Boolean).join(' ').trim(),
+    number: dir.pnp || '',
+    postalCode: urban.dp || '',
+  }
+}
+
+/**
+ * Ask the register how it writes that street, so a second attempt can use its own words.
+ *
+ * `ObtenerCallejero` ignores its own NombreVia filter and always answers the municipality's
+ * whole street list — 900 KB for Málaga — so it is fetched once, briefly cached, and every
+ * attempt at matching happens in memory. The register files streets under their bare name
+ * ("Avenida de la Constitución" is CONSTITUCION), hence the leading articles peeled off in turn.
+ */
+const ARTICLES = /^(de|del|la|las|los|el|l)\s+/i
+const callejeroCache = new Map()
+const CALLEJERO_TTL_MS = 10 * 60 * 1000
+
+async function callejero(province, municipality) {
+  const key = `${province}|${municipality}`
+  const cached = callejeroCache.get(key)
+  if (cached && Date.now() - cached.at < CALLEJERO_TTL_MS) return cached.streets
+  const payload = await catastro('ObtenerCallejero', { Provincia: province, Municipio: municipality, TipoVia: '', NombreVia: '' })
+  const result = payload?.consulta_callejeroResult
+  const list = result?.control?.cuerr ? null : result?.callejero?.calle
+  const streets = (Array.isArray(list) ? list : [list]).filter(Boolean).map((c) => c.dir).filter((d) => d?.nv)
+  if (callejeroCache.size > 8) callejeroCache.clear()
+  callejeroCache.set(key, { at: Date.now(), streets })
+  return streets
+}
+
+async function findStreet({ province, municipality, name }) {
+  const streets = await callejero(province, municipality)
+  if (!streets.length) return null
+  let wanted = plainUpper(name)
+  for (let i = 0; i < 4 && wanted; i += 1) {
+    const hit =
+      streets.find((d) => plainUpper(d.nv) === wanted) ||
+      streets.find((d) => plainUpper(d.nv).startsWith(`${wanted} `)) ||
+      streets.find((d) => plainUpper(d.nv).includes(wanted))
+    if (hit) return hit
+    const shorter = wanted.replace(ARTICLES, '')
+    if (shorter === wanted) return null
+    wanted = shorter
+  }
+  return null
+}
+
+export async function cadastralByAddress({ province, municipality, street, number, env = {} }) {
+  if (!province || !municipality || !street || !number) return null
+  const ask = (sigla, name) =>
+    catastro('Consulta_DNPLOC', {
+      Provincia: plainUpper(province),
+      Municipio: plainUpper(municipality),
+      Sigla: sigla,
+      Calle: name,
+      Numero: String(number).replace(/\D/g, '') || String(number),
+      Bloque: '',
+      Escalera: '',
+      Planta: '',
+      Puerta: '',
+    })
+
+  const guess = splitStreet(street)
+  const first = fromDnploc(await ask(guess.sigla, guess.name))
+  if (first) return first
+
+  // The guess was wrong about the type or the wording; let the register name the street itself.
+  const known = await findStreet({ province: plainUpper(province), municipality: plainUpper(municipality), name: guess.name })
+  if (!known) return null
+  return fromDnploc(await ask(known.tv, plainUpper(known.nv)))
+}

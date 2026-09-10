@@ -102,3 +102,78 @@ describe('owner completeness', () => {
     expect(ownerIsComplete(null)).toBe(false)
   })
 })
+
+/**
+ * The address sheet asks the cadastre about a typed address rather than about coordinates, so
+ * these pin the two things that made the live calls fail: the street type the register insists
+ * on, and the fact that it answers in two unannounced shapes.
+ */
+describe('cadastre by address', () => {
+  it('reads the street type out of what the agent typed', async () => {
+    const { splitStreet } = await import('../shared/geocode.js')
+    expect(splitStreet('Avenida Ricardo Soriano')).toEqual({ sigla: 'AV', name: 'RICARDO SORIANO' })
+    expect(splitStreet('Calle Marqués de Larios')).toEqual({ sigla: 'CL', name: 'MARQUES DE LARIOS' })
+    expect(splitStreet('Plaza de la Constitución')).toEqual({ sigla: 'PZ', name: 'DE LA CONSTITUCION' })
+    expect(splitStreet('Camino de Ronda')).toEqual({ sigla: 'CM', name: 'DE RONDA' })
+    // No type at all: the register's commonest one, and the name kept whole.
+    expect(splitStreet('Los Naranjos')).toEqual({ sigla: 'CL', name: 'LOS NARANJOS' })
+  })
+
+  it('reads the plot out of either answer shape', async () => {
+    const { fromDnploc } = await import('../shared/geocode.js')
+    // One property at that number: the register answers `bico`.
+    const single = {
+      consulta_dnplocResult: {
+        control: { cudnp: 1 },
+        bico: {
+          bi: {
+            idbi: { rc: { pc1: '3148206', pc2: 'UF7634N', car: '0001' } },
+            dt: { locs: { lous: { lourb: { dir: { tv: 'CL', nv: 'MARQUES DE LARIOS', pnp: '5' }, dp: '29015' } } } },
+            ldt: 'CL MARQUES DE LARIOS 5 29015 MALAGA (MÁLAGA)',
+          },
+        },
+      },
+    }
+    expect(fromDnploc(single)).toMatchObject({ reference: '3148206UF7634N', postalCode: '29015', street: 'CL MARQUES DE LARIOS', number: '5' })
+
+    // A block of flats: every unit is listed under `lrcdnp`, all on the same plot.
+    const many = {
+      consulta_dnplocResult: {
+        control: { cudnp: 234 },
+        lrcdnp: {
+          rcdnp: [
+            { rc: { pc1: '1024212', pc2: 'UF3412S', car: '0001' }, dt: { locs: { lous: { lourb: { dir: { tv: 'AV', nv: 'RICARDO SORIANO', pnp: '20', td: 'ED RICARDO SORIANO 20' }, dp: '29601' } } } } },
+            { rc: { pc1: '1024212', pc2: 'UF3412S', car: '0002' }, dt: {} },
+          ],
+        },
+      },
+    }
+    expect(fromDnploc(many)).toMatchObject({ reference: '1024212UF3412S', label: 'ED RICARDO SORIANO 20', postalCode: '29601' })
+
+    expect(fromDnploc({ consulta_dnplocResult: { control: { cuerr: 1 }, lerr: [{ cod: '5' }] } })).toBe(null)
+    expect(fromDnploc(null)).toBe(null)
+  })
+
+  it('needs the whole address before it asks anything', async () => {
+    const { cadastralByAddress } = await import('../shared/geocode.js')
+    expect(await cadastralByAddress({ province: 'MALAGA', municipality: 'MARBELLA', street: '', number: '20' })).toBe(null)
+    expect(await cadastralByAddress({ province: 'MALAGA', municipality: '', street: 'Av Ricardo Soriano', number: '20' })).toBe(null)
+    expect(await cadastralByAddress({ province: 'MALAGA', municipality: 'MARBELLA', street: 'Av Ricardo Soriano', number: '' })).toBe(null)
+  })
+})
+
+/** The town list the address sheet offers: generated from the register, matched loosely. */
+describe('Andalusia', () => {
+  it('matches what a map provider calls a town against the register', async () => {
+    const { DEFAULT_PROVINCE, findMunicipality, municipalitiesOf } = await import('../src/data/andalucia.js')
+    expect(DEFAULT_PROVINCE).toBe('29')
+    expect(municipalitiesOf('29')).toHaveLength(103)
+    expect(findMunicipality('Marbella', 'Málaga')).toMatchObject({ province: '29', municipality: { c: 'MARBELLA', l: 'Marbella' } })
+    // Accents and hyphens differ between the provider and the register; both are flattened.
+    expect(findMunicipality('Vélez-Málaga', '')).toMatchObject({ province: '29' })
+    expect(findMunicipality('Alcaucín', 'MALAGA')).toMatchObject({ municipality: { c: 'ALCAUCIN' } })
+    // Outside Andalusia the draft keeps the name it was given, so no match is the right answer.
+    expect(findMunicipality('Versoix', 'Genève')).toBe(null)
+    expect(findMunicipality('', 'Málaga')).toBe(null)
+  })
+})

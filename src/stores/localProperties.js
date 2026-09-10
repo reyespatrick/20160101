@@ -6,6 +6,7 @@ import { emptyProperty, matchesProperty, newId } from '../models/property'
 import { pendingRecords } from '../sync/outbox'
 import { resizeImage } from '../utils/image'
 import { useAuthStore } from './auth'
+import { useEnumsStore } from './enums'
 
 /**
  * Listings created in the app. Drafted on the device (IndexedDB, photos as blobs),
@@ -245,10 +246,23 @@ export const useLocalPropertiesStore = defineStore('localProperties', {
         urls.push(meta.publicUrl)
       }
       // 2. create / update the listing
+      // Inmovilla identifies the town by key_loca and refuses a listing without it. A draft is
+      // allowed to carry only the town's name — an agent at the door should never be stopped by
+      // a code — so the code is resolved here, at the one moment it becomes mandatory.
       const { dirty, syncError, ...payload } = record
+      if (!payload.cityKey && payload.cityName) {
+        const enums = useEnumsStore()
+        await enums.ensureCiudades().catch(() => {})
+        const match = enums.searchCities(payload.cityName, 1)[0]
+        if (!match) {
+          throw Object.assign(new Error(`Inmovilla no conoce la ciudad «${payload.cityName}»; elige otra en la dirección`), { status: 400 })
+        }
+        payload.cityKey = match.key_loca
+      }
       await saveProperty(payload, urls)
       const status = record.unavailable ? 'unavailable' : 'sent'
-      await propertiesDb.markSynced(agency, record.id, { status, sentAt: Date.now() })
+      // Keep the town code that was just resolved: the listing now exists in Inmovilla under it.
+      await propertiesDb.markSynced(agency, record.id, { status, sentAt: Date.now(), cityKey: payload.cityKey })
       this.items = await propertiesDb.all(agency)
       // 3./4. cod_ofer and owner (best effort; retried on later syncs)
       const fresh = this.items.find((p) => p.id === record.id)

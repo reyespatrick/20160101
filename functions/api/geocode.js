@@ -4,13 +4,25 @@
  */
 import { authenticate } from '../_shared/auth.js'
 import { fail, guard, json, readJson } from '../_shared/http.js'
-import { cadastralReference, reverseGeocode } from '../../shared/geocode.js'
+import { cadastralByAddress, cadastralReference, reverseGeocode } from '../../shared/geocode.js'
 
 export const onRequestPost = guard(async (context) => {
   const session = await authenticate(context)
   if (session.response) return session.response
 
-  const { lat, lon, lang } = await readJson(context.request, 4096)
+  const { lat, lon, lang, address: typed } = await readJson(context.request, 4096)
+
+  // Address sheet: the plot reference straight from a typed address, no map provider involved.
+  if (typed) {
+    const cadastre = await cadastralByAddress({
+      province: typed.province,
+      municipality: typed.city,
+      street: typed.street,
+      number: typed.number,
+      env: context.env,
+    })
+    return json({ address: {}, cadastre })
+  }
   // Both in one round trip: the map provider for the postal address, the Spanish cadastre for
   // the plot reference. Either may come back empty without failing the other.
   let cadastreError = null

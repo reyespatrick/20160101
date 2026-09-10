@@ -21,7 +21,7 @@ import { createAccountsRouter } from './accounts.js'
 import { canDelete, canWrite, requireUser } from './auth.js'
 import * as db from './db.js'
 import { estimateProperty, verifyAnthropicKey } from './estimate.js'
-import { cadastralReference, reverseGeocode } from '../shared/geocode.js'
+import { cadastralByAddress, cadastralReference, reverseGeocode } from '../shared/geocode.js'
 import { buildFormBody, createRateLimiter, headerValue, normalizeRequest, parseApiResponse } from './inmovilla.js'
 import { mockResponse } from './mock.js'
 import { createMockRest } from './mockRest.js'
@@ -225,8 +225,13 @@ app.post('/api/estimate', requireUser, requireApiweb, express.json({ limit: '256
 // Reverse geocoding for the "read the address" button — any signed-in user
 // ---------------------------------------------------------------------------
 app.post('/api/geocode', requireUser, express.json({ limit: '4kb' }), async (req, res) => {
-  const { lat, lon, lang } = req.body || {}
+  const { lat, lon, lang, address: typed } = req.body || {}
   try {
+    // Address sheet: the plot reference straight from a typed address, no map provider involved.
+    if (typed) {
+      const cadastre = await cadastralByAddress({ province: typed.province, municipality: typed.city, street: typed.street, number: typed.number, env: process.env })
+      return res.json({ address: {}, cadastre })
+    }
     let cadastreError = null
     const [address, cadastre] = await Promise.all([
       reverseGeocode({ lat, lon, lang: ['es', 'fr', 'en'].includes(lang) ? lang : 'es', env: process.env }),

@@ -5,6 +5,7 @@
  */
 
 import { t } from '../i18n'
+import { DEFAULT_PROVINCE } from '../data/andalucia'
 
 export const OPERATIONS = [
   { value: 1, labelKey: 'common.sale' }, // keyacci
@@ -61,8 +62,10 @@ export function emptyProperty() {
     operation: 1, // keyacci
     typeKey: null, // key_tipo
     typeName: '',
-    cityKey: null, // key_loca
-    cityName: '',
+    province: DEFAULT_PROVINCE, // Andalusian province code (INE), the Catastro asks for it by name
+    cityKey: null, // key_loca — resolved against Inmovilla when the agency knows the town
+    cityName: '', // what the agent reads
+    cityCatastro: '', // the same town as the Sede Electrónica del Catastro spells it
     zoneKey: null, // key_zona (optional)
     zoneName: '', // free text sent as `zona` when no key_zona
     price: null, // precioinmo
@@ -85,7 +88,7 @@ export function emptyProperty() {
     conservation: null, // conservacion enum
     orientation: null, // keyori enum
     energyRating: '', // energialetra
-    publish: null, // eninternet enum
+    publish: 0, // eninternet — always "No publicar": nothing is ever published from the phone
     unavailable: false, // nodisponible
     features,
     ownerName: '', // creates a propietario linked to the listing
@@ -141,7 +144,9 @@ export function validateProperty(p) {
   if (!p.photos?.length) errors.photos = t('props.valid.photos')
   if (!String(p.ownerName || '').trim()) errors.ownerName = t('props.valid.ownerName')
   if (!String(p.ownerSurname || '').trim()) errors.ownerSurname = t('props.valid.ownerSurname')
-  if (!p.cityKey) errors.cityKey = t('props.valid.city')
+  // The town only has to be named: Inmovilla's key_loca is resolved in the background and a
+  // missing one must never block a draft the agent is holding in front of the door.
+  if (!String(p.cityName || '').trim()) errors.cityName = t('props.valid.city')
   if (Number(p.operation) === 2) {
     if (p.priceRent == null || Number(p.priceRent) <= 0) errors.priceRent = t('props.valid.priceRent')
   } else if (p.price == null || Number(p.price) <= 0) errors.price = t('props.valid.price')
@@ -154,7 +159,7 @@ export function validateProperty(p) {
 export function completeness(p) {
   const checks = [
     p.typeKey,
-    p.cityKey,
+    p.cityName,
     Number(p.operation) === 2 ? p.priceRent : p.price,
     p.bedrooms != null,
     p.bathrooms != null,
