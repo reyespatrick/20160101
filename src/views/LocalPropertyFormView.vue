@@ -8,6 +8,9 @@ import PhotoPicker from '../components/PhotoPicker.vue'
 import { ENERGY_RATINGS, FEATURES, OPERATIONS, completeness, emptyProperty, suggestRef, validateProperty } from '../models/property'
 import { useEnumsStore } from '../stores/enums'
 import { useLocalPropertiesStore } from '../stores/localProperties'
+import { reverseGeocode } from '../api/geocode'
+import { searchClients } from '../api/inmovillaRest'
+import { useSettingsStore } from '../stores/settings'
 const { t } = useI18n()
 
 const props = defineProps({ id: { type: String, default: '' } })
@@ -51,6 +54,98 @@ const zoneOptions = computed(() => (form.cityKey ? enums.zoneOptions(form.cityKe
 const progress = computed(() => completeness(form))
 const typeOptions = computed(() => enums.typeOptions)
 const sentAlready = computed(() => form.status !== 'draft')
+
+/**
+ * "Read the address": ask the device where it is, then let the relay turn that into a postal
+ * address. Only fields the agent has not already typed are filled — a reading never overwrites
+ * what someone entered on purpose.
+ */
+const locating = ref('')   // '' | 'locating' | 'reading'
+const locateError = ref('')
+const locatedLabel = ref('')
+
+function currentPosition() {
+  return new Promise((resolve, reject) => {
+    if (!navigator.geolocation) return reject(new Error(t('props.form.noGeolocation')))
+    navigator.geolocation.getCurrentPosition(
+      (pos) => resolve(pos.coords),
+      (err) => reject(new Error(err.code === err.PERMISSION_DENIED ? t('props.form.geoDenied') : t('props.form.geoFailed'))),
+      { enableHighAccuracy: true, timeout: 15000, maximumAge: 30000 },
+    )
+  })
+}
+
+async function readAddress() {
+  locateError.value = ''
+  locatedLabel.value = ''
+  locating.value = 'locating'
+  try {
+    const coords = await currentPosition()
+    form.latitude = coords.latitude
+    form.longitude = coords.longitude
+    locating.value = 'reading'
+    const address = await reverseGeocode({ lat: coords.latitude, lon: coords.longitude, lang: useSettingsStore().locale })
+    if (!form.street) form.street = address.street || ''
+    if (!form.number) form.number = address.number || ''
+    if (!form.postalCode) form.postalCode = address.postalCode || ''
+    if (!form.cityKey && address.city) {
+      // Inmovilla identifies a city by its own key; match the reading against the agency's list.
+      const match = enums.searchCities(address.city, 1)[0]
+      city.value = match ? { key: match.key_loca, name: match.ciudad } : { key: null, name: address.city }
+    }
+    locatedLabel.value = address.label || ''
+  } catch (err) {
+    locateError.value = err.code === 'nomatch' ? t('props.form.geoNoAddress') : err.message || t('props.form.geoFailed')
+  } finally {
+    locating.value = ''
+  }
+}
+
+/**
+ * The owner is looked up by phone before anything is typed: Inmovilla offers no way to list
+ * contacts, so the number is the only way to tell an existing owner from a new one — and the
+ * only way to avoid creating a duplicate.
+ */
+const ownerLookup = ref('')  // '' | 'searching' | 'found' | 'none'
+const ownerError = ref('')
+
+async function findOwner() {
+  const phone = String(form.ownerPhone || '').replace(/[^0-9]/g, '')
+  ownerError.value = ''
+  if (phone.length < 6) {
+    ownerError.value = t('props.form.ownerPhoneShort')
+    return
+  }
+  ownerLookup.value = 'searching'
+  try {
+    const found = await searchClients({ telefono: phone })
+    const first = Array.isArray(found) ? found[0] : found
+    if (first) {
+      form.ownerName = first.name || first.nombre || form.ownerName
+      form.ownerSurname = first.surname || first.apellidos || form.ownerSurname
+      form.ownerEmail = first.email || form.ownerEmail
+      form.ownerRemoteId = first.remoteId || first.cod_cli || null
+      ownerLookup.value = 'found'
+    } else {
+      ownerLookup.value = 'none'
+    }
+  } catch (err) {
+    if (err.status === 404) ownerLookup.value = 'none'
+    else {
+      ownerLookup.value = ''
+      ownerError.value = err.message || t('common.failed', { where: '' })
+    }
+  }
+}
+
+/** "Not this one" / "create": keep the number, clear the identity, let the agent type. */
+function newOwner() {
+  form.ownerName = ''
+  form.ownerSurname = ''
+  form.ownerEmail = ''
+  form.ownerRemoteId = null
+  ownerLookup.value = 'none'
+}
 
 onMounted(async () => {
   await store.ensureLoaded()
@@ -185,7 +280,15 @@ async function cancel() {
       </fieldset>
 
       <fieldset>
-        <legend>{{ t('props.form.typeLocation') }}</legend>
+        <legend class="legend-row">
+          <span>{{ t('props.form.typeLocation') }}</span>
+          <button type="button" class="btn btn-ghost small" :disabled="Boolean(locating)" @click="readAddress">
+            <svg viewBox="0 0 24 24" aria-hidden="true" class="pin"><path d="M12 21s7-6.2 7-11a7 7 0 10-14 0c0 4.8 7 11 7 11z" fill="none" stroke="currentColor" stroke-width="2" /><circle cx="12" cy="10" r="2.5" fill="none" stroke="currentColor" stroke-width="2" /></svg>
+            {{ locating === 'locating' ? t('props.form.locating') : locating === 'reading' ? t('props.form.reading') : t('props.form.readAddress') }}
+          </button>
+        </legend>
+        <p v-if="locateError" class="alert geo">{{ locateError }}</p>
+        <p v-else-if="locatedLabel" class="muted geo-ok">{{ locatedLabel }}</p>
         <div class="field" :class="{ invalid: errors.typeKey }">
           <label for="type">{{ t('props.form.type') }} *</label>
           <select id="type" :value="form.typeKey ?? ''" @change="onTypeChange">
@@ -292,12 +395,31 @@ async function cancel() {
 
       <fieldset>
         <legend>{{ t('props.form.owner') }} <small class="muted">{{ t('props.form.ownerHint') }}</small></legend>
+        <div class="field">
+          <label for="ownerPhone">{{ t('props.form.ownerPhone') }}</label>
+          <div class="phone-row">
+            <input id="ownerPhone" v-model.trim="form.ownerPhone" type="tel" inputmode="tel" :placeholder="t('props.form.ownerPhonePh')" @input="ownerLookup = ''" />
+            <button type="button" class="btn btn-ghost small" :disabled="ownerLookup === 'searching'" @click="findOwner">
+              {{ ownerLookup === 'searching' ? t('props.form.searching') : t('props.form.searchOwner') }}
+            </button>
+          </div>
+          <small v-if="ownerError" class="err">{{ ownerError }}</small>
+          <small v-else class="muted">{{ t('props.form.ownerPhoneHint') }}</small>
+        </div>
+
+        <div v-if="ownerLookup === 'found'" class="lookup found">
+          <span>{{ t('props.form.ownerFound', { name: [form.ownerName, form.ownerSurname].filter(Boolean).join(' ') }) }}</span>
+          <button type="button" class="link" @click="newOwner">{{ t('props.form.ownerNotThem') }}</button>
+        </div>
+        <div v-else-if="ownerLookup === 'none'" class="lookup none">
+          <span>{{ t('props.form.ownerNotFound') }}</span>
+        </div>
+
         <div class="two">
           <div class="field"><label for="owner">{{ t('props.form.ownerName') }}</label><input id="owner" v-model.trim="form.ownerName" autocapitalize="words" /></div>
           <div class="field"><label for="ownerSurname">{{ t('props.form.ownerSurname') }}</label><input id="ownerSurname" v-model.trim="form.ownerSurname" autocapitalize="words" /></div>
         </div>
         <div class="two">
-          <div class="field"><label for="ownerPhone">{{ t('props.form.ownerPhone') }}</label><input id="ownerPhone" v-model.trim="form.ownerPhone" type="tel" inputmode="tel" /></div>
           <div class="field" :class="{ invalid: errors.ownerEmail }">
             <label for="ownerEmail">{{ t('props.form.ownerEmail') }}</label>
             <input id="ownerEmail" v-model.trim="form.ownerEmail" type="email" inputmode="email" />
@@ -322,6 +444,18 @@ async function cancel() {
 </template>
 
 <style scoped>
+.legend-row { display: flex; align-items: center; justify-content: space-between; gap: 0.75rem; width: 100%; }
+.legend-row .small { padding: 0.4rem 0.7rem; font-size: 0.82rem; font-weight: 600; white-space: nowrap; }
+.pin { width: 16px; height: 16px; }
+.geo { margin: 0 0 0.75rem; }
+.geo-ok { margin: -0.25rem 0 0.75rem; font-size: 0.82rem; }
+.phone-row { display: flex; gap: 0.5rem; align-items: stretch; }
+.phone-row input { flex: 1; min-width: 0; }
+.phone-row .small { padding: 0 0.8rem; font-size: 0.85rem; font-weight: 600; white-space: nowrap; }
+.lookup { display: flex; flex-wrap: wrap; align-items: center; gap: 0.5rem; padding: 0.6rem 0.8rem; border-radius: 10px; font-size: 0.88rem; margin-bottom: 0.25rem; }
+.lookup.found { background: var(--ok-bg); color: var(--ok); }
+.lookup.none { background: var(--surface-2); color: var(--brand-dark); }
+.lookup .link { border: 0; background: none; color: inherit; font-weight: 700; text-decoration: underline; padding: 0; font-size: inherit; }
 .form-view { padding-bottom: 6rem; }
 @media (min-width: 720px) { .save-bar { position: sticky; bottom: 0; margin-top: 1rem; } }
 .form-head { display: flex; align-items: center; gap: 0.75rem; margin-bottom: 0.75rem; }

@@ -1,0 +1,67 @@
+/**
+ * Reverse geocoding: the two providers answer in very different shapes, and the listing form
+ * needs the same five fields from either. These pin the mapping and the guard rails.
+ */
+import { describe, expect, it } from 'vitest'
+import { fromGoogle, fromNominatim, reverseGeocode, validCoordinates } from '../shared/geocode.js'
+
+describe('coordinates', () => {
+  it('accepts real positions and rejects nonsense', () => {
+    expect(validCoordinates(38.345, -0.481)).toBe(true)
+    expect(validCoordinates(0, 0)).toBe(true)
+    expect(validCoordinates('38.3', '-0.4')).toBe(true)
+    for (const bad of [[91, 0], [0, 181], [NaN, 0], [undefined, 2], ['abc', 1], [null, null]]) {
+      expect(validCoordinates(bad[0], bad[1])).toBe(false)
+    }
+  })
+
+  it('refuses to call a provider with bad coordinates', async () => {
+    await expect(reverseGeocode({ lat: 999, lon: 0 })).rejects.toMatchObject({ status: 400 })
+  })
+})
+
+describe('Google', () => {
+  const payload = {
+    status: 'OK',
+    results: [{
+      formatted_address: 'Carrer de Colón 12, 03001 Alicante, España',
+      address_components: [
+        { long_name: '12', types: ['street_number'] },
+        { long_name: 'Carrer de Colón', types: ['route'] },
+        { long_name: 'Alicante', types: ['locality', 'political'] },
+        { long_name: 'Alicante', types: ['administrative_area_level_2'] },
+        { long_name: '03001', types: ['postal_code'] },
+      ],
+    }],
+  }
+
+  it('picks out the fields the form has', () => {
+    expect(fromGoogle(payload)).toMatchObject({
+      number: '12', street: 'Carrer de Colón', postalCode: '03001', city: 'Alicante', province: 'Alicante', provider: 'google',
+    })
+  })
+
+  it('falls back to postal_town when there is no locality', () => {
+    const noLocality = { ...payload, results: [{ ...payload.results[0], address_components: [{ long_name: 'Elche', types: ['postal_town'] }] }] }
+    expect(fromGoogle(noLocality).city).toBe('Elche')
+  })
+
+  it('returns null when there is nothing there', () => {
+    expect(fromGoogle({ status: 'OK', results: [] })).toBeNull()
+    expect(fromGoogle({})).toBeNull()
+  })
+})
+
+describe('Nominatim', () => {
+  it('maps its address keys, whichever the country uses for a town', () => {
+    expect(fromNominatim({ display_name: 'Calle Mayor 3, Elche', address: { house_number: '3', road: 'Calle Mayor', postcode: '03203', town: 'Elche', province: 'Alicante' } }))
+      .toMatchObject({ number: '3', street: 'Calle Mayor', postalCode: '03203', city: 'Elche', province: 'Alicante', provider: 'nominatim' })
+    expect(fromNominatim({ address: { village: 'Altea' } }).city).toBe('Altea')
+    expect(fromNominatim({ address: { municipality: 'Dénia' } }).city).toBe('Dénia')
+  })
+
+  it('never invents a field it did not get', () => {
+    expect(fromNominatim({ address: { city: 'Alicante' } })).toMatchObject({ number: '', street: '', postalCode: '', province: '' })
+    expect(fromNominatim({})).toBeNull()
+  })
+})

@@ -72,6 +72,8 @@ export function emptyProperty() {
     street: '', // calle
     number: '', // numero
     postalCode: '', // cp
+    latitude: null, // kept on the device: Inmovilla's REST fields for coordinates are undocumented
+    longitude: null,
     bedrooms: null, // habitaciones
     bathrooms: null, // banyos
     builtArea: null, // m_cons
