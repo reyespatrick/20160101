@@ -89,7 +89,9 @@ onMounted(async () => {
     loadError.value = err.message
     return
   }
-  if (!result.value && navigator.onLine) run()
+  // A simulated valuation is a placeholder, not a valuation: once the agency has a real key it
+  // must not keep being served from the cache.
+  if ((!result.value || result.value.model === 'mock') && navigator.onLine) run()
 })
 </script>
 
