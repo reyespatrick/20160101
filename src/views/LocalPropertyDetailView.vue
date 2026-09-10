@@ -5,6 +5,7 @@ import { useRoute, useRouter } from 'vue-router'
 import InmovillaState from '../components/InmovillaState.vue'
 import { LISTING_STATUSES, activeFeatures, completeness, locationOf, priceOf, titleOf } from '../models/property'
 import { useAuthStore } from '../stores/auth'
+import ConfirmDialog from '../components/ConfirmDialog.vue'
 import { useEnumsStore } from '../stores/enums'
 import { useLocalPropertiesStore } from '../stores/localProperties'
 import { useFollowUpsStore } from '../stores/followUps'
@@ -168,16 +169,17 @@ async function reactivate() {
       <p class="dates muted">{{ t('props.detail.created') }} {{ formatDate(new Date(p.createdAt).toISOString()) }} · {{ t('props.detail.updated') }} {{ formatDate(new Date(p.updatedAt).toISOString()) }} · <span :style="{ color: status.color }">{{ t(status.labelKey) }}</span></p>
 
       <div v-if="p.status !== 'unavailable' && auth.canWrite" class="danger-zone">
-        <button v-if="!confirmRemove" type="button" class="btn btn-ghost danger" @click="confirmRemove = true">
+        <button type="button" class="btn btn-ghost danger" @click="confirmRemove = true">
           {{ p.status === 'draft' ? t('props.detail.deleteDraft') : t('props.detail.unpublish') }}
         </button>
-        <div v-else class="confirm">
-          <span v-if="p.status === 'draft'">{{ t('props.detail.confirmDraft', { t: titleOf(p) }) }}</span>
-          <span v-else>{{ t('props.detail.confirmUnpublish', { t: titleOf(p) }) }}</span>
-          <button type="button" class="btn danger-fill" @click="remove">{{ t('common.yes') }}</button>
-          <button type="button" class="btn btn-ghost" @click="confirmRemove = false">{{ t('common.no') }}</button>
-        </div>
       </div>
+      <ConfirmDialog
+        :open="confirmRemove"
+        :message="p.status === 'draft' ? t('props.detail.confirmDraft', { t: titleOf(p) }) : t('props.detail.confirmUnpublish', { t: titleOf(p) })"
+        :confirm-label="p.status === 'draft' ? t('props.detail.deleteDraft') : t('props.detail.unpublish')"
+        @confirm="remove"
+        @cancel="confirmRemove = false"
+      />
     </template>
 
     <Transition name="toast"><div v-if="toast" class="toast" role="status">{{ toast }}</div></Transition>

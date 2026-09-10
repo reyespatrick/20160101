@@ -7,6 +7,7 @@ import InmovillaState from '../components/InmovillaState.vue'
 import PropertyPicker from '../components/PropertyPicker.vue'
 import { emptyFollowUp, fromLocalInput, toLocalInput, validateFollowUp } from '../models/followUp'
 import { useEnumsStore } from '../stores/enums'
+import ConfirmDialog from '../components/ConfirmDialog.vue'
 import { useFollowUpsStore } from '../stores/followUps'
 import { addToNativeCalendar, googleCalendarUrl } from '../utils/calendar'
 const { t } = useI18n()
@@ -197,14 +198,10 @@ function cancel() {
       <p v-if="errors.form" class="alert">{{ errors.form }}</p>
 
       <div v-if="isEdit && !form.remoteId" class="danger-zone">
-        <button v-if="!confirmDiscard" type="button" class="btn btn-ghost danger" @click="confirmDiscard = true">{{ t('agenda.form.discard') }}</button>
-        <div v-else class="confirm">
-          <span>{{ t('agenda.form.confirmDiscard') }}</span>
-          <button type="button" class="btn danger-fill" @click="discard">{{ t('common.yes') }}</button>
-          <button type="button" class="btn btn-ghost" @click="confirmDiscard = false">{{ t('common.no') }}</button>
-        </div>
+        <button type="button" class="btn btn-ghost danger" @click="confirmDiscard = true">{{ t('agenda.form.discard') }}</button>
       </div>
       <p v-else-if="isEdit" class="muted hint">{{ t('agenda.form.noDelete') }}</p>
+      <ConfirmDialog :open="confirmDiscard" :message="t('agenda.form.confirmDiscard')" :confirm-label="t('agenda.form.discard')" @confirm="discard" @cancel="confirmDiscard = false" />
     </form>
 
     <div v-if="!notFound" class="save-bar">

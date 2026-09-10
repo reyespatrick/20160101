@@ -5,6 +5,7 @@ import { useRoute, useRouter } from 'vue-router'
 import { emptyOwner, validateOwner } from '../models/owner'
 import { useOwnersStore } from '../stores/owners'
 import { useAuthStore } from '../stores/auth'
+import ConfirmDialog from '../components/ConfirmDialog.vue'
 const { t } = useI18n()
 
 const props = defineProps({ id: { type: String, default: '' } })
@@ -143,13 +144,9 @@ async function remove() {
       <p v-if="errors.form" class="alert">{{ errors.form }}</p>
 
       <div v-if="isEdit && auth.canDelete" class="danger-zone">
-        <button v-if="!confirmDelete" type="button" class="btn btn-ghost danger" @click="confirmDelete = true">{{ t('owner.form.delete') }}</button>
-        <div v-else class="confirm">
-          <span>{{ t('owner.form.confirm') }}</span>
-          <button type="button" class="btn danger-fill" @click="remove">{{ t('common.yes') }}</button>
-          <button type="button" class="btn btn-ghost" @click="confirmDelete = false">{{ t('common.no') }}</button>
-        </div>
+        <button type="button" class="btn btn-ghost danger" @click="confirmDelete = true">{{ t('owner.form.delete') }}</button>
       </div>
+      <ConfirmDialog :open="confirmDelete" :message="t('owner.form.confirm')" :confirm-label="t('owner.form.delete')" @confirm="remove" @cancel="confirmDelete = false" />
     </form>
 
     <div v-if="!notFound" class="save-bar">

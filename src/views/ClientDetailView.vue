@@ -6,6 +6,7 @@ import InmovillaState from '../components/InmovillaState.vue'
 import { fullName, initials, primaryPhone, whatsappLink } from '../models/client'
 import { useClientsStore } from '../stores/clients'
 import { useAuthStore } from '../stores/auth'
+import ConfirmDialog from '../components/ConfirmDialog.vue'
 import { useFollowUpsStore } from '../stores/followUps'
 import FollowUpCard from '../components/FollowUpCard.vue'
 import { formatDate } from '../utils/format'
@@ -99,13 +100,15 @@ async function remove() {
       <p class="dates muted">{{ t('clients.detail.created') }} {{ formatDate(new Date(client.createdAt).toISOString()) }} · {{ t('clients.detail.updated') }} {{ formatDate(new Date(client.updatedAt).toISOString()) }}</p>
 
       <div v-if="auth.canDelete || (!client.remoteId && auth.canWrite)" class="danger-zone">
-        <button v-if="!confirmDelete" type="button" class="btn btn-ghost danger" @click="confirmDelete = true">{{ t('clients.detail.delete') }}</button>
-        <div v-else class="confirm">
-          <span>{{ t('clients.detail.confirm', { name: fullName(client), also: client.remoteId ? t('clients.detail.alsoInmovilla') : '' }) }}</span>
-          <button type="button" class="btn danger-fill" @click="remove">{{ t('common.yes') }}</button>
-          <button type="button" class="btn btn-ghost" @click="confirmDelete = false">{{ t('common.no') }}</button>
-        </div>
+        <button type="button" class="btn btn-ghost danger" @click="confirmDelete = true">{{ t('clients.detail.delete') }}</button>
       </div>
+      <ConfirmDialog
+        :open="confirmDelete"
+        :message="t('clients.detail.confirm', { name: fullName(client), also: client.remoteId ? t('clients.detail.alsoInmovilla') : '' })"
+        :confirm-label="t('clients.detail.delete')"
+        @confirm="remove"
+        @cancel="confirmDelete = false"
+      />
     </template>
 
     <Transition name="toast"><div v-if="toast" class="toast" role="status">{{ toast }}</div></Transition>
