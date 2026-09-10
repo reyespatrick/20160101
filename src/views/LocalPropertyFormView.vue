@@ -3,6 +3,7 @@ import { useI18n } from 'vue-i18n'
 import { computed, nextTick, onMounted, reactive, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import AddressSheet from '../components/AddressSheet.vue'
+import ConfirmDialog from '../components/ConfirmDialog.vue'
 import ChipGroup from '../components/ChipGroup.vue'
 import PhotoPicker from '../components/PhotoPicker.vue'
 import { ENERGY_RATINGS, FEATURES, OPERATIONS, completeness, emptyProperty, suggestRef, validateProperty } from '../models/property'
@@ -52,13 +53,19 @@ const sheetOpen = ref(false)
 const locating = ref('') // '' | 'locating' | 'reading'
 const locateError = ref('')
 const cadastre = ref('') // '' | 'looking' | 'ok' | 'none' | 'failed'
+const askPosition = ref(false)
+
+const hasPosition = computed(() => form.latitude != null && form.longitude != null)
+const positionLabel = computed(() => (hasPosition.value ? `${Number(form.latitude).toFixed(5)} · ${Number(form.longitude).toFixed(5)}` : ''))
+const positionTaken = computed(() => (form.positionAt ? new Date(form.positionAt).toLocaleString(useSettingsStore().locale) : ''))
 
 /** The address as an agent would read it aloud: street line, then postcode, town and province. */
 const addressLines = computed(() => {
   const street = [form.street, form.number].filter(Boolean).join(' ')
-  const town = [form.postalCode, form.cityName].filter(Boolean).join(' ')
-  const rest = [form.zoneName, provinceOf(form.province)?.label].filter(Boolean).join(' · ')
-  return [street, [town, rest].filter(Boolean).join(' · ')].filter(Boolean)
+  // The province is only ever a qualifier for a town: on its own it is the default the form was
+  // born with, and printing it would make an empty listing look as if it had an address.
+  const town = form.cityName ? [[form.postalCode, form.cityName].filter(Boolean).join(' '), form.zoneName, provinceOf(form.province)?.label].filter(Boolean).join(' · ') : ''
+  return [street, town].filter(Boolean)
 })
 const hasAddress = computed(() => addressLines.value.length > 0)
 
@@ -74,27 +81,68 @@ function currentPosition() {
 }
 
 /**
- * "GPS": what the device reads wins, every time. An agent presses it standing at the door, so a
- * leftover address from a previous attempt is never what they meant — the whole block is replaced,
- * cadastral reference included.
+ * The GPS button, in two halves.
+ *
+ * Taking the position and reading the address are separate acts, because in the field they
+ * often happen hours apart: a phone can see satellites in a village with no data at all. So the
+ * position is stored the moment it is taken, and the reading is retried later, from the office,
+ * against those same coordinates — the house has not moved.
+ *
+ * That is why a second press asks rather than acts: re-reading a stored position and standing
+ * somewhere new are opposite intentions, and only the agent knows which one this is.
  */
-async function readAddress() {
+async function onGps() {
+  if (hasPosition.value) {
+    askPosition.value = true
+    return
+  }
+  await capturePosition()
+}
+
+/** Ask the device where it is, keep it, and read the address if there is a network to ask. */
+async function capturePosition() {
+  askPosition.value = false
   locateError.value = ''
   locating.value = 'locating'
   try {
     const coords = await currentPosition()
     form.latitude = coords.latitude
     form.longitude = coords.longitude
-    locating.value = 'reading'
-    const { address, cadastre: plot } = await reverseGeocode({ lat: coords.latitude, lon: coords.longitude, lang: useSettingsStore().locale })
+    form.positionAt = Date.now()
+    if (!online.value) {
+      locateError.value = t('props.form.geoStored')
+      return
+    }
+    await lookupPosition()
+  } catch (err) {
+    locateError.value = err.message || t('props.form.geoFailed')
+  } finally {
+    locating.value = ''
+  }
+}
+
+/**
+ * Read the address of the stored position. What comes back wins over what is on screen: an
+ * agent presses this standing at the door, so a leftover address is never what they meant —
+ * the whole block is replaced, cadastral reference included.
+ */
+async function lookupPosition() {
+  askPosition.value = false
+  if (!hasPosition.value) return
+  locateError.value = ''
+  locating.value = 'reading'
+  try {
+    const { address, cadastre: plot, cadastreError } = await reverseGeocode({ lat: form.latitude, lon: form.longitude, lang: useSettingsStore().locale })
     form.street = address.street || ''
     form.number = address.number || ''
     form.postalCode = address.postalCode || ''
     setTown(address.city, address.province)
     form.cadastralRef = plot?.reference || ''
-    cadastre.value = plot?.reference ? 'ok' : 'none'
+    // "No plot here" and "the register would not answer" call for very different reactions.
+    cadastre.value = plot?.reference ? 'ok' : cadastreError ? 'failed' : 'none'
   } catch (err) {
-    locateError.value = err.code === 'nomatch' ? t('props.form.geoNoAddress') : err.message || t('props.form.geoFailed')
+    // The position is already saved; say so, so the agent knows nothing was lost.
+    locateError.value = `${err.code === 'nomatch' ? t('props.form.geoNoAddress') : err.message || t('props.form.geoFailed')} ${t('props.form.geoKept')}`
   } finally {
     locating.value = ''
   }
@@ -387,7 +435,7 @@ async function cancel() {
         <h3 class="sub sub-row">
           <span>{{ t('props.form.location') }} *</span>
           <span class="loc-actions">
-            <button type="button" class="btn btn-ghost small" :disabled="Boolean(locating)" @click="readAddress">
+            <button type="button" class="btn btn-ghost small" :disabled="Boolean(locating)" @click="onGps">
               <svg viewBox="0 0 24 24" aria-hidden="true" class="pin"><path d="M12 21s7-6.2 7-11a7 7 0 10-14 0c0 4.8 7 11 7 11z" fill="none" stroke="currentColor" stroke-width="2" /><circle cx="12" cy="10" r="2.5" fill="none" stroke="currentColor" stroke-width="2" /></svg>
               {{ locating === 'locating' ? t('props.form.locating') : locating === 'reading' ? t('props.form.reading') : t('props.form.gps') }}
             </button>
@@ -401,6 +449,11 @@ async function cancel() {
           <template v-if="hasAddress">
             <p v-for="(line, i) in addressLines" :key="i" :class="i === 0 ? 'line-1' : 'line-2'">{{ line }}</p>
             <p v-if="form.cadastralRef" class="cadastral">{{ t('props.form.cadastral') }} · {{ form.cadastralRef }}</p>
+          </template>
+          <template v-else-if="hasPosition">
+            <p class="line-1">{{ t('props.form.positionStored') }}</p>
+            <p class="line-2">{{ positionLabel }}</p>
+            <p v-if="positionTaken" class="cadastral">{{ t('props.form.positionTaken', { when: positionTaken }) }}</p>
           </template>
           <p v-else class="muted">{{ t('props.form.noAddress') }}</p>
           <p v-if="cadastre === 'looking'" class="muted small-note">{{ t('props.form.cadastralLooking') }}</p>
@@ -518,6 +571,19 @@ async function cancel() {
     </form>
 
     <AddressSheet :open="sheetOpen" :address="form" :zone-options="zoneOptions" @save="applyAddress" @close="sheetOpen = false" />
+
+    <ConfirmDialog
+      :open="askPosition"
+      tone="normal"
+      :message="t('props.form.positionAsk')"
+      :detail="positionTaken ? `${positionLabel} — ${t('props.form.positionTaken', { when: positionTaken })}` : positionLabel"
+      :confirm-label="t('props.form.positionUse')"
+      :extra-label="t('props.form.positionAgain')"
+      :cancel-label="t('common.cancel')"
+      @confirm="lookupPosition"
+      @extra="capturePosition"
+      @cancel="askPosition = false"
+    />
 
     <div v-if="!notFound" class="save-bar">
       <button type="submit" form="property-form" class="btn save" :disabled="saving || refCheck === 'checking'">

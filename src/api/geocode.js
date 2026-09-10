@@ -25,7 +25,7 @@ async function post(body) {
 /** Where the phone stands → a postal address, plus the plot reference under it. */
 export async function reverseGeocode({ lat, lon, lang }) {
   const body = await post({ lat, lon, lang })
-  return { address: body.address || {}, cadastre: body.cadastre || null }
+  return { address: body.address || {}, cadastre: body.cadastre || null, cadastreError: body.cadastreError || '' }
 }
 
 /**

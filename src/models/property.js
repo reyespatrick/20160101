@@ -77,6 +77,7 @@ export function emptyProperty() {
     postalCode: '', // cp
     latitude: null, // kept on the device: Inmovilla's REST fields for coordinates are undocumented
     longitude: null,
+    positionAt: null, // when the position was taken — an address read later starts from it
     cadastralRef: '', // referencia catastral, read from the position (Sede Electrónica del Catastro)
     bedrooms: null, // habitaciones
     bathrooms: null, // banyos

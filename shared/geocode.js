@@ -91,10 +91,13 @@ export function fromCatastro(payload) {
 export async function cadastralReference({ lat, lon, env = {} }) {
   if (!validCoordinates(lat, lon)) return null
   const url = `${CATASTRO_URL}?CoorX=${encodeURIComponent(lon)}&CoorY=${encodeURIComponent(lat)}&SRS=EPSG:4326`
-  const { status, text } = await withTimeout(async (signal) => {
-    const res = await fetch(url, { signal, headers: { 'User-Agent': env.GEOCODE_USER_AGENT || USER_AGENT, Accept: 'application/json' } })
-    return { status: res.status, text: await res.text() }
-  })
+  const call = () =>
+    withTimeout(async (signal) => {
+      const res = await fetch(url, { signal, headers: { 'User-Agent': env.GEOCODE_USER_AGENT || USER_AGENT, Accept: 'application/json' } })
+      return { status: res.status, text: await res.text() }
+    })
+  // The Catastro drops a connection now and then; one retry turns that into a non-event.
+  const { status, text } = await call().catch(() => call())
   let payload
   try {
     payload = JSON.parse(text)

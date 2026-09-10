@@ -6,6 +6,10 @@
  * bottom, which ended up squeezed against the navigation bar and easy to miss — the worst
  * place for a question you cannot undo. Escape and a tap outside both cancel, and the cancel
  * button takes focus so the dangerous answer is never the default.
+ *
+ * It also serves plain questions with more than one good answer: pass `extraLabel` for a third
+ * button and `tone="normal"` when nothing is being destroyed, and the buttons stack rather than
+ * fighting for width on a phone.
  */
 import { nextTick, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
@@ -17,8 +21,10 @@ const props = defineProps({
   detail: { type: String, default: '' },
   confirmLabel: { type: String, default: '' },
   cancelLabel: { type: String, default: '' },
+  extraLabel: { type: String, default: '' },
+  tone: { type: String, default: 'danger' }, // 'danger' | 'normal'
 })
-const emit = defineEmits(['confirm', 'cancel'])
+const emit = defineEmits(['confirm', 'cancel', 'extra'])
 const cancelButton = ref(null)
 
 watch(
@@ -37,9 +43,10 @@ watch(
       <div class="panel">
         <p class="message">{{ message }}</p>
         <p v-if="detail" class="detail muted">{{ detail }}</p>
-        <div class="actions">
+        <div class="actions" :class="{ stacked: Boolean(extraLabel) }">
+          <button type="button" class="btn" :class="{ 'danger-fill': tone === 'danger' }" @click="emit('confirm')">{{ confirmLabel || t('common.yes') }}</button>
+          <button v-if="extraLabel" type="button" class="btn btn-ghost" @click="emit('extra')">{{ extraLabel }}</button>
           <button ref="cancelButton" type="button" class="btn btn-ghost" @click="emit('cancel')">{{ cancelLabel || t('common.no') }}</button>
-          <button type="button" class="btn danger-fill" @click="emit('confirm')">{{ confirmLabel || t('common.yes') }}</button>
         </div>
       </div>
     </div>
@@ -68,8 +75,9 @@ watch(
 }
 .message { margin: 0; font-size: 1.05rem; font-weight: 600; line-height: 1.45; }
 .detail { margin: 0.6rem 0 0; font-size: 0.88rem; line-height: 1.45; }
-.actions { display: flex; gap: 0.6rem; margin-top: 1.3rem; }
+.actions { display: flex; flex-direction: row-reverse; gap: 0.6rem; margin-top: 1.3rem; }
 .actions .btn { flex: 1; min-height: 48px; }
+.actions.stacked { flex-direction: column; }
 .dialog-enter-active, .dialog-leave-active { transition: opacity 0.15s ease; }
 .dialog-enter-active .panel { transition: transform 0.15s ease; }
 .dialog-enter-from, .dialog-leave-to { opacity: 0; }
