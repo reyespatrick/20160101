@@ -1,6 +1,6 @@
 <script setup>
 import { useI18n } from 'vue-i18n'
-import { onMounted, ref, watch } from 'vue'
+import { computed, onMounted, ref, watch } from 'vue'
 import ClientCard from '../components/ClientCard.vue'
 import { useClientsStore } from '../stores/clients'
 import { useAuthStore } from '../stores/auth'
@@ -9,6 +9,8 @@ const { t } = useI18n()
 const store = useClientsStore()
 const auth = useAuthStore()
 const searchInput = ref(null)
+/** The empty screen carries its own call to action; a second one in the bar is noise. */
+const emptyCta = computed(() => !store.loading && !store.active.length && !store.query)
 
 onMounted(async () => {
   await store.ensureLoaded()
@@ -41,7 +43,7 @@ function syncLabel() {
         <input ref="searchInput" v-model="store.query" type="search" :placeholder="t('clients.searchPh')" :aria-label="t('common.search')" autocomplete="off" />
         <button v-if="store.query" type="button" class="clear" :aria-label="t('common.close')" @click="store.query = ''; searchInput.focus()">×</button>
       </div>
-      <RouterLink v-if="auth.canWrite" :to="{ name: 'client-new' }" class="btn new-btn">+ {{ t('common.new') }}</RouterLink>
+      <RouterLink v-if="auth.canWrite && !emptyCta" :to="{ name: 'client-new' }" class="btn new-btn">+ {{ t('common.new') }}</RouterLink>
     </div>
 
     <p class="sync muted">
@@ -83,7 +85,7 @@ function syncLabel() {
       <ClientCard v-for="c in store.filtered" :key="c.id" :client="c" />
     </div>
 
-    <RouterLink v-if="auth.canWrite" :to="{ name: 'client-new' }" class="fab" :aria-label="t('clients.new')">+</RouterLink>
+    <RouterLink v-if="auth.canWrite && !emptyCta" :to="{ name: 'client-new' }" class="fab" :aria-label="t('clients.new')">+</RouterLink>
   </section>
 </template>
 

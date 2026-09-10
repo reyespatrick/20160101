@@ -28,6 +28,8 @@ onMounted(async () => {
   store.sync()
 })
 
+/** The empty screen carries its own call to action; a second one in the bar is noise. */
+const emptyCta = computed(() => !store.loading && mode.value === 'list' && !store.active.length)
 const dayItems = computed(() => {
   if (!selectedDay.value) return []
   const end = selectedDay.value + 86_400_000
@@ -51,7 +53,7 @@ function syncLabel() {
         <button type="button" role="tab" :aria-selected="mode === 'calendar'" :class="{ active: mode === 'calendar' }" @click="setMode('calendar')">{{ t('agenda.calendar') }}</button>
       </div>
       <label class="toggle"><input v-model="store.showClosed" type="checkbox" /> {{ t('agenda.showClosed') }}</label>
-      <RouterLink v-if="auth.canWrite" :to="{ name: 'followup-new' }" class="btn new-btn">+ {{ t('common.new') }}</RouterLink>
+      <RouterLink v-if="auth.canWrite && !emptyCta" :to="{ name: 'followup-new' }" class="btn new-btn">+ {{ t('common.new') }}</RouterLink>
     </div>
 
     <input v-if="mode === 'list'" v-model="store.query" type="search" class="search" :placeholder="t('agenda.searchPh')" :aria-label="t('common.search')" />
@@ -94,7 +96,7 @@ function syncLabel() {
       </template>
     </template>
 
-    <RouterLink v-if="auth.canWrite" :to="{ name: 'followup-new', query: mode === 'calendar' && selectedDay ? { at: selectedDay } : {} }" class="fab" :aria-label="t('agenda.new')">+</RouterLink>
+    <RouterLink v-if="auth.canWrite && !emptyCta" :to="{ name: 'followup-new', query: mode === 'calendar' && selectedDay ? { at: selectedDay } : {} }" class="fab" :aria-label="t('agenda.new')">+</RouterLink>
   </section>
 </template>
 

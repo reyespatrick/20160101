@@ -20,6 +20,8 @@ const sentinel = ref(null)
 let observer
 
 const source = computed(() => (route.query.source === 'mine' ? 'mine' : 'inmovilla'))
+/** The empty screen carries its own call to action; a second one in the bar is noise. */
+const emptyCta = computed(() => source.value === 'mine' && !local.loading && !local.active.length)
 function setSource(value) {
   router.replace({ name: 'properties', query: value === 'mine' ? { source: 'mine' } : {} })
 }
@@ -55,7 +57,7 @@ onBeforeUnmount(() => observer?.disconnect())
           {{ t('props.mine') }} <span v-if="local.active.length" class="pill">{{ local.active.length }}</span>
         </button>
       </div>
-      <RouterLink v-if="auth.canWrite" :to="{ name: 'local-property-new' }" class="btn new-btn">+ {{ t('props.newProperty') }}</RouterLink>
+      <RouterLink v-if="auth.canWrite && !emptyCta" :to="{ name: 'local-property-new' }" class="btn new-btn">+ {{ t('props.newProperty') }}</RouterLink>
     </div>
 
     <template v-if="source === 'mine'">
@@ -90,7 +92,7 @@ onBeforeUnmount(() => observer?.disconnect())
       <div v-else class="grid">
         <LocalPropertyCard v-for="p in local.filtered" :key="p.id" :property="p" />
       </div>
-      <RouterLink v-if="auth.canWrite" :to="{ name: 'local-property-new' }" class="fab" :aria-label="t('props.newProperty')">+</RouterLink>
+      <RouterLink v-if="auth.canWrite && !emptyCta" :to="{ name: 'local-property-new' }" class="fab" :aria-label="t('props.newProperty')">+</RouterLink>
     </template>
 
     <template v-else>
