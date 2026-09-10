@@ -78,6 +78,16 @@ from outside Andalusia. Unset in production, where it changes nothing.
 real API rejects the stripped form. Cloudflare's `[[path]]` parameter drops it, so both the REST relay
 and the mock derive the path from `url.pathname`, never from `context.params`. Express hid this locally.
 
+**Reading is real, writing is not.** `immoba-demo` sends apiweb (reads) to the IIS hop and REST
+(writes) to the in-app fake. Sign in as **demo@immoba.es** — the `DEMO INMOVILLA_` account, agency
+`2`, the same row production uses, since both projects share one Supabase — and the catalogue is
+Inmovilla's real public demo agency: 1281 listings with their real photographs, while every write
+still lands on the fake. `demo@immoba.app` (agency `1234`) can no longer read: its mock
+credentials go to the real apiweb, which answers `xIP NO VALIDADA`. Use it only for write flows.
+
+Inmovilla's own documented demo user (`2_000_ext` / `11111`) is refused from the hop's address —
+the allow list is per API user, and only the owner's was authorised.
+
 ## Layout (short)
 
 - `server/index.js` relay: `/api/account/*` (accounts.js), `POST /api/inmovilla` (apiweb), `ANY /api/rest/*`
