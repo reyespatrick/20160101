@@ -3,7 +3,7 @@
  * per minute, permanently after 10 such blocks, so this must hold the line on its own.
  */
 import { describe, expect, it } from 'vitest'
-import { buildFormBody, createRateLimiter, normalizeRequest } from '../server/inmovilla.js'
+import { buildFormBody, createRateLimiter, normalizeRequest, visitorIp } from '../server/inmovilla.js'
 
 /** Virtual clock: the limiter's waits move time forward instead of really sleeping. */
 function fakeClock() {
@@ -97,5 +97,22 @@ describe('apiweb request body', () => {
     expect(body.get('ia')).toBe('81.2.3.4')
     expect(body.get('ib')).toBe('81.2.3.4')
     expect(body.get('elDominio')).toBe('midominio.com')
+  })
+
+  it('never leaves the visitor IP empty, whatever the caller looks like', () => {
+    // apiweb answers "NECESITAMOS RECIBIR LA IP" for a missing or unusable ia,
+    // which is what a server-to-server call would otherwise send.
+    for (const caller of ['', undefined, '127.0.0.1', '::1', '10.0.0.5', '192.168.1.20', '172.20.1.1', 'fe80::1']) {
+      const body = buildFormBody({ numagencia: '2', password: 'p' }, [normalizeRequest({ type: 'paginacion', pos: 1, num: 1 })], { clientIp: caller })
+      expect(body.get('ia')).toBe('8.8.8.8')
+      expect(body.get('ib')).toBe('8.8.8.8')
+    }
+  })
+
+  it('honours a configured fallback and keeps a real public caller', () => {
+    expect(visitorIp('', '81.9.9.9')).toBe('81.9.9.9')
+    expect(visitorIp('195.15.213.10')).toBe('195.15.213.10')
+    expect(visitorIp('2a06:98c0:3600::103')).toBe('2a06:98c0:3600::103')
+    expect(visitorIp('172.15.0.1')).toBe('172.15.0.1') // just outside the private block
   })
 })

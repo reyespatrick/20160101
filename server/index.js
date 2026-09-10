@@ -83,7 +83,7 @@ async function apiwebQuery(creds, normalized, clientIp) {
     const upstream = await fetch(API_URL, {
       method: 'POST',
       headers,
-      body: buildFormBody({ numagencia: creds.numagencia, password: creds.password, idioma: creds.idioma }, normalized, { clientIp, domain: DOMAIN }),
+      body: buildFormBody({ numagencia: creds.numagencia, password: creds.password, idioma: creds.idioma }, normalized, { clientIp, domain: DOMAIN, visitorFallback: process.env.INMOVILLA_VISITOR_IP }),
       signal,
     })
     const text = await upstream.text()

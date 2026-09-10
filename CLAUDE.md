@@ -70,13 +70,17 @@ Pure modules shared by both runtimes: `server/inmovilla.js`, `server/estimate.js
 - REST rate limits: 408 = rate limited → outbox pauses 65 s. Enums: 2 calls/min → cached 7 days.
 - apiweb: 70 requests/minute **per IP** or Inmovilla blocks it (10 min, permanent after 10 blocks). The relay
   caps itself via `createRateLimiter` at `APIWEB_MAX_PER_MIN` (60).
-- **apiweb validates the caller's IP — settled.** The published documentation denies it, but the live
-  endpoint refuses a call it does not recognise with `xIP NO VALIDADA - IP_RECIVED: <egress ip>`, naming the
-  address it saw. Reproduced from the fixed-IP hop on 2026-09-09: Inmovilla received `195.15.213.10` and
-  refused it, so the rejection follows the caller's IP, not the runtime. Consequence: apiweb cannot be called
-  straight from Pages Functions (no stable egress IP); it goes through the hop, and **Inmovilla must authorise
-  the hop's IP** (195.15.213.10 — request pending). The REST write path is unaffected, it authenticates by
-  token alone. A call with no `ia` field is refused with `NECESITAMOS RECIBIR LA IP`.
+- **apiweb validates the caller's IP — settled, and the IP is now authorised.** The published documentation
+  denies the allow list; the live endpoint enforces it. Inmovilla authorised the hop's address
+  (195.15.213.10) on 10 Sept 2026 and a `paginacion` call from it returns real data (1341 listings on the
+  public demo agency). apiweb still cannot be called straight from Pages Functions — no stable egress IP — so
+  it goes through the hop. The REST write path is unaffected, it authenticates by token alone.
+- **`ia` must be a *visitor's* IP, public and different from the caller's own.** Sending the calling server's
+  own address is refused with `NECESITAMOS RECIBIR LA IP`, exactly like sending nothing — this cost hours of
+  wrong guesses (body field order, User-Agent, content type: none of them mattered). `visitorIp()` in
+  `server/inmovilla.js` therefore substitutes a public fallback (`INMOVILLA_VISITOR_IP`, default 8.8.8.8)
+  whenever the caller is missing, loopback or private, which is the case for every server-to-server call such
+  as verifying an admin's keys.
 - **The fixed-IP hop:** `deploy/iis-hop/apiweb.ashx` (C# WebHandler on the owner's IIS,
   https://projects.digitalpencorp.ch/immoba/apiweb.ashx). Both runtimes point `INMOVILLA_API_URL` at it and
   send `APIWEB_HOP_SECRET` as `X-Hop-Secret`. The handler is compiled in place by ASP.NET's in-box C# 5

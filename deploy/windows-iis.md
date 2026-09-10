@@ -41,6 +41,16 @@ is stored or logged.
 The Node relay honours the same two variables (`INMOVILLA_API_URL`, `APIWEB_HOP_SECRET`), so a relay
 hosted elsewhere can use the hop too.
 
+**Testing apiweb by hand from the authorised server.** `ia` must carry a *visitor's* IP, not the server's own,
+or Inmovilla answers `NECESITAMOS RECIBIR LA IP`:
+
+```powershell
+$url  = "https://apiweb.inmovilla.com/apiweb/apiweb.php"
+$p    = [uri]::EscapeDataString("2;82ku9xz2aw3;1;lostipos;paginacion;1;2;;")
+$body = "param=$p&json=1&ia=8.8.8.8&ib=8.8.8.8"
+Invoke-RestMethod -Uri $url -Method Post -Body $body -ContentType "application/x-www-form-urlencoded"
+```
+
 **If a call answers a bare `403 Forbidden` HTML page**: that is the handler rejecting the shared secret,
 with IIS replacing its JSON explanation. The shipped `web.config` sets `httpErrors existingResponse="PassThrough"`
 so the real message comes through — if you deployed an earlier copy, add that line and the response becomes

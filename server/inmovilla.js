@@ -22,6 +22,23 @@ export const QUERY_TYPES = new Set([
 
 const FIELD_SEPARATOR = ';'
 
+/** Loopback, private and link-local ranges — apiweb will not take any of these as a visitor. */
+const NOT_PUBLIC = /^(?:0\.|10\.|127\.|169\.254\.|192\.168\.|172\.(?:1[6-9]|2\d|3[01])\.|::1$|fe[89ab]|f[cd])/i
+
+/**
+ * The `ia` field carries the **website visitor's** IP, which Inmovilla uses to attribute and
+ * throttle leads. It must be a public address and must not be the caller's own: sending the
+ * server's IP is answered with "NECESITAMOS RECIBIR LA IP", exactly as sending nothing is
+ * (verified against the live API from an authorised server, 10 Sept 2026).
+ *
+ * Server-to-server calls — verifying an admin's keys, refreshing comparables — have no visitor,
+ * so they fall back to a neutral public address rather than sending an unusable one.
+ */
+export function visitorIp(clientIp, fallback = '8.8.8.8') {
+  const ip = String(clientIp || '').trim()
+  return !ip || NOT_PUBLIC.test(ip) ? fallback : ip
+}
+
 function clean(value) {
   // Semicolons are the protocol separator, never let user input inject one.
   return String(value ?? '').replace(/;/g, ' ').trim()
@@ -109,15 +126,14 @@ export function buildParam({ numagencia, password, idioma = 1 }, requests) {
   return parts.join(FIELD_SEPARATOR)
 }
 
-export function buildFormBody(credentials, requests, { clientIp = '', domain = '' } = {}) {
+export function buildFormBody(credentials, requests, { clientIp = '', domain = '', visitorFallback } = {}) {
   const body = new URLSearchParams()
   body.set('param', buildParam(credentials, requests))
   body.set('json', '1')
-  // The visitor's IP, used by Inmovilla to attribute leads (both names appear in their docs)
-  if (clientIp) {
-    body.set('ia', clientIp)
-    body.set('ib', clientIp)
-  }
+  // Always sent: apiweb refuses a call that carries no usable visitor IP.
+  const ia = visitorIp(clientIp, visitorFallback || '8.8.8.8')
+  body.set('ia', ia)
+  body.set('ib', ia)
   if (domain) body.set('elDominio', domain)
   return body
 }
