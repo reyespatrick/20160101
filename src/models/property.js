@@ -58,6 +58,10 @@ export function emptyProperty() {
     id: newId(),
     ref: '', // Inmovilla identifies the listing by this unique reference
     codOfer: null, // resolved after creation (needed for the ficha link and the owner)
+    remoteSnapshot: null, // what Inmovilla held the last time the two sides agreed
+    remoteSeenAt: null, // when that was
+    remoteChangedAt: '', // Inmovilla's own fechaact, shown so an agent knows what they face
+    conflict: null, // { rows, remote, at } — the office moved too; nothing is sent until it is settled
     status: 'draft', // draft | sent | unavailable
     operation: 1, // keyacci
     typeKey: null, // key_tipo

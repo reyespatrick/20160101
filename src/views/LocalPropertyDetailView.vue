@@ -80,7 +80,9 @@ const needsOwner = (d) => d && d.ownerPhone && !d.ownerCheckedAt && !d.ownerRemo
 
 async function catchUp() {
   const d = p.value
-  if (!d || busy.value || !hasFastNetwork()) return
+  // One question at a time: an unsettled conflict is the bigger one, and stacking a second
+  // dialog on top of it is how people answer the wrong question.
+  if (!d || d.conflict || busy.value || !hasFastNetwork()) return
   cancelled = false
   if (needsAddress(d)) await readAddress(d)
   if (!cancelled && needsOwner(p.value) && auth.hasRest) await findOwner(p.value)
@@ -162,6 +164,28 @@ function cancelCatchUp() {
   busy.value = ''
 }
 
+/**
+ * The office changed the listing too. Nothing has been sent, and nothing will be until the agent
+ * has seen both versions side by side and said what the listing should say.
+ */
+const conflictRows = computed(() =>
+  (p.value?.conflict?.rows || []).map((row) => ({ key: row.key, label: t(row.labelKey), mine: row.mine, theirs: row.theirs, prefer: row.prefer })),
+)
+
+function openConflict() {
+  merge.value = {
+    title: t('merge.conflictTitle'),
+    intro: p.value?.remoteChangedAt ? t('merge.conflictIntroDated', { when: p.value.remoteChangedAt }) : t('merge.conflictIntro'),
+    rows: conflictRows.value,
+    apply: async (choice) => {
+      const taken = {}
+      for (const row of conflictRows.value) if (choice[row.key] === 'theirs') taken[row.key] = row.theirs
+      await store.resolveConflict(props.id, taken)
+      catchUpNote.value = t('merge.conflictSettled')
+    },
+  }
+}
+
 async function applyMerge(choice) {
   const pending = merge.value
   merge.value = null
@@ -209,6 +233,14 @@ async function reactivate() {
     <p v-else-if="!p" class="alert">{{ t('common.notFound') }}</p>
 
     <template v-else>
+      <div v-if="p.conflict" class="alert conflict" role="alert">
+        <p>
+          <strong>{{ t('merge.conflictBanner') }}</strong>
+          <span class="muted">{{ p.remoteChangedAt ? t('merge.conflictWhen', { when: p.remoteChangedAt }) : t('merge.conflictHeld') }}</span>
+        </p>
+        <button type="button" class="btn small" @click="openConflict">{{ t('merge.conflictCompare') }}</button>
+      </div>
+
       <p v-if="catchUpNote" class="alert alert-info catch-up" role="status">
         {{ catchUpNote }}
         <button type="button" class="link" @click="catchUpNote = ''">{{ t('common.close') }}</button>
@@ -374,6 +406,9 @@ async function reactivate() {
 .danger { color: var(--danger); }
 .danger-fill { background: var(--danger); }
 .confirm { display: flex; flex-wrap: wrap; align-items: center; gap: 0.6rem; justify-content: center; }
+.conflict { display: flex; align-items: center; justify-content: space-between; gap: 0.75rem; flex-wrap: wrap; }
+.conflict p { margin: 0; display: flex; flex-direction: column; gap: 0.15rem; }
+.conflict .small { padding: 0.45rem 0.9rem; font-size: 0.85rem; font-weight: 600; white-space: nowrap; }
 .catch-up { display: flex; align-items: center; justify-content: space-between; gap: 0.75rem; }
 .catch-up .link { border: 0; background: none; color: inherit; font-weight: 700; text-decoration: underline; padding: 0; font-size: 0.85rem; }
 .toast { position: fixed; left: 50%; bottom: calc(var(--nav-height) + 1rem + env(safe-area-inset-bottom)); transform: translateX(-50%); background: var(--text); color: #fff; padding: 0.6rem 1.1rem; border-radius: 999px; font-weight: 600; font-size: 0.9rem; box-shadow: 0 6px 18px rgba(0,0,0,0.25); }

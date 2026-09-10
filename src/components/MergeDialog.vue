@@ -28,8 +28,9 @@ watch(
   () => props.open,
   (open) => {
     if (!open) return
-    // Empty on the device is not a decision anyone made: take theirs, nothing is lost.
-    choice.value = Object.fromEntries(props.rows.map((r) => [r.key, blank(r.mine) ? 'theirs' : 'mine']))
+    // A row may say which side to lean on — where only one of the two moved, there is nothing to
+    // arbitrate. Otherwise: empty on the device is not a decision anyone made, so take theirs.
+    choice.value = Object.fromEntries(props.rows.map((r) => [r.key, r.prefer || (blank(r.mine) ? 'theirs' : 'mine')]))
   },
   { immediate: true },
 )

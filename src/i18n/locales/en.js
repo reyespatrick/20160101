@@ -118,6 +118,7 @@ export default {
     valid: { ref: 'The reference is required', refFormat: 'Letters, digits, dashes and dots only', type: 'Choose the property type', city: 'Choose the city', priceRent: 'Enter the rent', price: 'Enter the sale price', year: 'Invalid year', cp: 'Invalid postal code', email: 'Invalid email', ownerName: "Enter the owner's first name", ownerSurname: "Enter the owner's last name", ownerPhone: "Enter the owner's phone", built: 'Enter the built area', condition: 'Choose the condition', photos: 'Add at least one photo', },
   },
   merge: {
+    conflictBanner: 'This listing changed in Inmovilla too', conflictWhen: 'Last changed in Inmovilla on {when}. Nothing has been sent.', conflictHeld: 'Nothing is sent until this is settled.', conflictCompare: 'Compare', conflictTitle: 'Two versions of this listing', conflictIntro: 'The listing changed on both sides since they last agreed. Choose what it should say: what you keep will be sent to Inmovilla.', conflictIntroDated: 'Changed in Inmovilla on {when}, and on this device too. Choose what it should say: what you keep will be sent to Inmovilla.', conflictSettled: 'The chosen version has been saved.',
     mine: 'On the device', theirs: 'In Inmovilla', allMine: 'Keep all of mine', allTheirs: 'Take all from Inmovilla',
     keepMine: 'Change nothing', keepChosen: 'Take 1 field | Take {n} fields',
     ownerTitle: 'Owner found in Inmovilla', ownerIntro: 'That number already exists in Inmovilla, with different details. Choose what you keep: nothing changes without you.',

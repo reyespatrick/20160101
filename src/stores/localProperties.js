@@ -3,6 +3,7 @@ import { findByRef } from '../api/inmovilla'
 import { createOwner, hostPhoto, isAuthError, isRateLimited, saveProperty, updateOwner } from '../api/inmovillaRest'
 import { propertiesDb } from '../db/propertiesDb'
 import { emptyProperty, matchesProperty, newId } from '../models/property'
+import { compareToBase, officeMoved, snapshotOfLocal, snapshotOfRemote } from '../models/remote'
 import { pendingRecords } from '../sync/outbox'
 import { resizeImage } from '../utils/image'
 import { useAuthStore } from './auth'
@@ -144,6 +145,46 @@ export const useLocalPropertiesStore = defineStore('localProperties', {
     },
 
     /**
+     * Read the listing back from Inmovilla and see whether the office moved.
+     *
+     * Only for listings that have been sent: a draft has no common ground to compare against, and
+     * its reference is checked for collisions separately. Silent on failure — apiweb may not be
+     * configured, or may be rate limited — because refusing to send on a failed *check* would
+     * strand work on the phone for a reason the agent cannot act on.
+     */
+    async checkRemote(record) {
+      if (!record.remoteSnapshot || record.status === 'draft') return null
+      let remote
+      try {
+        remote = await findByRef(record.ref)
+      } catch {
+        return null
+      }
+      if (!remote) return null
+      const rows = compareToBase({ base: record.remoteSnapshot, remote: snapshotOfRemote(remote), local: snapshotOfLocal(record) })
+      if (!officeMoved(rows)) return null
+      return { rows, remote: snapshotOfRemote(remote), changedAt: String(remote.fechaact || ''), at: Date.now() }
+    },
+
+    /**
+     * The agent has arbitrated: what they kept becomes the listing, and the version they were
+     * shown becomes the new common ground — whether or not they took anything from it. Without
+     * that, the same question would be asked again on the very next sync.
+     */
+    async resolveConflict(id, taken) {
+      const existing = this.items.find((p) => p.id === id)
+      if (!existing?.conflict) return
+      const base = existing.conflict.remote
+      const merged = { ...existing, ...taken, remoteSnapshot: base, remoteSeenAt: Date.now(), conflict: null }
+      const stillDiffers = Object.keys(snapshotOfLocal(merged)).some((k) => String(snapshotOfLocal(merged)[k] ?? '') !== String(base[k] ?? ''))
+      if (stillDiffers) return this.save(merged)
+      // Nothing left to send: the listing already says what Inmovilla says.
+      await propertiesDb.note(this.agency(), id, { ...taken, remoteSnapshot: base, remoteSeenAt: Date.now(), conflict: null })
+      await propertiesDb.markSynced(this.agency(), id, { remoteSnapshot: base, remoteSeenAt: Date.now(), conflict: null })
+      this.items = await propertiesDb.all(this.agency())
+    },
+
+    /**
      * Record something the app learned on its own — the answer to a lookup, a date of check —
      * without turning it into a change worth sending. `save` would mark the listing dirty and
      * push it again, which is the wrong thing to do for bookkeeping.
@@ -191,7 +232,10 @@ export const useLocalPropertiesStore = defineStore('localProperties', {
       this.syncError = ''
       try {
         await this.ensureLoaded()
-        for (const record of pendingRecords(this.items)) {
+        // A listing whose conflict has not been settled is left alone: sending it would
+        // overwrite the office, and re-checking it on every sync would burn apiweb calls for a
+        // question only the agent can answer.
+        for (const record of pendingRecords(this.items).filter((p) => !p.conflict)) {
           try {
             await this.pushOne(auth, agency, record)
           } catch (err) {
@@ -256,7 +300,16 @@ export const useLocalPropertiesStore = defineStore('localProperties', {
         }
         urls.push(meta.publicUrl)
       }
-      // 2. create / update the listing
+      // 2. has the office moved since we last agreed? Inmovilla's writes are upserts, so sending
+      // now would overwrite whatever was corrected there, silently and with nobody the wiser.
+      const conflict = await this.checkRemote(record)
+      if (conflict) {
+        await propertiesDb.note(agency, record.id, { conflict })
+        this.upsertLocal({ ...record, conflict })
+        return
+      }
+
+      // 3. create / update the listing
       // Inmovilla identifies the town by key_loca and refuses a listing without it. A draft is
       // allowed to carry only the town's name — an agent at the door should never be stopped by
       // a code — so the code is resolved here, at the one moment it becomes mandatory.
@@ -272,10 +325,17 @@ export const useLocalPropertiesStore = defineStore('localProperties', {
       }
       await saveProperty(payload, urls)
       const status = record.unavailable ? 'unavailable' : 'sent'
-      // Keep the town code that was just resolved: the listing now exists in Inmovilla under it.
-      await propertiesDb.markSynced(agency, record.id, { status, sentAt: Date.now(), cityKey: payload.cityKey })
+      // Inmovilla now holds exactly what we sent: that is the new common ground.
+      await propertiesDb.markSynced(agency, record.id, {
+        status,
+        sentAt: Date.now(),
+        cityKey: payload.cityKey,
+        remoteSnapshot: snapshotOfLocal(payload),
+        remoteSeenAt: Date.now(),
+        conflict: null,
+      })
       this.items = await propertiesDb.all(agency)
-      // 3./4. cod_ofer and owner (best effort; retried on later syncs)
+      // 4./5. cod_ofer and owner (best effort; retried on later syncs)
       const fresh = this.items.find((p) => p.id === record.id)
       if (fresh) await this.completeRemote(auth, agency, fresh).catch(() => {})
     },
@@ -288,6 +348,11 @@ export const useLocalPropertiesStore = defineStore('localProperties', {
         if (found?.cod_ofer) {
           codOfer = String(found.cod_ofer)
           patch.codOfer = codOfer
+          // We have just seen what Inmovilla holds: record it as the common ground, and keep its
+          // own date so the screen can say when the office last touched the listing.
+          patch.remoteSnapshot = snapshotOfRemote(found)
+          patch.remoteSeenAt = Date.now()
+          patch.remoteChangedAt = String(found.fechaact || '')
         }
       }
       if (codOfer && record.ownerDirty && ownerIsComplete(record)) {
