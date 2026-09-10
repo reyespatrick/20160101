@@ -2,6 +2,7 @@
 import { useI18n } from 'vue-i18n'
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
+import PickerField from '../components/PickerField.vue'
 import FilterBar from '../components/FilterBar.vue'
 import LocalPropertyCard from '../components/LocalPropertyCard.vue'
 import PropertyCard from '../components/PropertyCard.vue'
@@ -63,10 +64,14 @@ onBeforeUnmount(() => observer?.disconnect())
     <template v-if="source === 'mine'">
       <div class="local-tools">
         <input v-model="local.query" type="search" :placeholder="t('props.mineSearch')" :aria-label="t('props.mineSearch')" />
-        <select v-model="local.statusFilter" :aria-label="t('props.allStates')">
-          <option value="">{{ t('props.allStates') }}</option>
-          <option v-for="s in LISTING_STATUSES" :key="s.value" :value="s.value">{{ t(`props.statuses.${s.value}`) }}</option>
-        </select>
+        <PickerField
+          v-model="local.statusFilter"
+          :options="LISTING_STATUSES.map((s) => ({ value: s.value, label: t(`props.statuses.${s.value}`) }))"
+          :title="t('props.allStates')"
+          :placeholder="t('props.allStates')"
+          :empty-label="t('props.allStates')"
+          empty-value=""
+        />
       </div>
       <p class="sync muted">
         <span class="sync-dot" :class="{ pending: local.pendingCount, busy: local.syncing || local.uploading }"></span>
@@ -136,7 +141,7 @@ onBeforeUnmount(() => observer?.disconnect())
 .new-btn { white-space: nowrap; }
 .local-tools { display: grid; grid-template-columns: 1fr; gap: 0.6rem; margin-bottom: 0.5rem; }
 @media (min-width: 720px) { .local-tools { grid-template-columns: 2fr 1fr; } }
-.local-tools input, .local-tools select { width: 100%; border: 1px solid var(--border); border-radius: 10px; padding: 0.7rem 0.85rem; background: var(--surface); font-size: 1rem; }
+.local-tools input { width: 100%; border: 1px solid var(--border); border-radius: 10px; padding: 0.7rem 0.85rem; background: var(--surface); font-size: 1rem; }
 .sync { display: flex; align-items: center; gap: 0.45rem; font-size: 0.82rem; margin: 0.25rem 0 0.75rem; }
 .sync-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--ok); }
 .sync-dot.pending { background: var(--accent); }

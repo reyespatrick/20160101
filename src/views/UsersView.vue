@@ -1,9 +1,10 @@
 <script setup>
-import { onMounted, ref } from 'vue'
+import { computed, onMounted, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { createUser, deleteUser, listUsers, updateUser } from '../api/accounts'
 import { ROLES, useAuthStore } from '../stores/auth'
 import { useNotificationsStore } from '../stores/notifications'
+import PickerField from '../components/PickerField.vue'
 
 const { t, d } = useI18n()
 const auth = useAuthStore()
@@ -79,6 +80,8 @@ async function saveReset(u) {
   resetPassword.value = ''
 }
 const fmt = (ts) => (ts ? d(new Date(ts), 'short') : t('users.never'))
+
+const roleChoices = computed(() => ROLES.map((r) => ({ value: r.value, label: t(r.labelKey), hint: t(`roles.${r.value}Desc`) })))
 </script>
 
 <template>
@@ -101,7 +104,7 @@ const fmt = (ts) => (ts ? d(new Date(ts), 'short') : t('users.never'))
       </div>
       <div class="two">
         <div class="field"><label for="upass">{{ t('users.password') }} <small class="muted">({{ t('auth.passwordRule') }})</small></label><input id="upass" v-model="form.password" type="text" autocomplete="off" minlength="8" required /></div>
-        <div class="field"><label for="urole">{{ t('users.role') }}</label><select id="urole" v-model="form.role"><option v-for="r in ROLES" :key="r.value" :value="r.value">{{ t(r.labelKey) }}</option></select></div>
+        <div class="field"><label for="urole">{{ t('users.role') }}</label><PickerField id="urole" v-model="form.role" :options="roleChoices" :title="t('users.role')" /></div>
       </div>
       <div class="actions">
         <button type="submit" class="btn" :disabled="busy === 'add'">{{ t('common.save') }}</button>
@@ -120,9 +123,14 @@ const fmt = (ts) => (ts ? d(new Date(ts), 'short') : t('users.never'))
           <span class="badge" :class="u.active ? 'badge-sale' : 'badge-rent'">{{ u.active ? t('users.active') : t('users.inactive') }}</span>
         </div>
         <div class="controls">
-          <select :value="u.role" :disabled="busy === u.id" @change="patch(u, { role: $event.target.value })">
-            <option v-for="r in ROLES" :key="r.value" :value="r.value">{{ t(r.labelKey) }}</option>
-          </select>
+          <PickerField
+            compact
+            :model-value="u.role"
+            :options="roleChoices"
+            :disabled="busy === u.id"
+            :title="t('users.role')"
+            @update:model-value="patch(u, { role: $event })"
+          />
           <button type="button" class="btn btn-ghost small" :disabled="busy === u.id" @click="patch(u, { active: !u.active })">{{ u.active ? t('users.deactivate') : t('users.activate') }}</button>
           <button type="button" class="btn btn-ghost small" @click="resetId = resetId === u.id ? null : u.id">{{ t('users.resetPassword') }}</button>
           <button v-if="u.id !== auth.user?.id" type="button" class="btn btn-ghost small danger" @click="confirmId = u.id">{{ t('users.remove') }}</button>
@@ -159,7 +167,7 @@ const fmt = (ts) => (ts ? d(new Date(ts), 'short') : t('users.never'))
 .you { color: var(--muted); font-weight: 400; }
 .small { font-size: 0.85rem; }
 .controls { display: flex; flex-wrap: wrap; gap: 0.4rem; align-items: center; }
-.controls select { border: 1px solid var(--border); border-radius: 8px; padding: 0.4rem 0.6rem; background: var(--surface); color: var(--text); }
+.controls .picker { min-width: 9rem; }
 .btn.small { padding: 0.4rem 0.7rem; font-size: 0.85rem; }
 .danger { color: var(--danger); }
 .danger-fill { background: var(--danger); }

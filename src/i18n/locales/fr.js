@@ -1,5 +1,6 @@
 export default {
   common: {
+    choose: 'Choisir', noMatch: 'Aucun résultat',
     save: 'Enregistrer', saving: 'Enregistrement…', cancel: 'Annuler', edit: 'Modifier', delete: 'Supprimer', yes: 'Oui', no: 'Non', back: 'Retour', new: 'Nouveau',
     search: 'Rechercher', loading: 'Chargement…', retry: 'Réessayer', home: "Aller à l'accueil", reload: "Recharger l'app", add: 'Ajouter', call: 'Appeler',
     whatsapp: 'WhatsApp', email: 'Email', close: 'Fermer', optional: 'facultatif', none: '—', show: 'Voir', hide: 'Masquer', update: 'Actualiser',
@@ -87,6 +88,7 @@ export default {
     features: { ascensor: 'Ascenseur', terraza: 'Terrasse', balcon: 'Balcon', plaza_gara: 'Place de garage', parking: 'Parking', trastero: 'Débarras', piscina_com: 'Piscine commune', piscina_prop: 'Piscine privée', aire_con: 'Climatisation', calefaccion: 'Chauffage', muebles: 'Meublé', jardin: 'Jardin', vistasalmar: 'Vue mer', primera_line: 'Première ligne', primera_linea: 'Première ligne', chimenea: 'Cheminée', urbanizacion: 'Résidence', mascotas: 'Animaux acceptés', exclu: 'Exclusivité', arma_empo: 'Placards intégrés', puerta_blin: 'Porte blindée', luminoso: 'Lumineux' },
     statuses: { draft: 'Brouillon', sent: 'Dans Inmovilla', unavailable: 'Retiré' },
     form: {
+      cadastreOffers: 'Le cadastre indique :', cadastreUse: 'Utiliser', cadastreIgnore: 'Ignorer', cadastralMap: 'Voir le plan',
       positionStored: 'Position enregistrée', positionTaken: 'Relevée le {when}', positionAsk: 'Une position est déjà enregistrée pour ce bien.', positionUse: 'Utiliser cette position', positionAgain: 'Relever à nouveau', geoStored: "Position enregistrée. Sans réseau, l'adresse ne peut pas être lue : rappuyez sur GPS une fois connecté.", geoKept: 'La position reste enregistrée.',
       location: 'Localisation', gps: 'GPS', editAddress: 'Modifier', noAddress: 'Aucune adresse. Utilisez le GPS devant le bien, ou saisissez-la.', addressSheet: 'Adresse du bien', applyAddress: "Enregistrer l'adresse", province: 'Province', chooseProvince: 'Choisir la province', chooseProvinceFirst: 'Choisissez d\'abord la province', chooseCity: 'Choisir la ville', cityFilter: 'Filtrer les villes…', cityOutside: '{city} est hors d\'Andalousie : le cadastre ne pourra pas être consulté.', cadastralLooking: 'Recherche au cadastre…', cadastralNone: 'Aucune parcelle à cette adresse au cadastre.', cadastralFailed: 'Le cadastre n\'a pas répondu ; la référence sera à saisir à la main.',
       theProperty: 'Le bien', 

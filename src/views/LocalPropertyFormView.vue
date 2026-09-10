@@ -5,6 +5,7 @@ import { useRouter } from 'vue-router'
 import AddressSheet from '../components/AddressSheet.vue'
 import ConfirmDialog from '../components/ConfirmDialog.vue'
 import ChipGroup from '../components/ChipGroup.vue'
+import PickerField from '../components/PickerField.vue'
 import PhotoPicker from '../components/PhotoPicker.vue'
 import { ENERGY_RATINGS, FEATURES, OPERATIONS, completeness, emptyProperty, suggestRef, validateProperty } from '../models/property'
 import { findMunicipality, provinceOf } from '../data/andalucia'
@@ -54,6 +55,7 @@ const locating = ref('') // '' | 'locating' | 'reading'
 const locateError = ref('')
 const cadastre = ref('') // '' | 'looking' | 'ok' | 'none' | 'failed'
 const askPosition = ref(false)
+const offer = ref(null) // what the cadastre knows and the form does not
 
 const hasPosition = computed(() => form.latitude != null && form.longitude != null)
 const positionLabel = computed(() => (hasPosition.value ? `${Number(form.latitude).toFixed(5)} · ${Number(form.longitude).toFixed(5)}` : ''))
@@ -138,6 +140,7 @@ async function lookupPosition() {
     form.postalCode = address.postalCode || ''
     setTown(address.city, address.province)
     form.cadastralRef = plot?.reference || ''
+    proposeFromCadastre(plot)
     // "No plot here" and "the register would not answer" call for very different reactions.
     cadastre.value = plot?.reference ? 'ok' : cadastreError ? 'failed' : 'none'
   } catch (err) {
@@ -146,6 +149,35 @@ async function lookupPosition() {
   } finally {
     locating.value = ''
   }
+}
+
+/**
+ * What the register knows about the building that the form does not say yet.
+ *
+ * It is offered, never written in: the cadastre describes the whole plot, and the flat being
+ * sold is not always the whole plot — a 3 081 m² figure on a block of fifteen would be a lie in
+ * the listing. Only fields the agent has left empty are proposed, and only on a tap.
+ */
+function proposeFromCadastre(plot) {
+  form.cadastralUrl = plot?.mapUrl || ''
+  if (!plot) {
+    offer.value = null
+    return
+  }
+  const next = {}
+  if (plot.builtArea && !form.builtArea) next.builtArea = plot.builtArea
+  if (plot.yearBuilt && !form.yearBuilt) next.yearBuilt = plot.yearBuilt
+  if (plot.plotArea && !form.plotArea) next.plotArea = plot.plotArea
+  next.use = plot.use || ''
+  offer.value = next.builtArea || next.yearBuilt || next.plotArea ? next : null
+}
+
+function acceptOffer() {
+  if (!offer.value) return
+  for (const key of ['builtArea', 'yearBuilt', 'plotArea']) {
+    if (offer.value[key]) form[key] = offer.value[key]
+  }
+  offer.value = null
 }
 
 /**
@@ -228,6 +260,7 @@ async function refreshCadastre() {
     if (plot?.reference) {
       form.cadastralRef = plot.reference
       if (plot.postalCode) form.postalCode = plot.postalCode
+      proposeFromCadastre(plot)
       cadastre.value = 'ok'
     } else {
       cadastre.value = 'none'
@@ -313,8 +346,8 @@ async function checkRef() {
   if (free === false) errors.value = { ...errors.value, ref: t('props.form.refExists') }
 }
 
-function onTypeChange(e) {
-  form.typeKey = e.target.value ? Number(e.target.value) : null
+function onTypeChange(value) {
+  form.typeKey = value ?? null
   form.typeName = enums.label('key_tipo', form.typeKey)
 }
 
@@ -341,7 +374,7 @@ async function submit() {
     if (ADVANCED_FIELDS.some((f) => errors.value[f])) advancedOpen.value = true
     if (SHEET_FIELDS.some((f) => errors.value[f])) sheetOpen.value = true
     await nextTick()
-    document.querySelector('.field.invalid input, .field.invalid select, .invalid-chips')?.scrollIntoView({ block: 'center' })
+    document.querySelector('.field.invalid input, .field.invalid .control, .invalid-chips')?.scrollIntoView({ block: 'center' })
     return
   }
   saving.value = true
@@ -396,10 +429,15 @@ async function cancel() {
         <h3 class="sub">{{ t('props.form.theProperty') }}</h3>
         <div class="field" :class="{ invalid: errors.typeKey }">
           <label for="type">{{ t('props.form.type') }} *</label>
-          <select id="type" :value="form.typeKey ?? ''" @change="onTypeChange">
-            <option value="" disabled>{{ typeOptions.length ? t('props.form.chooseType') : enums.loading.tipos ? t('props.form.loadingTypes') : t('props.form.noTypes') }}</option>
-            <option v-for="t in typeOptions" :key="t.value" :value="t.value">{{ t.label }}</option>
-          </select>
+          <PickerField
+            id="type"
+            :model-value="form.typeKey"
+            :options="typeOptions"
+            :invalid="Boolean(errors.typeKey)"
+            :title="t('props.form.type')"
+            :placeholder="typeOptions.length ? t('props.form.chooseType') : enums.loading.tipos ? t('props.form.loadingTypes') : t('props.form.noTypes')"
+            @update:model-value="onTypeChange"
+          />
           <small v-if="errors.typeKey" class="err">{{ errors.typeKey }}</small>
         </div>
 
@@ -424,10 +462,15 @@ async function cancel() {
 
         <div class="field" :class="{ invalid: errors.conservation }">
           <label for="condition">{{ t('props.form.condition') }} *</label>
-          <select id="condition" v-model="form.conservation">
-            <option :value="null">{{ t('props.form.unspecified') }}</option>
-            <option v-for="o in enums.options('conservacion')" :key="o.value" :value="o.value">{{ o.label }}</option>
-          </select>
+          <PickerField
+            id="condition"
+            v-model="form.conservation"
+            :options="enums.options('conservacion')"
+            :invalid="Boolean(errors.conservation)"
+            :title="t('props.form.condition')"
+            :placeholder="t('props.form.unspecified')"
+            :empty-label="t('props.form.unspecified')"
+          />
           <small v-if="errors.conservation" class="err">{{ errors.conservation }}</small>
         </div>
 
@@ -448,7 +491,10 @@ async function cancel() {
         <div class="address" :class="{ invalid: errors.cityName || errors.postalCode }">
           <template v-if="hasAddress">
             <p v-for="(line, i) in addressLines" :key="i" :class="i === 0 ? 'line-1' : 'line-2'">{{ line }}</p>
-            <p v-if="form.cadastralRef" class="cadastral">{{ t('props.form.cadastral') }} · {{ form.cadastralRef }}</p>
+            <p v-if="form.cadastralRef" class="cadastral">
+              {{ t('props.form.cadastral') }} · {{ form.cadastralRef }}
+              <a v-if="form.cadastralUrl" :href="form.cadastralUrl" target="_blank" rel="noopener">{{ t('props.form.cadastralMap') }}</a>
+            </p>
           </template>
           <template v-else-if="hasPosition">
             <p class="line-1">{{ t('props.form.positionStored') }}</p>
@@ -459,6 +505,17 @@ async function cancel() {
           <p v-if="cadastre === 'looking'" class="muted small-note">{{ t('props.form.cadastralLooking') }}</p>
           <p v-else-if="cadastre === 'none'" class="muted small-note">{{ t('props.form.cadastralNone') }}</p>
           <p v-else-if="cadastre === 'failed'" class="err small-note">{{ t('props.form.cadastralFailed') }}</p>
+        </div>
+        <div v-if="offer" class="offer">
+          <p class="what">
+            {{ t('props.form.cadastreOffers') }}
+            <strong>{{ [offer.builtArea ? `${offer.builtArea} m²` : '', offer.yearBuilt || '', offer.use].filter(Boolean).join(' · ') }}</strong>
+          </p>
+          <p v-if="offer.plotArea" class="muted plot">{{ t('props.form.plot') }} · {{ offer.plotArea }} m²</p>
+          <div class="offer-actions">
+            <button type="button" class="btn small" @click="acceptOffer">{{ t('props.form.cadastreUse') }}</button>
+            <button type="button" class="btn btn-ghost small" @click="offer = null">{{ t('props.form.cadastreIgnore') }}</button>
+          </div>
         </div>
         <small v-if="errors.cityName" class="err">{{ errors.cityName }}</small>
         <small v-else-if="errors.postalCode" class="err">{{ errors.postalCode }}</small>
@@ -533,10 +590,14 @@ async function cancel() {
           </div>
           <div class="field">
             <label for="orientation">{{ t('props.form.orientation') }}</label>
-            <select id="orientation" v-model="form.orientation">
-              <option :value="null">{{ t('props.form.unspecified') }}</option>
-              <option v-for="o in enums.options('keyori')" :key="o.value" :value="o.value">{{ o.label }}</option>
-            </select>
+            <PickerField
+              id="orientation"
+              v-model="form.orientation"
+              :options="enums.options('keyori')"
+              :title="t('props.form.orientation')"
+              :placeholder="t('props.form.unspecified')"
+              :empty-label="t('props.form.unspecified')"
+            />
           </div>
           <div class="field">
             <label>{{ t('props.form.energy') }}</label>
@@ -607,6 +668,12 @@ async function cancel() {
 .address .line-2 { color: var(--muted); font-size: 0.9rem; margin-top: 0.1rem; }
 .address .cadastral { margin-top: 0.35rem; font-size: 0.78rem; color: var(--muted); font-variant-numeric: tabular-nums; }
 .address .small-note { margin-top: 0.35rem; font-size: 0.8rem; }
+.address .cadastral a { margin-left: 0.4rem; color: var(--brand); }
+.offer { border: 1px solid var(--brand); border-radius: 10px; padding: 0.7rem 0.85rem; background: var(--surface-2); }
+.offer p { margin: 0; font-size: 0.9rem; }
+.offer .plot { font-size: 0.82rem; margin-top: 0.15rem; }
+.offer-actions { display: flex; gap: 0.5rem; margin-top: 0.6rem; }
+.offer-actions .small { padding: 0.45rem 0.8rem; font-size: 0.85rem; font-weight: 600; }
 .advanced { border: 1px solid var(--border); border-radius: var(--radius); background: var(--surface); margin-bottom: 1rem; }
 .advanced > summary { display: flex; align-items: baseline; gap: 0.5rem; flex-wrap: wrap; padding: 1rem 1.2rem; min-height: 48px; font-weight: 700; cursor: pointer; list-style: none; }
 .advanced > summary::-webkit-details-marker { display: none; }
@@ -633,10 +700,10 @@ fieldset { border: 0; margin: 0; padding: 1rem 1.1rem; background: var(--surface
 legend { float: left; width: 100%; font-weight: 700; margin-bottom: 0.5rem; padding: 0; }
 .two, .three { display: grid; gap: 0.75rem; grid-template-columns: 1fr; }
 @media (min-width: 600px) { .two { grid-template-columns: 1fr 1fr; } .three { grid-template-columns: 1fr 1fr 1fr; } }
-.field input, .field select, .field textarea { font-size: 1rem; }
+.field input, .field textarea { font-size: 1rem; }
 .field textarea { border: 1px solid var(--border); border-radius: 10px; padding: 0.7rem 0.85rem; resize: vertical; font: inherit; }
 .field textarea:focus { outline: 2px solid var(--brand); border-color: transparent; }
-.field.invalid input, .field.invalid select { border-color: var(--danger); }
+.field.invalid input { border-color: var(--danger); }
 .ref-row { display: flex; align-items: center; gap: 0.6rem; }
 .ref-row input { flex: 1; min-width: 0; text-transform: uppercase; }
 .ref-row input[readonly] { background: var(--bg); color: var(--muted); }

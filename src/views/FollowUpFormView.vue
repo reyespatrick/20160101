@@ -2,6 +2,7 @@
 import { useI18n } from 'vue-i18n'
 import { computed, onMounted, reactive, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
+import PickerField from '../components/PickerField.vue'
 import ClientPicker from '../components/ClientPicker.vue'
 import InmovillaState from '../components/InmovillaState.vue'
 import PropertyPicker from '../components/PropertyPicker.vue'
@@ -92,8 +93,8 @@ watch(
   },
 )
 
-function onTypeChange(e) {
-  form.typeKey = e.target.value ? Number(e.target.value) : null
+function onTypeChange(value) {
+  form.typeKey = value ?? null
   form.typeName = enums.followUpTypeLabel(form.typeKey)
 }
 
@@ -139,10 +140,16 @@ function cancel() {
         <legend>{{ t('agenda.form.whatWhen') }}</legend>
         <div class="field" :class="{ invalid: errors.typeKey }">
           <label for="type">{{ t('agenda.form.type') }} <small class="muted">{{ t('agenda.form.typeHint') }}</small></label>
-          <select id="type" :value="form.typeKey ?? ''" @change="onTypeChange">
-            <option value="">{{ enums.tiposSeguimiento.length ? t('agenda.form.noType') : enums.loading.tiposSeguimiento ? t('agenda.form.loadingTypes') : t('agenda.form.noTypes') }}</option>
-            <option v-for="t in enums.tiposSeguimiento" :key="t.value" :value="t.value">{{ t.label }}</option>
-          </select>
+          <PickerField
+            id="type"
+            :model-value="form.typeKey"
+            :options="enums.tiposSeguimiento"
+            :invalid="Boolean(errors.typeKey)"
+            :title="t('agenda.form.type')"
+            :placeholder="enums.tiposSeguimiento.length ? t('agenda.form.noType') : enums.loading.tiposSeguimiento ? t('agenda.form.loadingTypes') : t('agenda.form.noTypes')"
+            :empty-label="t('agenda.form.noType')"
+            @update:model-value="onTypeChange"
+          />
           <small v-if="errors.typeKey" class="err">{{ errors.typeKey }}</small>
         </div>
         <div class="field" :class="{ invalid: errors.subject }">
@@ -219,10 +226,10 @@ form { display: flex; flex-direction: column; gap: 0.9rem; }
 .state { margin: 0; }
 fieldset { border: 0; margin: 0; padding: 1rem 1.1rem; background: var(--surface); border-radius: var(--radius); box-shadow: var(--shadow); display: flex; flex-direction: column; gap: 0.85rem; }
 legend { float: left; width: 100%; font-weight: 700; margin-bottom: 0.5rem; padding: 0; }
-.field input, .field select, .field textarea { font-size: 1rem; }
+.field input, .field textarea { font-size: 1rem; }
 .field textarea { border: 1px solid var(--border); border-radius: 10px; padding: 0.7rem 0.85rem; resize: vertical; font: inherit; }
 .field textarea:focus { outline: 2px solid var(--brand); border-color: transparent; }
-.field.invalid input, .field.invalid select { border-color: var(--danger); }
+.field.invalid input, .field.invalid .control { border-color: var(--danger); }
 .err { color: var(--danger); font-size: 0.8rem; }
 .cal-actions { display: flex; flex-wrap: wrap; gap: 0.5rem; }
 .closed-toggle { display: flex; align-items: center; gap: 0.6rem; border: 1.5px solid var(--border); border-radius: 10px; padding: 0.7rem 0.85rem; font-weight: 600; cursor: pointer; }

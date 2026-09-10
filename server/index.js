@@ -21,7 +21,7 @@ import { createAccountsRouter } from './accounts.js'
 import { canDelete, canWrite, requireUser } from './auth.js'
 import * as db from './db.js'
 import { estimateProperty, verifyAnthropicKey } from './estimate.js'
-import { cadastralByAddress, cadastralReference, demoPosition, reverseGeocode } from '../shared/geocode.js'
+import { cadastralByAddress, cadastralDetail, cadastralReference, demoPosition, reverseGeocode } from '../shared/geocode.js'
 import { buildFormBody, createRateLimiter, headerValue, normalizeRequest, parseApiResponse } from './inmovilla.js'
 import { mockResponse } from './mock.js'
 import { createMockRest } from './mockRest.js'
@@ -244,7 +244,10 @@ app.post('/api/geocode', requireUser, express.json({ limit: '4kb' }), async (req
       }),
     ])
     if (!address && !cadastre) return res.status(404).json({ error: 'No se encontró ninguna dirección en ese punto', code: 'nomatch' })
-    res.json({ address: address || {}, cadastre, cadastreError, demo: Boolean(demo) })
+    // A lookup by coordinates answers with the reference and nothing else; the record behind it
+    // carries the surfaces, the year and the map link the form can offer.
+    const full = cadastre?.reference ? await cadastralDetail({ reference: cadastre.reference }).catch(() => null) : null
+    res.json({ address: address || {}, cadastre: full || cadastre, cadastreError, demo: Boolean(demo) })
   } catch (err) {
     res.status(err.status || 502).json({ error: err.message })
   }

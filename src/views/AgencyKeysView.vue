@@ -6,6 +6,7 @@ import { useAuthStore } from '../stores/auth'
 import { useEnumsStore } from '../stores/enums'
 import { useNotificationsStore } from '../stores/notifications'
 import { usePropertiesStore } from '../stores/properties'
+import PickerField from '../components/PickerField.vue'
 
 const { t } = useI18n()
 const auth = useAuthStore()
@@ -139,7 +140,13 @@ async function submit() {
       <label class="show"><input v-model="show" type="checkbox" /> {{ t('common.show') }}</label>
       <div class="field">
         <label for="lang">{{ t('keys.dataLanguage') }}</label>
-        <select id="lang" v-model.number="form.idioma" @change="touched.idioma = true"><option v-for="l in LANGUAGES" :key="l.value" :value="l.value">{{ l.label }}</option></select>
+        <PickerField
+          id="lang"
+          :model-value="form.idioma"
+          :options="LANGUAGES"
+          :title="t('keys.dataLanguage')"
+          @update:model-value="form.idioma = Number($event); touched.idioma = true"
+        />
       </div>
       <p v-if="error" class="alert">{{ error }}</p>
       <button type="submit" class="btn" :disabled="saving || !somethingToSave">{{ saving ? t('auth.checking') : t('keys.verifyAndSave') }}</button>

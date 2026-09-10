@@ -4,7 +4,7 @@
  */
 import { authenticate } from '../_shared/auth.js'
 import { fail, guard, json, readJson } from '../_shared/http.js'
-import { cadastralByAddress, cadastralReference, demoPosition, reverseGeocode } from '../../shared/geocode.js'
+import { cadastralByAddress, cadastralDetail, cadastralReference, demoPosition, reverseGeocode } from '../../shared/geocode.js'
 
 export const onRequestPost = guard(async (context) => {
   const session = await authenticate(context)
@@ -38,5 +38,8 @@ export const onRequestPost = guard(async (context) => {
     }),
   ])
   if (!address && !cadastre) return fail('No se encontró ninguna dirección en ese punto', 404, 'nomatch')
-  return json({ address: address || {}, cadastre, cadastreError, demo: Boolean(demo) })
+  // A lookup by coordinates answers with the reference and nothing else; the record behind it
+  // carries the surfaces, the year and the map link the form can offer.
+  const full = cadastre?.reference ? await cadastralDetail({ reference: cadastre.reference }).catch(() => null) : null
+  return json({ address: address || {}, cadastre: full || cadastre, cadastreError, demo: Boolean(demo) })
 })

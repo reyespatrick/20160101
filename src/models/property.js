@@ -79,6 +79,7 @@ export function emptyProperty() {
     longitude: null,
     positionAt: null, // when the position was taken — an address read later starts from it
     cadastralRef: '', // referencia catastral, read from the position (Sede Electrónica del Catastro)
+    cadastralUrl: '', // the plot on the cadastral map, as the register itself links it
     bedrooms: null, // habitaciones
     bathrooms: null, // banyos
     builtArea: null, // m_cons

@@ -91,22 +91,29 @@ export function fromCatastro(payload) {
 export async function cadastralReference({ lat, lon, env = {} }) {
   if (!validCoordinates(lat, lon)) return null
   const url = `${CATASTRO_URL}?CoorX=${encodeURIComponent(lon)}&CoorY=${encodeURIComponent(lat)}&SRS=EPSG:4326`
+  return fromCatastro(await catastroJson(url, env))
+}
+
+/**
+ * One door to the register, because it fails in two ways that both deserve a second chance: it
+ * drops connections, and it answers 5xx (a Cloudflare 520 roughly one call in four, seen from
+ * the Workers side) with an HTML page instead of JSON. Both are transient; a single retry turns
+ * them into a non-event, and only a second failure is reported — with the register's own wording.
+ */
+async function catastroJson(url, env = {}) {
   const call = () =>
     withTimeout(async (signal) => {
       const res = await fetch(url, { signal, headers: { 'User-Agent': env.GEOCODE_USER_AGENT || USER_AGENT, Accept: 'application/json' } })
-      return { status: res.status, text: await res.text() }
+      const text = await res.text()
+      try {
+        return { payload: JSON.parse(text) }
+      } catch {
+        const plain = text.replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 160)
+        throw Object.assign(new Error(`Catastro ${res.status}: ${plain || 'respuesta ilegible'}`), { status: 502 })
+      }
     })
-  // The Catastro drops a connection now and then; one retry turns that into a non-event.
-  const { status, text } = await call().catch(() => call())
-  let payload
-  try {
-    payload = JSON.parse(text)
-  } catch {
-    // The Catastro answers an HTML page when it turns a caller away; pass its wording on.
-    const plain = text.replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 160)
-    throw Object.assign(new Error(`Catastro ${status}: ${plain || 'respuesta ilegible'}`), { status: 502 })
-  }
-  return fromCatastro(payload)
+  const { payload } = await call().catch(() => call())
+  return payload
 }
 
 const USER_AGENT = 'Mozilla/5.0 (compatible; immoba/1.0; real-estate field app)'
@@ -206,33 +213,22 @@ async function catastro(path, params) {
   const query = Object.entries(params)
     .map(([k, v]) => `${k}=${encodeURIComponent(v ?? '')}`)
     .join('&')
-  const call = () =>
-    withTimeout(async (signal) => {
-      const res = await fetch(`${CALLEJERO_URL}/${path}?${query}`, {
-        signal,
-        headers: { 'User-Agent': USER_AGENT, Accept: 'application/json' },
-      })
-      return { status: res.status, text: await res.text() }
-    })
-  // The Catastro drops a connection now and then; one retry turns that into a non-event.
-  const { status, text } = await call().catch(() => call())
-  try {
-    return JSON.parse(text)
-  } catch {
-    const plain = text.replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 160)
-    throw Object.assign(new Error(`Catastro ${status}: ${plain || 'respuesta ilegible'}`), { status: 502 })
-  }
+  return catastroJson(`${CALLEJERO_URL}/${path}?${query}`)
 }
 
 /**
- * The 14 characters that name the plot; every unit in the building shares them.
+ * Everything the register says about a plot, from either of the two calls that describe one
+ * (`Consulta_DNPLOC` by address, `Consulta_DNPRC` by reference) and either of the two shapes
+ * each can answer in — `bico` when the number holds a single property, `lrcdnp` when it holds
+ * several, one entry per flat. Neither is announced; both describe the same plot.
  *
- * The register answers in two shapes and neither is announced: `bico` when the number holds a
- * single property, `lrcdnp` when it holds several (a block of flats, where each unit is listed).
- * Both carry the same plot, so either is read the same way.
+ * Beyond the reference it carries what an agent would otherwise measure or guess: the built
+ * surface, the year of construction, the plot size and the official use. Those are offered to
+ * the form, never written into it — the register is right about the building, not necessarily
+ * about the flat being sold.
  */
-export function fromDnploc(payload) {
-  const result = payload?.consulta_dnplocResult
+export function readCadastre(payload) {
+  const result = payload?.consulta_dnplocResult || payload?.consulta_dnprcResult
   if (!result || result.control?.cuerr) return null
   const single = result.bico?.bi
   const list = result.lrcdnp?.rcdnp
@@ -241,45 +237,48 @@ export function fromDnploc(payload) {
   if (!rc?.pc1 || !rc?.pc2) return null
   const urban = hit.dt?.locs?.lous?.lourb || {}
   const dir = urban.dir || {}
+  const debi = hit.debi || {}
+  const finca = result.bico?.finca || {}
+  const n = (v) => {
+    const num = Number(String(v ?? '').replace(',', '.'))
+    return Number.isFinite(num) && num > 0 ? num : null
+  }
   return {
     reference: `${rc.pc1}${rc.pc2}`,
     label: (hit.ldt || dir.td || '').trim(),
     street: [dir.tv, dir.nv].filter(Boolean).join(' ').trim(),
     number: dir.pnp || '',
     postalCode: urban.dp || '',
+    city: hit.dt?.nm || '',
+    province: hit.dt?.np || '',
+    use: debi.luso || '',
+    builtArea: n(debi.sfc),
+    yearBuilt: n(debi.ant),
+    plotArea: n(finca.dff?.ss),
+    mapUrl: finca.infgraf?.igraf || '',
   }
 }
+
+/** Kept for the call sites that only ever wanted the plot; the details are ignored there. */
+export const fromDnploc = readCadastre
 
 /**
  * Ask the register how it writes that street, so a second attempt can use its own words.
  *
- * `ObtenerCallejero` ignores its own NombreVia filter and always answers the municipality's
- * whole street list — 900 KB for Málaga — so it is fetched once, briefly cached, and every
- * attempt at matching happens in memory. The register files streets under their bare name
- * ("Avenida de la Constitución" is CONSTITUCION), hence the leading articles peeled off in turn.
+ * The filter parameter is `NomVia` — with `NombreVia`, which reads just as plausibly, the
+ * service silently ignores it and answers the town's entire street list (900 KB for Málaga).
+ * The register files streets under their bare name ("Avenida de la Constitución" is filed as
+ * CONSTITUCION), hence the leading articles peeled off one at a time.
  */
 const ARTICLES = /^(de|del|la|las|los|el|l)\s+/i
-const callejeroCache = new Map()
-const CALLEJERO_TTL_MS = 10 * 60 * 1000
-
-async function callejero(province, municipality) {
-  const key = `${province}|${municipality}`
-  const cached = callejeroCache.get(key)
-  if (cached && Date.now() - cached.at < CALLEJERO_TTL_MS) return cached.streets
-  const payload = await catastro('ObtenerCallejero', { Provincia: province, Municipio: municipality, TipoVia: '', NombreVia: '' })
-  const result = payload?.consulta_callejeroResult
-  const list = result?.control?.cuerr ? null : result?.callejero?.calle
-  const streets = (Array.isArray(list) ? list : [list]).filter(Boolean).map((c) => c.dir).filter((d) => d?.nv)
-  if (callejeroCache.size > 8) callejeroCache.clear()
-  callejeroCache.set(key, { at: Date.now(), streets })
-  return streets
-}
 
 async function findStreet({ province, municipality, name }) {
-  const streets = await callejero(province, municipality)
-  if (!streets.length) return null
   let wanted = plainUpper(name)
   for (let i = 0; i < 4 && wanted; i += 1) {
+    const payload = await catastro('ObtenerCallejero', { Provincia: province, Municipio: municipality, TipoVia: '', NomVia: wanted })
+    const result = payload?.consulta_callejeroResult
+    const list = result?.control?.cuerr ? null : result?.callejero?.calle
+    const streets = (Array.isArray(list) ? list : [list]).filter(Boolean).map((c) => c.dir).filter((d) => d?.nv)
     const hit =
       streets.find((d) => plainUpper(d.nv) === wanted) ||
       streets.find((d) => plainUpper(d.nv).startsWith(`${wanted} `)) ||
@@ -308,11 +307,23 @@ export async function cadastralByAddress({ province, municipality, street, numbe
     })
 
   const guess = splitStreet(street)
-  const first = fromDnploc(await ask(guess.sigla, guess.name))
+  const first = readCadastre(await ask(guess.sigla, guess.name))
   if (first) return first
 
   // The guess was wrong about the type or the wording; let the register name the street itself.
   const known = await findStreet({ province: plainUpper(province), municipality: plainUpper(municipality), name: guess.name })
   if (!known) return null
-  return fromDnploc(await ask(known.tv, plainUpper(known.nv)))
+  return readCadastre(await ask(known.tv, plainUpper(known.nv)))
+}
+
+/**
+ * The full record behind a reference. The lookup by coordinates answers with the reference and
+ * an address line and nothing else, so this is what turns a GPS reading into surfaces, a year
+ * and a link to the cadastral map. Province and municipality are not needed: the reference is
+ * unique nationwide.
+ */
+export async function cadastralDetail({ reference }) {
+  const ref = String(reference || '').replace(/\s+/g, '').toUpperCase()
+  if (!/^[A-Z0-9]{14,20}$/.test(ref)) return null
+  return readCadastre(await catastro('Consulta_DNPRC', { Provincia: '', Municipio: '', RefCat: ref }))
 }

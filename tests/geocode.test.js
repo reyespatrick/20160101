@@ -189,3 +189,42 @@ describe('demo position', () => {
     expect(demoPosition({ GEOCODE_DEMO_POSITION: '999,0' })).toBe(null)
   })
 })
+
+describe('what the register says about a plot', () => {
+  it('reads both answers and everything they carry', async () => {
+    const { readCadastre } = await import('../shared/geocode.js')
+    const full = {
+      consulta_dnprcResult: {
+        control: { cudnp: 1 },
+        bico: {
+          bi: {
+            idbi: { rc: { pc1: '3148206', pc2: 'UF7634N' } },
+            dt: { np: 'MÁLAGA', nm: 'MALAGA', locs: { lous: { lourb: { dir: { tv: 'CL', nv: 'MARQUES DE LARIOS', pnp: '5' }, dp: '29015' } } } },
+            ldt: 'CL MARQUES DE LARIOS 5 29015 MALAGA (MÁLAGA)',
+            debi: { luso: 'Residencial', sfc: '3081', cpt: '100,000000', ant: '1944' },
+          },
+          finca: { dff: { ss: '600' }, infgraf: { igraf: 'https://www1.sedecatastro.gob.es/Cartografia/mapa.aspx?refcat=3148206UF7634N' } },
+        },
+      },
+    }
+    expect(readCadastre(full)).toMatchObject({
+      reference: '3148206UF7634N',
+      city: 'MALAGA',
+      use: 'Residencial',
+      builtArea: 3081,
+      yearBuilt: 1944,
+      plotArea: 600,
+      mapUrl: 'https://www1.sedecatastro.gob.es/Cartografia/mapa.aspx?refcat=3148206UF7634N',
+    })
+    // An empty surface is "unknown", not zero: a plaza has no built area and must not offer 0 m².
+    const bare = JSON.parse(JSON.stringify(full))
+    bare.consulta_dnprcResult.bico.bi.debi = { luso: 'Suelos sin edificar', sfc: '0' }
+    expect(readCadastre(bare)).toMatchObject({ builtArea: null, yearBuilt: null, use: 'Suelos sin edificar' })
+  })
+
+  it('refuses a reference that is not one', async () => {
+    const { cadastralDetail } = await import('../shared/geocode.js')
+    expect(await cadastralDetail({ reference: '' })).toBe(null)
+    expect(await cadastralDetail({ reference: 'pas une référence' })).toBe(null)
+  })
+})

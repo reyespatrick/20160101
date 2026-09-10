@@ -1,5 +1,6 @@
 export default {
   common: {
+    choose: 'Elegir', noMatch: 'Sin resultados',
     save: 'Guardar', saving: 'Guardando…', cancel: 'Cancelar', edit: 'Editar', delete: 'Eliminar', yes: 'Sí', no: 'No', back: 'Volver', new: 'Nuevo',
     search: 'Buscar', loading: 'Cargando…', retry: 'Reintentar', home: 'Ir al inicio', reload: 'Recargar la app', add: 'Añadir', call: 'Llamar',
     whatsapp: 'WhatsApp', email: 'Email', close: 'Cerrar', optional: 'opcional', none: '—', show: 'Ver', hide: 'Ocultar', update: 'Actualizar',
@@ -87,6 +88,7 @@ export default {
     features: { ascensor: 'Ascensor', terraza: 'Terraza', balcon: 'Balcón', plaza_gara: 'Plaza de garaje', parking: 'Parking', trastero: 'Trastero', piscina_com: 'Piscina comunitaria', piscina_prop: 'Piscina propia', aire_con: 'Aire acondicionado', calefaccion: 'Calefacción', muebles: 'Amueblado', jardin: 'Jardín', vistasalmar: 'Vistas al mar', primera_line: 'Primera línea', primera_linea: 'Primera línea', chimenea: 'Chimenea', urbanizacion: 'Urbanización', mascotas: 'Admite mascotas', exclu: 'Exclusiva', arma_empo: 'Armarios empotrados', puerta_blin: 'Puerta blindada', luminoso: 'Luminoso' },
     statuses: { draft: 'Borrador', sent: 'En Inmovilla', unavailable: 'Dada de baja' },
     form: {
+      cadastreOffers: 'El catastro indica:', cadastreUse: 'Usar', cadastreIgnore: 'Ignorar', cadastralMap: 'Ver el plano',
       positionStored: 'Posición guardada', positionTaken: 'Tomada el {when}', positionAsk: 'Este inmueble ya tiene una posición guardada.', positionUse: 'Usar esta posición', positionAgain: 'Tomarla de nuevo', geoStored: 'Posición guardada. Sin conexión no se puede leer la dirección: vuelve a pulsar GPS cuando tengas red.', geoKept: 'La posición sigue guardada.',
       location: 'Ubicación', gps: 'GPS', editAddress: 'Editar', noAddress: 'Sin dirección. Usa el GPS delante del inmueble o escríbela.', addressSheet: 'Dirección del inmueble', applyAddress: 'Guardar la dirección', province: 'Provincia', chooseProvince: 'Elige la provincia', chooseProvinceFirst: 'Elige antes la provincia', chooseCity: 'Elige la ciudad', cityFilter: 'Filtrar ciudades…', cityOutside: '{city} está fuera de Andalucía: no se podrá consultar el catastro.', cadastralLooking: 'Consultando el catastro…', cadastralNone: 'El catastro no encuentra ninguna parcela en esa dirección.', cadastralFailed: 'El catastro no ha respondido; tendrás que escribir la referencia a mano.',
       theProperty: 'El inmueble', 

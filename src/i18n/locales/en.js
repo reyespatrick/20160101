@@ -1,5 +1,6 @@
 export default {
   common: {
+    choose: 'Choose', noMatch: 'No match',
     save: 'Save', saving: 'Saving…', cancel: 'Cancel', edit: 'Edit', delete: 'Delete', yes: 'Yes', no: 'No', back: 'Back', new: 'New',
     search: 'Search', loading: 'Loading…', retry: 'Retry', home: 'Go home', reload: 'Reload the app', add: 'Add', call: 'Call',
     whatsapp: 'WhatsApp', email: 'Email', close: 'Close', optional: 'optional', none: '—', show: 'Show', hide: 'Hide', update: 'Refresh',
@@ -87,6 +88,7 @@ export default {
     features: { ascensor: 'Lift', terraza: 'Terrace', balcon: 'Balcony', plaza_gara: 'Garage space', parking: 'Parking', trastero: 'Storage room', piscina_com: 'Communal pool', piscina_prop: 'Private pool', aire_con: 'Air conditioning', calefaccion: 'Heating', muebles: 'Furnished', jardin: 'Garden', vistasalmar: 'Sea views', primera_line: 'Seafront', primera_linea: 'Seafront', chimenea: 'Fireplace', urbanizacion: 'Gated community', mascotas: 'Pets allowed', exclu: 'Exclusive', arma_empo: 'Built-in wardrobes', puerta_blin: 'Security door', luminoso: 'Bright' },
     statuses: { draft: 'Draft', sent: 'In Inmovilla', unavailable: 'Withdrawn' },
     form: {
+      cadastreOffers: 'The cadastre says:', cadastreUse: 'Use these', cadastreIgnore: 'Ignore', cadastralMap: 'See the map',
       positionStored: 'Position saved', positionTaken: 'Taken on {when}', positionAsk: 'This listing already has a saved position.', positionUse: 'Use this position', positionAgain: 'Take it again', geoStored: 'Position saved. With no network the address cannot be read: press GPS again once you are online.', geoKept: 'The position is still saved.',
       location: 'Location', gps: 'GPS', editAddress: 'Edit', noAddress: 'No address yet. Use the GPS at the door, or type it in.', addressSheet: 'Property address', applyAddress: 'Save the address', province: 'Province', chooseProvince: 'Choose the province', chooseProvinceFirst: 'Choose the province first', chooseCity: 'Choose the town', cityFilter: 'Filter towns…', cityOutside: '{city} is outside Andalusia: the cadastre cannot be queried.', cadastralLooking: 'Asking the cadastre…', cadastralNone: 'The cadastre has no plot at that address.', cadastralFailed: 'The cadastre did not answer; the reference will have to be typed in.',
       theProperty: 'The property', 

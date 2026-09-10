@@ -1,6 +1,7 @@
 <script setup>
 import { useI18n } from 'vue-i18n'
-import { ref, watch } from 'vue'
+import { computed, ref, watch } from 'vue'
+import PickerField from './PickerField.vue'
 import { ORDER_OPTIONS } from '../api/inmovilla'
 const { t } = useI18n()
 
@@ -20,6 +21,9 @@ watch(search, (value) => {
 function set(key, value) {
   emit('update', { [key]: value })
 }
+
+const typeChoices = computed(() => props.types.map((t) => ({ value: t.key_tipo, label: t.nbtipo || t.tipo })))
+const orderChoices = computed(() => ORDER_OPTIONS.map((o) => ({ value: o.value, label: t(o.labelKey) })))
 </script>
 
 <template>
@@ -44,13 +48,22 @@ function set(key, value) {
         {{ opt.l }}
       </button>
     </div>
-    <select :value="filters.typeKey" :aria-label="t('props.allTypes')" @change="set('typeKey', $event.target.value)">
-      <option value="">{{ t('props.allTypes') }}</option>
-      <option v-for="t in types" :key="t.key_tipo" :value="t.key_tipo">{{ t.nbtipo || t.tipo }}</option>
-    </select>
-    <select :value="filters.order" :aria-label="t('props.sortRecent')" @change="set('order', $event.target.value)">
-      <option v-for="o in ORDER_OPTIONS" :key="o.value" :value="o.value">{{ t(o.labelKey) }}</option>
-    </select>
+    <PickerField
+      :model-value="filters.typeKey"
+      :options="typeChoices"
+      :title="t('props.allTypes')"
+      :placeholder="t('props.allTypes')"
+      :empty-label="t('props.allTypes')"
+      empty-value=""
+      @update:model-value="set('typeKey', $event ?? '')"
+    />
+    <PickerField
+      :model-value="filters.order"
+      :options="orderChoices"
+      :title="t('props.sortRecent')"
+      :placeholder="t('props.sortRecent')"
+      @update:model-value="set('order', $event)"
+    />
   </form>
 </template>
 
@@ -64,7 +77,7 @@ function set(key, value) {
 @media (min-width: 720px) {
   .filters { grid-template-columns: 2fr auto 1fr 1fr; align-items: center; }
 }
-.search input, select {
+.search input {
   width: 100%;
   border: 1px solid var(--border);
   border-radius: 10px;
