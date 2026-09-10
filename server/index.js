@@ -227,12 +227,16 @@ app.post('/api/estimate', requireUser, requireApiweb, express.json({ limit: '256
 app.post('/api/geocode', requireUser, express.json({ limit: '4kb' }), async (req, res) => {
   const { lat, lon, lang } = req.body || {}
   try {
+    let cadastreError = null
     const [address, cadastre] = await Promise.all([
       reverseGeocode({ lat, lon, lang: ['es', 'fr', 'en'].includes(lang) ? lang : 'es', env: process.env }),
-      cadastralReference({ lat, lon, env: process.env }),
+      cadastralReference({ lat, lon, env: process.env }).catch((err) => {
+        cadastreError = err?.message || 'unknown'
+        return null
+      }),
     ])
     if (!address && !cadastre) return res.status(404).json({ error: 'No se encontró ninguna dirección en ese punto', code: 'nomatch' })
-    res.json({ address: address || {}, cadastre })
+    res.json({ address: address || {}, cadastre, cadastreError })
   } catch (err) {
     res.status(err.status || 502).json({ error: err.message })
   }

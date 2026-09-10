@@ -266,45 +266,6 @@ async function cancel() {
         <p v-if="locateError" class="alert geo">{{ locateError }}</p>
         <p v-else-if="locatedLabel" class="muted geo-ok">{{ locatedLabel }}</p>
 
-        <h3 class="sub">{{ t('props.form.photos') }} *</h3>
-        <PhotoPicker v-model="form.photos" :urls="store.photoUrls" :add-files="addFiles" :remove-photo="removePhoto" />
-        <small v-if="errors.photos" class="err">{{ errors.photos }}</small>
-
-        <h3 class="sub">{{ t('props.form.owner') }}</h3>
-
-        <div class="field" :class="{ invalid: errors.ownerPhone }">
-          <label for="ownerPhone">{{ t('props.form.ownerPhone') }} *</label>
-          <div class="phone-row">
-            <input id="ownerPhone" v-model.trim="form.ownerPhone" type="tel" inputmode="tel" :placeholder="t('props.form.ownerPhonePh')" @input="ownerLookup = ''" />
-            <button type="button" class="btn btn-ghost small" :disabled="ownerLookup === 'searching'" @click="findOwner">
-              {{ ownerLookup === 'searching' ? t('props.form.searching') : t('props.form.searchOwner') }}
-            </button>
-          </div>
-          <small v-if="ownerError" class="err">{{ ownerError }}</small>
-          <small v-else-if="errors.ownerPhone" class="err">{{ errors.ownerPhone }}</small>
-          <small v-else class="muted">{{ t('props.form.ownerPhoneHint') }}</small>
-        </div>
-        <div v-if="ownerLookup === 'found'" class="lookup found">
-          <span>{{ t('props.form.ownerFound', { name: [form.ownerName, form.ownerSurname].filter(Boolean).join(' ') }) }}</span>
-          <button type="button" class="link" @click="newOwner">{{ t('props.form.ownerNotThem') }}</button>
-        </div>
-        <div v-else-if="ownerLookup === 'none'" class="lookup none">
-          <span>{{ t('props.form.ownerNotFound') }}</span>
-        </div>
-
-        <div class="two">
-          <div class="field" :class="{ invalid: errors.ownerName }">
-            <label for="owner">{{ t('props.form.ownerName') }} *</label>
-            <input id="owner" v-model.trim="form.ownerName" autocapitalize="words" />
-            <small v-if="errors.ownerName" class="err">{{ errors.ownerName }}</small>
-          </div>
-          <div class="field" :class="{ invalid: errors.ownerSurname }">
-            <label for="ownerSurname">{{ t('props.form.ownerSurname') }} *</label>
-            <input id="ownerSurname" v-model.trim="form.ownerSurname" autocapitalize="words" />
-            <small v-if="errors.ownerSurname" class="err">{{ errors.ownerSurname }}</small>
-          </div>
-        </div>
-
         <h3 class="sub">{{ t('props.form.theProperty') }}</h3>
         <div class="field" :class="{ invalid: errors.typeKey }">
           <label for="type">{{ t('props.form.type') }} *</label>
@@ -342,6 +303,45 @@ async function cancel() {
           </select>
           <small v-if="errors.conservation" class="err">{{ errors.conservation }}</small>
         </div>
+
+        <h3 class="sub">{{ t('props.form.owner') }}</h3>
+
+        <div class="field" :class="{ invalid: errors.ownerPhone }">
+          <label for="ownerPhone">{{ t('props.form.ownerPhone') }} *</label>
+          <div class="phone-row">
+            <input id="ownerPhone" v-model.trim="form.ownerPhone" type="tel" inputmode="tel" :placeholder="t('props.form.ownerPhonePh')" @input="ownerLookup = ''" />
+            <button type="button" class="btn btn-ghost small" :disabled="ownerLookup === 'searching'" @click="findOwner">
+              {{ ownerLookup === 'searching' ? t('props.form.searching') : t('props.form.searchOwner') }}
+            </button>
+          </div>
+          <small v-if="ownerError" class="err">{{ ownerError }}</small>
+          <small v-else-if="errors.ownerPhone" class="err">{{ errors.ownerPhone }}</small>
+          <small v-else class="muted">{{ t('props.form.ownerPhoneHint') }}</small>
+        </div>
+        <div v-if="ownerLookup === 'found'" class="lookup found">
+          <span>{{ t('props.form.ownerFound', { name: [form.ownerName, form.ownerSurname].filter(Boolean).join(' ') }) }}</span>
+          <button type="button" class="link" @click="newOwner">{{ t('props.form.ownerNotThem') }}</button>
+        </div>
+        <div v-else-if="ownerLookup === 'none'" class="lookup none">
+          <span>{{ t('props.form.ownerNotFound') }}</span>
+        </div>
+
+        <div class="two">
+          <div class="field" :class="{ invalid: errors.ownerName }">
+            <label for="owner">{{ t('props.form.ownerName') }} *</label>
+            <input id="owner" v-model.trim="form.ownerName" autocapitalize="words" />
+            <small v-if="errors.ownerName" class="err">{{ errors.ownerName }}</small>
+          </div>
+          <div class="field" :class="{ invalid: errors.ownerSurname }">
+            <label for="ownerSurname">{{ t('props.form.ownerSurname') }} *</label>
+            <input id="ownerSurname" v-model.trim="form.ownerSurname" autocapitalize="words" />
+            <small v-if="errors.ownerSurname" class="err">{{ errors.ownerSurname }}</small>
+          </div>
+        </div>
+
+        <h3 class="sub">{{ t('props.form.photos') }} *</h3>
+        <PhotoPicker v-model="form.photos" :urls="store.photoUrls" :add-files="addFiles" :remove-photo="removePhoto" />
+        <small v-if="errors.photos" class="err">{{ errors.photos }}</small>
       </fieldset>
 
       <!-- Tout le reste : replié, mais jamais perdu -->

@@ -13,10 +13,14 @@ export const onRequestPost = guard(async (context) => {
   const { lat, lon, lang } = await readJson(context.request, 4096)
   // Both in one round trip: the map provider for the postal address, the Spanish cadastre for
   // the plot reference. Either may come back empty without failing the other.
+  let cadastreError = null
   const [address, cadastre] = await Promise.all([
     reverseGeocode({ lat, lon, lang: ['es', 'fr', 'en'].includes(lang) ? lang : 'es', env: context.env }),
-    cadastralReference({ lat, lon, env: context.env }),
+    cadastralReference({ lat, lon, env: context.env }).catch((err) => {
+      cadastreError = err?.message || 'unknown'
+      return null
+    }),
   ])
   if (!address && !cadastre) return fail('No se encontró ninguna dirección en ese punto', 404, 'nomatch')
-  return json({ address: address || {}, cadastre })
+  return json({ address: address || {}, cadastre, cadastreError })
 })

@@ -68,18 +68,27 @@ export function fromCatastro(payload) {
   return { reference: `${pc.pc1}${pc.pc2}`, label: (coord.ldt || '').trim() }
 }
 
+/**
+ * Throws on a transport problem and returns null only when there genuinely is no plot at that
+ * point. Callers decide what to do: the endpoint reports the reason rather than swallowing it,
+ * because "no reference" and "the service refused us" need very different fixes.
+ */
 export async function cadastralReference({ lat, lon, env = {} }) {
   if (!validCoordinates(lat, lon)) return null
   const url = `${CATASTRO_URL}?CoorX=${encodeURIComponent(lon)}&CoorY=${encodeURIComponent(lat)}&SRS=EPSG:4326`
+  const { status, text } = await withTimeout(async (signal) => {
+    const res = await fetch(url, { signal, headers: { 'User-Agent': env.GEOCODE_USER_AGENT || USER_AGENT, Accept: 'application/json' } })
+    return { status: res.status, text: await res.text() }
+  })
+  let payload
   try {
-    const payload = await withTimeout(async (signal) =>
-      (await fetch(url, { signal, headers: { 'User-Agent': env.GEOCODE_USER_AGENT || USER_AGENT, Accept: 'application/json' } })).json(),
-    )
-    return fromCatastro(payload)
+    payload = JSON.parse(text)
   } catch {
-    // Cosmetic extra: a listing is perfectly valid without it, so never fail the whole reading.
-    return null
+    // The Catastro answers an HTML page when it turns a caller away; pass its wording on.
+    const plain = text.replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 160)
+    throw Object.assign(new Error(`Catastro ${status}: ${plain || 'respuesta ilegible'}`), { status: 502 })
   }
+  return fromCatastro(payload)
 }
 
 const USER_AGENT = 'Mozilla/5.0 (compatible; immoba/1.0; real-estate field app)'
