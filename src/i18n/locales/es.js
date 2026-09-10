@@ -37,6 +37,7 @@ export default {
     saved: 'Guardado', name: 'Nombre', role: 'Rol', agency: 'Agencia', adminOnly: 'Solo administradores',
   },
   lock: {
+    titleOn: 'Modo solo lectura', titleOff: 'Escritura permitida', noteOn: 'Solo un administrador puede desactivarlo. El servidor rechaza cualquier escritura mientras esté activo, aunque la aplicación lo intente.', noteOff: 'El modo solo lectura está activo por defecto; un administrador puede restablecerlo cuando quiera.',
     title: 'Modo solo lectura', bar: 'Modo solo lectura: no se enviará nada a Inmovilla', manage: 'Gestionar',
     onBody: 'Nadie puede crear, modificar ni eliminar nada en Inmovilla, sea cual sea su rol. Consultar y valorar sigue funcionando.',
     offBody: 'La escritura en Inmovilla está permitida. Los usuarios con rol de agente o administrador pueden crear y modificar fichas, clientes, seguimientos y propietarios.',

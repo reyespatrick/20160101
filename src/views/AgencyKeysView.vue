@@ -105,7 +105,10 @@ async function submit() {
       <div class="lock-head">
         <span class="shield" aria-hidden="true">{{ auth.writesLocked ? '🔒' : '🔓' }}</span>
         <div>
-          <h2>{{ t('lock.title') }}</h2>
+          <!-- The heading names the state the agency is in, not the setting's name: a card
+               titled "Read-only mode" above a paragraph saying writing is allowed reads as a
+               contradiction, and nobody should have to work out which half is current. -->
+          <h2>{{ auth.writesLocked ? t('lock.titleOn') : t('lock.titleOff') }}</h2>
           <p class="muted">{{ auth.writesLocked ? t('lock.onBody') : t('lock.offBody') }}</p>
         </div>
       </div>
@@ -113,7 +116,7 @@ async function submit() {
       <button type="button" class="btn" :class="{ 'btn-ghost': !auth.writesLocked }" :disabled="unlocking" @click="toggleLock">
         {{ unlocking ? t('common.saving') : auth.writesLocked ? t('lock.unlock') : t('lock.lock') }}
       </button>
-      <p class="muted note">{{ t('lock.note') }}</p>
+      <p class="muted note">{{ auth.writesLocked ? t('lock.noteOn') : t('lock.noteOff') }}</p>
     </section>
 
     <form class="block form" @submit.prevent="submit">
