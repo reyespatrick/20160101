@@ -2,6 +2,10 @@
  * Sample data shaped like the Inmovilla API, used when INMOVILLA_MOCK=1.
  * Only the agency "1234" with key "demo" is accepted so the login flow can be tested.
  */
+
+/** Where the relay serves the fake photographs from; the deployed demo rewrites this on its way out. */
+export const MOCK_PHOTOS = '/mock-photos'
+
 import { splitSection } from './inmovilla.js'
 
 export const CITIES = ['Alicante', 'Elche', 'Torrevieja', 'Benidorm', 'Altea', 'Dénia', 'Jávea', 'Calpe']
@@ -58,7 +62,7 @@ function makeProperty(i) {
     destacado: r() < 0.2 ? 1 : 0,
     numfotos: 5,
     fechaact: `2026-0${1 + Math.floor(r() * 8)}-${String(1 + Math.floor(r() * 27)).padStart(2, '0')} 10:00:00`,
-    foto: `/mock-photos/${(photoSeed % 12) + 1}.jpg`,
+    foto: `${MOCK_PHOTOS}/${(photoSeed % 12) + 1}.jpg`,
     latitud: 38.34 + r(),
     altitud: -0.48 + r(),
     nombreagente: 'Ana',
@@ -120,7 +124,7 @@ export function upsertMockProperty(rest) {
 function detailFor(p) {
   return {
     ...p,
-    fotos: p.fotos || Array.from({ length: 5 }, (_, k) => `/mock-photos/${((p.cod_ofer + k) % 12) + 1}.jpg`),
+    fotos: p.fotos || Array.from({ length: 5 }, (_, k) => `${MOCK_PHOTOS}/${((p.cod_ofer + k) % 12) + 1}.jpg`),
     descripciones: p.descripciones || [
       `${p.nbtipo} en ${p.ciudad}, zona ${p.zona}. ${p.habitaciones} dormitorios y ${p.banyos} baños en ${p.m_cons} m² construidos. ` +
         'Vivienda luminosa, lista para entrar a vivir, muy cerca de todos los servicios.',

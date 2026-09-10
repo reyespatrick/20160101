@@ -13,7 +13,8 @@
  * it. That is deliberate and harmless: the app is offline-first and shows what it holds on the
  * device, so a created client or listing stays visible to the person who created it.
  */
-import { CITIES, CITY_KEY_BASE, TYPES, ZONES, mockResponse, upsertMockProperty, zoneKey } from '../../../server/mock.js'
+import { CITIES, CITY_KEY_BASE, MOCK_PHOTOS, TYPES, ZONES, mockResponse, upsertMockProperty, zoneKey } from '../../../server/mock.js'
+import { MOCK_PHOTO_COUNT, scene } from '../../../server/mockPhoto.js'
 
 const TOKEN = 'demo-token'
 
@@ -211,6 +212,31 @@ async function rest(request, path, query) {
   return fail(404, 404001, 'Ruta desconocida en el mock')
 }
 
+/**
+ * The fake photographs, drawn on demand.
+ *
+ * The relay serves them as JPEG files it generated once; a Pages deployment has no such files,
+ * and shipping twelve invented photographs inside the app's build — where the service worker
+ * would dutifully precache them — would be worse than the grey placeholder they replace. So the
+ * same drawing is served here as SVG, and the fake listings are pointed at it on their way out.
+ */
+function photo(path) {
+  const n = Number(path.replace(/\D/g, ''))
+  if (!Number.isInteger(n) || n < 1 || n > MOCK_PHOTO_COUNT) return fail(404, 404002, 'Foto inexistente')
+  return new Response(scene(n), {
+    headers: { 'Content-Type': 'image/svg+xml; charset=utf-8', 'Cache-Control': 'public, max-age=86400' },
+  })
+}
+
+/** Point the fake listings at the route above, wherever this demo happens to be served from. */
+async function withPhotos(response, base) {
+  const body = await response.text()
+  return new Response(body.split(MOCK_PHOTOS).join(`${base}/photo`).replace(/\/photo\/(\d+)\.jpg/g, '/photo/$1.svg'), {
+    status: response.status,
+    headers: response.headers,
+  })
+}
+
 export const onRequest = async (context) => {
   const url = new URL(context.request.url)
   // Read the path off the URL, not context.params: the router drops the trailing slash that
@@ -218,8 +244,9 @@ export const onRequest = async (context) => {
   const base = '/api/_mock'
   const path = url.pathname.startsWith(base) ? url.pathname.slice(base.length) || '/' : '/'
   try {
-    if (path === '/apiweb' || path === '/apiweb/') return await apiweb(context.request)
-    if (path.startsWith('/rest')) return await rest(context.request, path.slice('/rest'.length) || '/', url.searchParams)
+    if (path.startsWith('/photo/')) return photo(path.slice('/photo/'.length))
+    if (path === '/apiweb' || path === '/apiweb/') return await withPhotos(await apiweb(context.request), base)
+    if (path.startsWith('/rest')) return await withPhotos(await rest(context.request, path.slice('/rest'.length) || '/', url.searchParams), base)
     return json({ ok: true, mock: 'inmovilla', endpoints: ['/api/_mock/apiweb', '/api/_mock/rest/*'] })
   } catch (err) {
     console.error('[mock]', err?.message)
