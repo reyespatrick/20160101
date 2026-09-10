@@ -143,6 +143,8 @@ async function remove() {
     <p v-else-if="!client" class="alert">{{ t('clients.detail.gone') }}</p>
 
     <template v-else>
+      <p v-if="client.remoteMissing" class="alert alert-info" role="status">{{ t('clients.detail.remoteMissing') }}</p>
+
       <p v-if="catchUpNote" class="alert alert-info catch-up" role="status">
         {{ catchUpNote }}
         <button type="button" class="link" @click="catchUpNote = ''">{{ t('common.close') }}</button>

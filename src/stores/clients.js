@@ -134,6 +134,10 @@ export const useClientsStore = defineStore('clients', {
       const auth = useAuthStore()
       const local = this.byId(id)
       if (!local?.remoteId || local.dirty || !auth.hasRest || navigator.onLine === false) return
+      // A contact created a moment ago is not worth re-reading: nothing can have changed since,
+      // and a CRM that has not finished making it readable would answer 404 for a record that
+      // very much exists. Opening a client you just created must not look like losing it.
+      if (local.sentAt && Date.now() - local.sentAt < 60_000) return
       try {
         const fresh = await getClient(local.remoteId)
         if (fresh) {
@@ -143,8 +147,12 @@ export const useClientsStore = defineStore('clients', {
         }
       } catch (err) {
         if (err.status === 404) {
-          await clientsDb.remove(this.agency(), id)
-          this.items = this.items.filter((c) => c.id !== id)
+          // Inmovilla no longer has it — which is not the same as "it never existed", and is
+          // certainly not permission to throw away what the agent holds. A 404 can mean deleted
+          // at the office, or an upstream having a bad minute. The record stays, flagged, and
+          // whoever wants it gone can delete it themselves.
+          await clientsDb.note(this.agency(), id, { remoteMissing: true })
+          this.upsertLocal({ ...local, remoteMissing: true })
         } else this.noteError(err)
       }
     },
@@ -202,12 +210,12 @@ export const useClientsStore = defineStore('clients', {
       switch (planFor(record)) {
         case 'create': {
           const remoteId = await createClient(payload)
-          await clientsDb.markSynced(agency, record.id, { remoteId: remoteId || null })
+          await clientsDb.markSynced(agency, record.id, { remoteId: remoteId || null, sentAt: Date.now() })
           break
         }
         case 'update':
           await updateClient(payload)
-          await clientsDb.markSynced(agency, record.id, {})
+          await clientsDb.markSynced(agency, record.id, { sentAt: Date.now() })
           break
         case 'delete':
           await deleteClient(record.remoteId)

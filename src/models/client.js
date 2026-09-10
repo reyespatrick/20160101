@@ -17,6 +17,8 @@ export function emptyClient() {
     id: newId(),
     remoteId: null, // cod_cli in Inmovilla
     checkedAt: null, // when Inmovilla was last asked about this contact; null = never got through
+    sentAt: null, // when Inmovilla last accepted it; a fresh record is not re-read
+    remoteMissing: false, // Inmovilla no longer has it — the device copy is kept regardless
     name: '',
     surname: '',
     nif: '',
