@@ -122,7 +122,9 @@ onMounted(async () => {
         <button v-else type="button" class="btn" @click="run">{{ t('common.retry') }}</button>
       </div>
 
-      <template v-if="r">
+      <!-- While Claude is working, the waiting block is the only thing on screen: a previous
+           valuation left under it reads as the answer, and people quote the number they see. -->
+      <template v-if="r && !loading">
         <p v-if="error" class="alert">{{ error }}</p>
 
         <article class="hero block">
