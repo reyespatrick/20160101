@@ -116,3 +116,14 @@ describe('what apiweb means when it refuses', () => {
     expect(describeRefusal(null)).toBe('')
   })
 })
+
+describe('which apiweb answers an agency', () => {
+  it('sends only the named fictitious agency to the fake', async () => {
+    const { apiwebUrl } = await import('../functions/_shared/inmovilla.js')
+    const env = { INMOVILLA_API_URL: 'https://hop.example/apiweb', FAKE_APIWEB_AGENCY: '1234', FAKE_APIWEB_URL: 'https://demo.example/_mock/apiweb' }
+    expect(apiwebUrl(env, { numagencia: '1234' })).toBe('https://demo.example/_mock/apiweb')
+    expect(apiwebUrl(env, { numagencia: '2' })).toBe('https://hop.example/apiweb')
+    // Production names no fake agency: everyone goes to the real upstream.
+    expect(apiwebUrl({ INMOVILLA_API_URL: 'https://hop.example/apiweb' }, { numagencia: '1234' })).toBe('https://hop.example/apiweb')
+  })
+})

@@ -82,8 +82,10 @@ and the mock derive the path from `url.pathname`, never from `context.params`. E
 (writes) to the in-app fake. Sign in as **demo@immoba.es** — the `DEMO INMOVILLA_` account, agency
 `2`, the same row production uses, since both projects share one Supabase — and the catalogue is
 Inmovilla's real public demo agency: 1281 listings with their real photographs, while every write
-still lands on the fake. `demo@immoba.app` (agency `1234`) can no longer read: its mock
-credentials go to the real apiweb, which answers `xIP NO VALIDADA`. Use it only for write flows.
+still lands on the fake. `demo@immoba.app` (agency `1234`) keeps the fake catalogue:
+`FAKE_APIWEB_AGENCY=1234` and `FAKE_APIWEB_URL` send that one agency, and only it, back to the
+in-app fake, so both accounts work on the same deployment — real listings on one, invented ones on
+the other. Production names no fake agency, so the comparison never fires there.
 
 Inmovilla's own documented demo user (`2_000_ext` / `11111`) is refused from the hop's address —
 the allow list is per API user, and only the owner's was authorised.
