@@ -16,6 +16,7 @@ import { applyChoice, differingFields } from '../utils/merge'
 import { hasFastNetwork } from '../utils/network'
 import { useOnlineRetry } from '../composables/useOnlineRetry'
 import { useEnumsStore } from '../stores/enums'
+import { useEstimatesStore } from '../stores/estimates'
 import { ownerIsComplete, useLocalPropertiesStore } from '../stores/localProperties'
 import { useFollowUpsStore } from '../stores/followUps'
 import FollowUpCard from '../components/FollowUpCard.vue'
@@ -27,6 +28,7 @@ const store = useLocalPropertiesStore()
 const followUps = useFollowUpsStore()
 const auth = useAuthStore()
 const enums = useEnumsStore()
+const estimates = useEstimatesStore()
 const propertyFollowUps = computed(() => (p.value?.codOfer ? followUps.forProperty(p.value.codOfer) : []))
 const router = useRouter()
 const route = useRoute()
@@ -40,6 +42,19 @@ const p = computed(() => store.byId(props.id))
 const status = computed(() => LISTING_STATUSES.find((s) => s.value === p.value?.status) || LISTING_STATUSES[0])
 const photos = computed(() => [...(p.value?.photos || [])].sort((a, b) => a.order - b.order))
 const pendingPhotos = computed(() => store.pendingPhotosOf(p.value))
+/**
+ * A valuation already made is one tap away, and the button should say so: running one costs a
+ * call to Claude and a trip through the comparables, so "Estimate the value" on a listing that
+ * already has one invites people to spend that twice.
+ */
+const savedEstimate = computed(() => estimates.get(`local:${props.id}`))
+const estimateLabel = computed(() => {
+  const e = savedEstimate.value
+  if (!e?.result) return t('estimate.button')
+  const money = new Intl.NumberFormat('es-ES', { style: 'currency', currency: 'EUR', maximumFractionDigits: 0 })
+  return t('estimate.saved', { value: money.format(e.result.estimatedValue) })
+})
+
 const rows = computed(() => {
   const d = p.value || {}
   return [
@@ -198,6 +213,7 @@ onMounted(async () => {
   await store.ensureLoaded()
   followUps.ensureLoaded()
   enums.restore()
+  estimates.ensureLoaded()
   if (p.value) await store.ensurePhotoUrls(p.value)
   loading.value = false
   if (toast.value) setTimeout(() => (toast.value = ''), 2500)
@@ -271,7 +287,8 @@ async function reactivate() {
         <span>· {{ t('props.form.complete', { n: completeness(p) }) }}</span>
       </p>
       <div v-if="auth.canEstimate && (Number(p.operation) === 2 ? p.priceRent : p.price)" class="estimate-cta">
-        <RouterLink v-if="auth.hasAnthropic && auth.hasApiweb" :to="{ name: 'estimate', params: { source: 'local', id } }" class="btn">✦ {{ t('estimate.button') }}</RouterLink>
+        <RouterLink v-if="auth.hasAnthropic && auth.hasApiweb" :to="{ name: 'estimate', params: { source: 'local', id } }" class="btn">✦ {{ estimateLabel }}</RouterLink>
+        <small v-if="savedEstimate?.at && auth.hasAnthropic && auth.hasApiweb" class="muted">{{ t('estimate.savedAt', { at: formatDate(savedEstimate.at) }) }}</small>
         <template v-else>
           <button type="button" class="btn" disabled>✦ {{ t('estimate.button') }}</button>
           <small class="muted">{{ !auth.hasApiweb ? t('estimate.needsApiweb') : auth.isAdmin ? t('estimate.addKeyHint') : t('estimate.askAdmin') }}</small>

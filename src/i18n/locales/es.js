@@ -55,6 +55,7 @@ export default {
     anthropic: 'Clave API de Anthropic · valoraciones con Claude', anthropicHint: 'console.anthropic.com › API keys. Necesaria para el botón «Estimar valor». Se cobra a la cuenta de la agencia.',
   },
   estimate: {
+    stale: 'El inmueble ha cambiado desde esta valoración (precio, superficie o características). Vuelve a calcularla para tenerlo en cuenta.', saved: 'Valoración · {value}', savedAt: 'del {at}',
     button: 'Estimar valor', addKeyHint: 'Añade la clave de Anthropic en Perfil › Claves para activarlo.', title: 'Valoración', working: 'Claude está valorando la propiedad…', workingHint: 'Compara con los inmuebles de la agencia; suele tardar menos de un minuto.',
     needsApiweb: 'La valoración necesita la clave web de Inmovilla, que da acceso a los inmuebles comparables.', 
     needsPrice: 'La propiedad necesita un precio para poder valorarla.', addKey: 'Añadir la clave de Anthropic', askAdmin: 'Pide al administrador que añada la clave de Anthropic en el perfil.',

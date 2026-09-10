@@ -119,3 +119,33 @@ describe('the office moved too', () => {
     expect(snapshotOfRemote(null)).toBe(null)
   })
 })
+
+/**
+ * A valuation is the most expensive thing the app produces and the least likely to change
+ * between two openings of the same listing: it is kept, and only flagged when the listing it
+ * describes has moved underneath it.
+ */
+describe('a valuation that outlives the screen', () => {
+  const base = { operation: 1, typeKey: 5, price: 185000, builtArea: 92, bedrooms: 3, bathrooms: 1, city: 'Marbella', condition: 'Buen estado' }
+
+  it('ignores what cannot change the answer', async () => {
+    const { fingerprint, sameFingerprint } = await import('../src/stores/estimates.js')
+    // The reference, the photographs and the owner say nothing about what a flat is worth.
+    expect(sameFingerprint(fingerprint(base), fingerprint({ ...base, ref: 'APP-9', photos: [1, 2], ownerName: 'Ana' }))).toBe(true)
+    // Numbers arriving as text are the same numbers.
+    expect(sameFingerprint(fingerprint(base), fingerprint({ ...base, price: '185000' }))).toBe(true)
+  })
+
+  it('notices what does', async () => {
+    const { fingerprint, sameFingerprint } = await import('../src/stores/estimates.js')
+    for (const change of [{ price: 240000 }, { builtArea: 110 }, { bedrooms: 4 }, { city: 'Mijas' }, { condition: 'A reformar' }]) {
+      expect(sameFingerprint(fingerprint(base), fingerprint({ ...base, ...change }))).toBe(false)
+    }
+  })
+
+  it('does not cry wolf over a valuation stored before there was anything to compare', async () => {
+    const { fingerprint, sameFingerprint } = await import('../src/stores/estimates.js')
+    expect(sameFingerprint(null, fingerprint(base))).toBe(true)
+    expect(sameFingerprint(fingerprint(base), null)).toBe(true)
+  })
+})

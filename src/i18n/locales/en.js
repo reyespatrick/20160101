@@ -55,6 +55,7 @@ export default {
     anthropic: 'Anthropic API key · valuations with Claude', anthropicHint: 'console.anthropic.com › API keys. Needed for the “Estimate value” button. Billed to the agency’s account.',
   },
   estimate: {
+    stale: 'The listing changed after this valuation (price, area or features). Run it again to take that into account.', saved: 'Valuation · {value}', savedAt: 'of {at}',
     button: 'Estimate value', addKeyHint: 'Add the Anthropic key in Profile › Keys to enable it.', title: 'Valuation', working: 'Claude is valuing the property…', workingHint: 'It compares with the agency’s listings; usually under a minute.',
     needsApiweb: 'The valuation needs the Inmovilla web key, which gives access to the comparable listings.', 
     needsPrice: 'The property needs a price before it can be valued.', addKey: 'Add the Anthropic key', askAdmin: 'Ask the administrator to add the Anthropic key in the profile.',

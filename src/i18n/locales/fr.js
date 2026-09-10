@@ -55,6 +55,7 @@ export default {
     anthropic: 'Clé API Anthropic · estimations avec Claude', anthropicHint: 'console.anthropic.com › API keys. Nécessaire pour le bouton « Estimer la valeur ». Facturée au compte de l’agence.',
   },
   estimate: {
+    stale: 'Le bien a changé depuis cette estimation (prix, surface ou caractéristiques). Refaites-la pour tenir compte des modifications.', saved: 'Estimation · {value}', savedAt: 'du {at}',
     button: 'Estimer la valeur', addKeyHint: 'Ajoutez la clé Anthropic dans Profil › Clés pour l’activer.', title: 'Estimation', working: 'Claude estime le bien…', workingHint: 'Comparaison avec les biens de l’agence ; cela prend en général moins d’une minute.',
     needsApiweb: 'L’estimation a besoin de la clé web d’Inmovilla, qui donne accès aux biens comparables.', 
     needsPrice: 'Le bien doit avoir un prix pour être estimé.', addKey: 'Ajouter la clé Anthropic', askAdmin: 'Demandez à l’administrateur d’ajouter la clé Anthropic dans le profil.',

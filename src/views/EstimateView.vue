@@ -29,6 +29,8 @@ const key = computed(() => `${props.source}:${props.id}`)
 const result = computed(() => estimates.get(key.value))
 const loading = computed(() => estimates.isLoading(key.value))
 const error = computed(() => estimates.errorOf(key.value))
+/** A stored valuation of a listing that has changed since: still shown, but flagged. */
+const stale = computed(() => estimates.isStale(key.value, input.value))
 const r = computed(() => result.value?.result || null)
 const rent = computed(() => Number(input.value?.operation || result.value?.property?.operation) === 2)
 const nf = computed(() => new Intl.NumberFormat(intlLocale(), { maximumFractionDigits: 0 }))
@@ -80,6 +82,7 @@ async function run() {
 }
 
 onMounted(async () => {
+  await estimates.ensureLoaded()
   try {
     input.value = await loadInput()
   } catch (err) {
@@ -183,6 +186,7 @@ onMounted(async () => {
           </div>
         </article>
 
+        <p v-if="stale" class="alert alert-info stale" role="status">{{ t('estimate.stale') }}</p>
         <p class="foot muted small">{{ t('estimate.computedAt', { at: formattedAt }) }} · {{ t('estimate.disclaimer') }}</p>
         <button type="button" class="btn btn-ghost recompute" :disabled="loading" @click="run">↻ {{ t('estimate.recompute') }}</button>
       </template>
@@ -233,6 +237,7 @@ onMounted(async () => {
 .pct.pos { color: var(--ok); }
 .foot { margin: 0.5rem 0 0.75rem; }
 .recompute { width: 100%; }
+.stale { margin: 0.75rem 0 0; }
 @media (max-width: 560px) {
   .tiles { grid-template-columns: 1fr 1fr; }
   .tile:last-child { grid-column: 1 / -1; }

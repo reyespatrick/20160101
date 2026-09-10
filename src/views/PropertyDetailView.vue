@@ -9,6 +9,7 @@ import FollowUpCard from '../components/FollowUpCard.vue'
 import OwnerCard from '../components/OwnerCard.vue'
 import { PLACEHOLDER, featuresOf, formatDate, isRent, locationOf, operationLabel, photoOf, priceOf, surfaceOf } from '../utils/format'
 import { isNetworkError, useOnlineRetry } from '../composables/useOnlineRetry'
+import { useEstimatesStore } from '../stores/estimates'
 const { t } = useI18n()
 
 const props = defineProps({ codOfer: { type: String, required: true } })
@@ -21,6 +22,15 @@ const followUpLabel = computed(() => (p.value ? `${t('common.ref')} ${p.value.re
 
 const detail = ref(null)
 const loading = ref(true)
+const estimates = useEstimatesStore()
+/** Same reason as on an app listing: say when a valuation is already there to be read. */
+const savedEstimate = computed(() => estimates.get(`inmovilla:${props.codOfer}`))
+const estimateLabel = computed(() => {
+  const e = savedEstimate.value
+  if (!e?.result) return t('estimate.button')
+  const money = new Intl.NumberFormat('es-ES', { style: 'currency', currency: 'EUR', maximumFractionDigits: 0 })
+  return t('estimate.saved', { value: money.format(e.result.estimatedValue) })
+})
 const error = ref('')
 const activePhoto = ref(0)
 
@@ -97,6 +107,7 @@ useOnlineRetry(() => {
 
 onMounted(() => {
   followUps.ensureLoaded()
+  estimates.ensureLoaded()
   loadDetail()
 })
 </script>
@@ -137,7 +148,7 @@ onMounted(() => {
       </ul>
 
       <div v-if="auth.canEstimate" class="estimate-cta">
-        <RouterLink v-if="auth.hasAnthropic && auth.hasApiweb" :to="{ name: 'estimate', params: { source: 'inmovilla', id: codOfer } }" class="btn">✦ {{ t('estimate.button') }}</RouterLink>
+        <RouterLink v-if="auth.hasAnthropic && auth.hasApiweb" :to="{ name: 'estimate', params: { source: 'inmovilla', id: codOfer } }" class="btn">✦ {{ estimateLabel }}</RouterLink>
         <template v-else>
           <button type="button" class="btn" disabled>✦ {{ t('estimate.button') }}</button>
           <small class="muted">{{ !auth.hasApiweb ? t('estimate.needsApiweb') : auth.isAdmin ? t('estimate.addKeyHint') : t('estimate.askAdmin') }}</small>
