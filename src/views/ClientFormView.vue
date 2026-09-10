@@ -4,6 +4,8 @@ import { computed, onMounted, reactive, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { emptyClient, looksLikeEmail, looksLikePhone, validateClient } from '../models/client'
 import { useClientsStore } from '../stores/clients'
+import { useAuthStore } from '../stores/auth'
+import { searchClients } from '../api/inmovillaRest'
 const { t } = useI18n()
 
 const props = defineProps({ id: { type: String, default: '' } })
@@ -22,7 +24,60 @@ watch(
   },
   { deep: true },
 )
+const auth = useAuthStore()
 const saving = ref(false)
+
+/**
+ * The number comes first, and it is looked up before anything else is typed.
+ *
+ * Inmovilla cannot list contacts, so a phone number is the only way to tell a new client from
+ * one the agency already has — and typing the name first is how the same person ends up in the
+ * CRM three times. Found, the existing sheet is one tap away; not found, the form carries on.
+ */
+const lookup = ref('') // '' | 'searching' | 'found' | 'none'
+const lookupError = ref('')
+const match = ref(null)
+
+async function findClient() {
+  const digits = String(form.mobile || '').replace(/\D/g, '')
+  lookupError.value = ''
+  match.value = null
+  if (digits.length < 6) {
+    lookupError.value = t('props.form.ownerPhoneShort')
+    return
+  }
+  if (!auth.hasRest) {
+    lookupError.value = t('clients.form.lookupNoKey')
+    return
+  }
+  lookup.value = 'searching'
+  try {
+    const found = await searchClients({ telefono: digits.slice(-9) })
+    const first = Array.isArray(found) ? found[0] : found
+    if (first) {
+      match.value = first
+      lookup.value = 'found'
+    } else {
+      lookup.value = 'none'
+    }
+  } catch (err) {
+    lookup.value = ''
+    lookupError.value = err.status === 404 ? '' : err.message || t('common.failed', { where: '' })
+    if (err.status === 404) lookup.value = 'none'
+  }
+}
+
+/** Open the contact Inmovilla already has, rather than making a second one. */
+async function openMatch() {
+  const saved = await store.save({ ...emptyClient(), ...match.value, id: undefined, checkedAt: Date.now() }).catch(() => null)
+  if (saved) router.replace({ name: 'client', params: { id: saved.id } })
+}
+
+function onPhoneInput() {
+  lookup.value = ''
+  lookupError.value = ''
+  match.value = null
+}
 const notFound = ref(false)
 const isEdit = computed(() => Boolean(props.id))
 const online = ref(navigator.onLine)
@@ -82,6 +137,27 @@ function cancel() {
 
       <fieldset>
         <legend>{{ t('clients.form.contact') }}</legend>
+
+        <div v-if="!isEdit" class="field" :class="{ invalid: errors.mobile }">
+          <label for="mobile-top">{{ t('clients.form.mobile') }}</label>
+          <div class="phone-row">
+            <input id="mobile-top" v-model.trim="form.mobile" type="tel" inputmode="tel" autocomplete="tel" placeholder="600 000 000" @input="onPhoneInput" />
+            <button type="button" class="btn btn-ghost small" :disabled="lookup === 'searching'" @click="findClient">
+              {{ lookup === 'searching' ? t('props.form.searching') : t('props.form.searchOwner') }}
+            </button>
+          </div>
+          <small v-if="lookupError" class="err">{{ lookupError }}</small>
+          <small v-else class="muted">{{ t('clients.form.lookupHint') }}</small>
+        </div>
+        <div v-if="!isEdit && lookup === 'found'" class="lookup found">
+          <span>{{ t('clients.form.lookupFound', { name: [match?.name, match?.surname].filter(Boolean).join(' ') || t('common.none'), id: match?.remoteId }) }}</span>
+          <button type="button" class="link" @click="openMatch">{{ t('clients.form.lookupOpen') }}</button>
+          <button type="button" class="link" @click="lookup = 'none'; match = null">{{ t('props.form.ownerNotThem') }}</button>
+        </div>
+        <div v-else-if="!isEdit && lookup === 'none'" class="lookup none">
+          <span>{{ t('clients.form.lookupNone') }}</span>
+        </div>
+
         <div class="two">
           <div class="field" :class="{ invalid: errors.name }">
             <label for="name">{{ t('clients.form.name') }} *</label>
@@ -94,7 +170,7 @@ function cancel() {
           </div>
         </div>
         <div class="two">
-          <div class="field" :class="{ invalid: errors.mobile }">
+          <div v-if="isEdit" class="field" :class="{ invalid: errors.mobile }">
             <label for="mobile">{{ t('clients.form.mobile') }}</label>
             <input id="mobile" v-model.trim="form.mobile" type="tel" inputmode="tel" autocomplete="tel" placeholder="600 000 000" />
             <small v-if="errors.mobile" class="err">{{ errors.mobile }}</small>
@@ -166,6 +242,13 @@ function cancel() {
 </template>
 
 <style scoped>
+.phone-row { display: flex; gap: 0.5rem; align-items: stretch; }
+.phone-row input { flex: 1; min-width: 0; }
+.phone-row .small { padding: 0 0.8rem; font-size: 0.85rem; font-weight: 600; white-space: nowrap; }
+.lookup { display: flex; flex-wrap: wrap; align-items: center; gap: 0.6rem; padding: 0.6rem 0.8rem; border-radius: 10px; font-size: 0.88rem; }
+.lookup.found { background: var(--ok-bg); color: var(--ok); }
+.lookup.none { background: var(--surface-2); color: var(--brand-dark); }
+.lookup .link { border: 0; background: none; color: inherit; font-weight: 700; text-decoration: underline; padding: 0; font-size: inherit; }
 .form-view { padding-bottom: 6rem; }
 @media (min-width: 720px) { .save-bar { position: sticky; bottom: 0; margin-top: 1rem; } }
 .form-head { display: flex; align-items: center; gap: 0.75rem; margin-bottom: 0.75rem; }
