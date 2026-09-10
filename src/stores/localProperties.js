@@ -143,6 +143,17 @@ export const useLocalPropertiesStore = defineStore('localProperties', {
       return saved
     },
 
+    /**
+     * Record something the app learned on its own — the answer to a lookup, a date of check —
+     * without turning it into a change worth sending. `save` would mark the listing dirty and
+     * push it again, which is the wrong thing to do for bookkeeping.
+     */
+    async note(id, patch) {
+      const updated = await propertiesDb.note(this.agency(), id, patch)
+      if (updated) this.upsertLocal(updated)
+      return updated
+    },
+
     /** Drafts are deleted locally; listings already in Inmovilla are marked unavailable there. */
     async remove(id) {
       const agency = this.agency()

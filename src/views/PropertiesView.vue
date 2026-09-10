@@ -2,6 +2,7 @@
 import { useI18n } from 'vue-i18n'
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
+import { useOnlineRetry } from '../composables/useOnlineRetry'
 import PickerField from '../components/PickerField.vue'
 import FilterBar from '../components/FilterBar.vue'
 import LocalPropertyCard from '../components/LocalPropertyCard.vue'
@@ -26,6 +27,11 @@ const emptyCta = computed(() => source.value === 'mine' && !local.loading && !lo
 function setSource(value) {
   router.replace({ name: 'properties', query: value === 'mine' ? { source: 'mine' } : {} })
 }
+
+// Back online while this screen is open: ask Inmovilla again, without the agent doing anything.
+const { online } = useOnlineRetry(() => {
+  if (source.value !== 'mine') store.load()
+})
 
 onMounted(async () => {
   await local.ensureLoaded()
@@ -103,7 +109,11 @@ onBeforeUnmount(() => observer?.disconnect())
     <template v-else>
     <FilterBar :filters="store.filters" :types="store.types" @update="store.setFilters" />
 
-    <p v-if="store.fromCache" class="alert alert-info">{{ t('props.cached') }}</p>
+    <p v-if="store.offline" class="alert alert-info" role="status">
+      {{ store.fromCache ? t('props.cached') : t('props.offlineList') }}
+      <span class="muted">{{ t('props.offlineRetry') }}</span>
+    </p>
+    <p v-else-if="store.fromCache" class="alert alert-info">{{ t('props.cached') }}</p>
     <div v-else-if="store.needsApiweb" class="alert alert-info no-apiweb">
       <p>{{ t('props.needsApiweb') }}</p>
       <p class="muted">{{ t('props.needsApiwebBody') }}</p>

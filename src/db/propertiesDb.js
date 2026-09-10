@@ -77,6 +77,21 @@ export const propertiesDb = {
     await tx('properties', 'readwrite', (s) => promisify(s.put(toRecord(agency, property, true))))
     return { ...JSON.parse(JSON.stringify(property)), dirty: true }
   },
+  /**
+   * Write a few fields without touching the sync flag — bookkeeping the agent did not do, such
+   * as "Inmovilla has been asked about this phone". A listing already sent must not be pushed
+   * again for it, and a draft must not stop being one.
+   */
+  async note(agency, id, patch) {
+    let updated = null
+    await tx('properties', 'readwrite', async (s) => {
+      const rec = await promisify(s.get(key(agency, id)))
+      if (!rec) return
+      updated = { ...rec, ...patch }
+      await promisify(s.put(updated))
+    })
+    return updated
+  },
   /** Mark a listing as accepted by Inmovilla (optionally recording its remote id). */
   async markSynced(agency, id, patch = {}) {
     await tx('properties', 'readwrite', async (s) => {

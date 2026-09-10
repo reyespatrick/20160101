@@ -40,7 +40,7 @@ async function submit() {
 <template>
   <section class="login">
     <div class="panel">
-      <img class="logo" src="/splash.png" alt="Immoba" />
+      <img class="logo" src="/splash.png" alt="INMO" />
       <h1>{{ t('auth.login') }}</h1>
       <p class="muted">{{ t('auth.intro') }}</p>
       <p v-if="auth.sessionExpired" class="alert alert-info">{{ t('auth.expired') }}</p>

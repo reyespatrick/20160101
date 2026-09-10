@@ -98,6 +98,7 @@ export function emptyProperty() {
     ownerPhone: '',
     ownerEmail: '',
     ownerRemoteId: null,
+    ownerCheckedAt: null, // when Inmovilla was last asked about this phone; null = never got through
     notes: '', // kept on the device only: Inmovilla's property has no private notes field
     photos: [], // [{ id, order, caption }] blobs live in IndexedDB; public URLs are created on sync
     createdAt: now,
@@ -146,9 +147,12 @@ export function validateProperty(p) {
   if (!p.photos?.length) errors.photos = t('props.valid.photos')
   if (!String(p.ownerName || '').trim()) errors.ownerName = t('props.valid.ownerName')
   if (!String(p.ownerSurname || '').trim()) errors.ownerSurname = t('props.valid.ownerSurname')
-  // The town only has to be named: Inmovilla's key_loca is resolved in the background and a
-  // missing one must never block a draft the agent is holding in front of the door.
-  if (!String(p.cityName || '').trim()) errors.cityName = t('props.valid.city')
+  // The town only has to be named — Inmovilla's key_loca is resolved in the background — and
+  // even the name can wait when a position was taken: with no network there is no way to turn
+  // coordinates into a town, and refusing to save the listing standing in front of it is how an
+  // afternoon of work gets lost. The address is read later, from that same position.
+  const positioned = p.latitude != null && p.longitude != null
+  if (!String(p.cityName || '').trim() && !positioned) errors.cityName = t('props.valid.city')
   if (Number(p.operation) === 2) {
     if (p.priceRent == null || Number(p.priceRent) <= 0) errors.priceRent = t('props.valid.priceRent')
   } else if (p.price == null || Number(p.price) <= 0) errors.price = t('props.valid.price')

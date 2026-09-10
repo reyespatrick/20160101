@@ -8,6 +8,7 @@ import { useFollowUpsStore } from '../stores/followUps'
 import FollowUpCard from '../components/FollowUpCard.vue'
 import OwnerCard from '../components/OwnerCard.vue'
 import { PLACEHOLDER, featuresOf, formatDate, isRent, locationOf, operationLabel, photoOf, priceOf, surfaceOf } from '../utils/format'
+import { isNetworkError, useOnlineRetry } from '../composables/useOnlineRetry'
 const { t } = useI18n()
 
 const props = defineProps({ codOfer: { type: String, required: true } })
@@ -71,16 +72,32 @@ function back() {
   else router.push({ name: 'properties' })
 }
 
-onMounted(async () => {
-  followUps.ensureLoaded()
+const offline = ref(false)
+
+/** The ficha lives in Inmovilla; without a network there is nothing to show but the reason. */
+async function loadDetail() {
+  offline.value = false
+  error.value = ''
+  loading.value = true
   try {
     detail.value = await store.loadDetail(props.codOfer)
     if (!detail.value && !summary.value) error.value = t('common.notFound')
   } catch (err) {
-    error.value = summary.value ? '' : err.message || t('common.notFound')
+    if (isNetworkError(err)) offline.value = !summary.value
+    else error.value = summary.value ? '' : err.message || t('common.notFound')
   } finally {
     loading.value = false
   }
+}
+
+// Back online while the ficha is open: fetch it, without the agent doing anything.
+useOnlineRetry(() => {
+  if (!detail.value) loadDetail()
+})
+
+onMounted(() => {
+  followUps.ensureLoaded()
+  loadDetail()
 })
 </script>
 
@@ -89,6 +106,9 @@ onMounted(async () => {
     <button class="btn btn-ghost back" type="button" @click="back">← {{ t('common.back') }}</button>
 
     <div v-if="loading && !p" class="spinner"></div>
+    <p v-else-if="offline && !p" class="alert alert-info" role="status">
+      {{ t('props.offlineDetail') }} <span class="muted">{{ t('props.offlineRetry') }}</span>
+    </p>
     <p v-else-if="error && !p" class="alert" role="alert">{{ error }}</p>
 
     <template v-else-if="p">

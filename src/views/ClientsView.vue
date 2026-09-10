@@ -4,6 +4,7 @@ import { computed, onMounted, ref, watch } from 'vue'
 import ClientCard from '../components/ClientCard.vue'
 import { useClientsStore } from '../stores/clients'
 import { useAuthStore } from '../stores/auth'
+import { useOnlineRetry } from '../composables/useOnlineRetry'
 const { t } = useI18n()
 
 const store = useClientsStore()
@@ -33,6 +34,11 @@ function syncLabel() {
   if (store.pendingCount) return t('common.pending', store.pendingCount)
   return t('common.allInInmovilla')
 }
+
+// Back online while the search is on screen: ask Inmovilla again for what was typed.
+useOnlineRetry(() => {
+  if (store.searchOffline && store.query.trim()) store.searchRemote()
+})
 </script>
 
 <template>
@@ -68,6 +74,7 @@ function syncLabel() {
       <h2>{{ t('common.noResults') }}</h2>
       <p v-if="store.canSearchRemote" class="muted">
         <template v-if="store.searching">{{ t('clients.searchingRemote') }}</template>
+        <template v-else-if="store.searchOffline">{{ t('clients.offlineSearch') }} {{ t('props.offlineRetry') }}</template>
         <template v-else-if="store.remoteResultsFor === store.query.trim()">{{ t('clients.noRemote') }}</template>
         <template v-else><button type="button" class="link" @click="store.searchRemote()">{{ t('clients.searchRemote') }}</button></template>
       </p>

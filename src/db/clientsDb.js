@@ -91,6 +91,22 @@ export const clientsDb = {
     await tx('clients', 'readwrite', (s) => Promise.all(clients.map((c) => promisify(s.put(toRecord(agency, c, false))))))
   },
 
+  /**
+   * Write a few fields without touching the sync flag — bookkeeping the agent did not do, such
+   * as "Inmovilla has been asked about this number". A contact already sent must not be pushed
+   * again for it, and one still waiting must not stop waiting.
+   */
+  async note(agency, id, patch) {
+    let updated = null
+    await tx('clients', 'readwrite', async (s) => {
+      const rec = await promisify(s.get(keyOf(agency, id)))
+      if (!rec) return
+      updated = { ...rec, ...patch }
+      await promisify(s.put(updated))
+    })
+    return updated
+  },
+
   /** Mark a record as accepted by Inmovilla (optionally recording its remote id). */
   async markSynced(agency, id, patch = {}) {
     await tx('clients', 'readwrite', async (s) => {

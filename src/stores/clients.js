@@ -4,6 +4,7 @@ import { clientsDb } from '../db/clientsDb'
 import { digitsOf, emptyClient, looksLikeEmail, looksLikePhone, matchesClient } from '../models/client'
 import { pendingRecords, planFor, upsertRemote } from '../sync/outbox'
 import { useAuthStore } from './auth'
+import { isNetworkError } from '../composables/useOnlineRetry'
 
 /**
  * Clients live in Inmovilla. Inmovilla has no "list all clients" call, only a search by
@@ -19,6 +20,7 @@ export const useClientsStore = defineStore('clients', {
     loading: false,
     syncing: false,
     searching: false,
+    searchOffline: false, // the last remote search never left the device
     lastSyncAt: 0,
     syncError: '',
     needsLogin: false,
@@ -69,6 +71,16 @@ export const useClientsStore = defineStore('clients', {
       this.sync()
       return saved
     },
+    /**
+     * Record something the app learned on its own — the answer to a lookup, a date of check —
+     * without turning it into a change worth sending.
+     */
+    async note(id, patch) {
+      const updated = await clientsDb.note(this.agency(), id, patch)
+      if (updated) this.upsertLocal(updated)
+      return updated
+    },
+
     async remove(id) {
       const existing = this.items.find((c) => c.id === id)
       if (!existing) return
@@ -91,8 +103,13 @@ export const useClientsStore = defineStore('clients', {
     async searchRemote(query = this.query) {
       const auth = useAuthStore()
       const q = String(query || '').trim()
-      if (!auth.hasRest || navigator.onLine === false || !(looksLikePhone(q) || looksLikeEmail(q))) return []
+      if (!auth.hasRest || !(looksLikePhone(q) || looksLikeEmail(q))) return []
+      if (navigator.onLine === false) {
+        this.searchOffline = true
+        return []
+      }
       this.searching = true
+      this.searchOffline = false
       try {
         await this.ensureLoaded()
         const params = looksLikeEmail(q) ? { email: q } : { telefono: digitsOf(q).slice(-9) }
@@ -104,7 +121,8 @@ export const useClientsStore = defineStore('clients', {
         this.remoteResultsFor = q
         return found
       } catch (err) {
-        this.noteError(err)
+        if (isNetworkError(err)) this.searchOffline = true
+        else this.noteError(err)
         return []
       } finally {
         this.searching = false

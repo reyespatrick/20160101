@@ -6,7 +6,7 @@ import ProfileButton from './ProfileButton.vue'
   <header class="header">
     <RouterLink to="/" class="brand">
       <img src="/icons/favicon-64.png" alt="" width="32" height="32" />
-      <span>immoba</span>
+      <span>INMO</span>
     </RouterLink>
     <ProfileButton />
   </header>

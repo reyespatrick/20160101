@@ -6,7 +6,13 @@ import InmovillaState from '../components/InmovillaState.vue'
 import { fullName, initials, primaryPhone, whatsappLink } from '../models/client'
 import { useClientsStore } from '../stores/clients'
 import { useAuthStore } from '../stores/auth'
+import BusyDialog from '../components/BusyDialog.vue'
 import ConfirmDialog from '../components/ConfirmDialog.vue'
+import MergeDialog from '../components/MergeDialog.vue'
+import { searchClients } from '../api/inmovillaRest'
+import { applyChoice, differingFields } from '../utils/merge'
+import { hasFastNetwork } from '../utils/network'
+import { useOnlineRetry } from '../composables/useOnlineRetry'
 import { useFollowUpsStore } from '../stores/followUps'
 import FollowUpCard from '../components/FollowUpCard.vue'
 import { formatDate } from '../utils/format'
@@ -30,12 +36,94 @@ const address = computed(() => {
   return [[c.street, c.number].filter(Boolean).join(' '), [c.postalCode, c.city].filter(Boolean).join(' '), c.province].filter(Boolean).join(', ')
 })
 
+/**
+ * The lookup that could not happen in the field, happening now.
+ *
+ * A client written down at a viewing with no data has never been matched against Inmovilla. The
+ * first time the sheet is opened on a real connection, the phone or the email is looked up — and
+ * where the two versions disagree, the agent decides line by line rather than losing either.
+ */
+const busy = ref(false)
+const catchUpNote = ref('')
+const merge = ref(null)
+let cancelled = false
+
+/** Everything Inmovilla holds for a contact, in the order a person reads it. */
+const CLIENT_FIELDS = [
+  ['name', 'clients.form.name'],
+  ['surname', 'clients.form.surname'],
+  ['phone', 'clients.form.phone'],
+  ['mobile', 'clients.form.mobile'],
+  ['email', 'clients.form.email'],
+  ['nif', 'clients.form.nif'],
+  ['street', 'clients.form.street'],
+  ['number', 'clients.form.number'],
+  ['postalCode', 'clients.form.cp'],
+  ['city', 'clients.form.city'],
+  ['province', 'clients.form.province'],
+  ['notes', 'clients.form.notes'],
+]
+
+const needsCheck = (c) => c && !c.checkedAt && !c.remoteId && (c.phone || c.mobile || c.email)
+
+async function catchUp() {
+  const c = client.value
+  if (!c || busy.value || !auth.hasRest || !needsCheck(c) || !hasFastNetwork()) return
+  cancelled = false
+  busy.value = true
+  try {
+    const digits = String(c.mobile || c.phone || '').replace(/\D/g, '')
+    const found = await searchClients(digits ? { telefono: digits.slice(-9) } : { email: c.email })
+    if (cancelled) return
+    const first = Array.isArray(found) ? found[0] : found
+    const base = { ...JSON.parse(JSON.stringify(client.value)), checkedAt: Date.now() }
+    if (!first) {
+      // Nothing to merge and nothing to send: only the note that the question has been asked.
+      await store.note(c.id, { checkedAt: base.checkedAt })
+      catchUpNote.value = t('merge.clientNone')
+      return
+    }
+    base.remoteId = first.remoteId || first.cod_cli || base.remoteId
+    const rows = differingFields(base, first, CLIENT_FIELDS.map(([key, labelKey]) => ({ key, label: t(labelKey) })))
+    if (!rows.length) {
+      await store.note(c.id, { checkedAt: base.checkedAt, remoteId: base.remoteId })
+      catchUpNote.value = t('merge.clientFound', { id: base.remoteId || '—' })
+      return
+    }
+    merge.value = {
+      title: t('merge.clientTitle'),
+      intro: t('merge.clientIntro'),
+      rows,
+      apply: async (choice) => {
+        const { next, taken } = applyChoice(base, rows, choice)
+        // Taking nothing is a decision too, and it is not a change to send.
+        if (!taken) await store.note(c.id, { checkedAt: next.checkedAt, remoteId: next.remoteId })
+        else await store.save(next)
+        catchUpNote.value = t('merge.clientFound', { id: next.remoteId || '—' })
+      },
+    }
+  } catch {
+    /* Inmovilla is not answering: checkedAt stays null so the next opening tries again. */
+  } finally {
+    busy.value = false
+  }
+}
+
+async function applyMerge(choice) {
+  const pending = merge.value
+  merge.value = null
+  await pending?.apply(choice)
+}
+
+useOnlineRetry(() => catchUp())
+
 onMounted(async () => {
   await store.ensureLoaded()
   followUps.ensureLoaded()
   loading.value = false
   store.refresh(props.id)
   if (toast.value) setTimeout(() => (toast.value = ''), 2500)
+  catchUp()
 })
 
 async function remove() {
@@ -55,6 +143,11 @@ async function remove() {
     <p v-else-if="!client" class="alert">{{ t('clients.detail.gone') }}</p>
 
     <template v-else>
+      <p v-if="catchUpNote" class="alert alert-info catch-up" role="status">
+        {{ catchUpNote }}
+        <button type="button" class="link" @click="catchUpNote = ''">{{ t('common.close') }}</button>
+      </p>
+
       <header class="hero">
         <div class="avatar" :style="{ background: client.remoteId ? '#2e3192' : '#f39200' }">{{ initials(client) }}</div>
         <div>
@@ -102,6 +195,17 @@ async function remove() {
       <div v-if="auth.canDelete || (!client.remoteId && auth.canWrite)" class="danger-zone">
         <button type="button" class="btn btn-ghost danger" @click="confirmDelete = true">{{ t('clients.detail.delete') }}</button>
       </div>
+      <BusyDialog :open="busy" :message="t('merge.searching')" @cancel="cancelled = true; busy = false" />
+
+      <MergeDialog
+        :open="Boolean(merge)"
+        :title="merge?.title || ''"
+        :intro="merge?.intro || ''"
+        :rows="merge?.rows || []"
+        @apply="applyMerge"
+        @close="merge = null"
+      />
+
       <ConfirmDialog
         :open="confirmDelete"
         :message="t('clients.detail.confirm', { name: fullName(client), also: client.remoteId ? t('clients.detail.alsoInmovilla') : '' })"
@@ -116,6 +220,8 @@ async function remove() {
 </template>
 
 <style scoped>
+.catch-up { display: flex; align-items: center; justify-content: space-between; gap: 0.75rem; }
+.catch-up .link { border: 0; background: none; color: inherit; font-weight: 700; text-decoration: underline; padding: 0; font-size: 0.85rem; }
 .client-detail { padding-bottom: 5rem; }
 .top { display: flex; justify-content: space-between; margin-bottom: 1rem; }
 .hero { display: flex; align-items: center; gap: 1rem; margin-bottom: 1rem; }

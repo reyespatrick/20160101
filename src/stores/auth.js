@@ -35,10 +35,19 @@ export const useAuthStore = defineStore('auth', {
     ready: null, // promise resolved once the stored session has been read
     needsSetup: null,
     sessionExpired: false,
+    offlineSession: false, // signed in before, no network now: the app opens on what it remembers
+    networkWatch: null, // the listener that turns an offline start into a real session
     configError: supabaseConfigured ? '' : 'La aplicación no está configurada (falta Supabase)',
   }),
   getters: {
-    isAuthenticated: (s) => Boolean(s.token && s.user),
+    /**
+     * A signed-in session, or the memory of one. Supabase keeps the tokens on the device, but an
+     * expired one can only be renewed over the network — and an agent standing in a village with
+     * no data must not be thrown back to a login screen they cannot use. So a cached profile is
+     * enough to open the app; every call still fails without a token, and the write lock stays
+     * shut, so nothing can be sent on the strength of a memory.
+     */
+    isAuthenticated: (s) => Boolean((s.token || s.offlineSession) && s.user),
     role: (s) => s.user?.role || 'readonly',
     isAdmin: (s) => s.user?.role === 'admin',
     roleCanWrite: (s) => s.user?.role === 'admin' || s.user?.role === 'agent',
@@ -90,9 +99,15 @@ export const useAuthStore = defineStore('auth', {
           this.agency = cached.agency
           setDataLanguage(this.idioma)
         }
-        const { data } = await supabase.auth.getSession()
+        const { data } = await supabase.auth.getSession().catch(() => ({ data: null }))
         this.applyToken(data?.session?.access_token || '')
-        if (this.token) this.refresh() // role, keys or lock may have changed since last time
+        if (this.token) {
+          this.refresh() // role, keys or lock may have changed since last time
+        } else if (this.user) {
+          // No usable token. Offline that means "not now"; online it means the session is over.
+          this.offlineSession = typeof navigator !== 'undefined' && navigator.onLine === false
+          if (this.offlineSession) this.watchForNetwork()
+        }
       })().finally(() => {
         this.restored = true
       })
@@ -101,7 +116,26 @@ export const useAuthStore = defineStore('auth', {
     applyToken(token) {
       this.token = token || ''
       setSessionToken(this.token)
-      if (this.token) this.sessionExpired = false
+      if (this.token) {
+        this.sessionExpired = false
+        this.offlineSession = false
+      }
+    },
+
+    /**
+     * Renew the session the moment there is a network again, so an offline start turns into a
+     * real one without the agent doing anything. Registered once; Supabase refreshes the token
+     * on its own from there.
+     */
+    watchForNetwork() {
+      if (this.networkWatch) return
+      this.networkWatch = async () => {
+        if (!supabase || this.token) return
+        const { data } = await supabase.auth.getSession().catch(() => ({ data: null }))
+        this.applyToken(data?.session?.access_token || '')
+        if (this.token) this.refresh()
+      }
+      window.addEventListener('online', this.networkWatch)
     },
     persist() {
       try {
@@ -205,6 +239,8 @@ export const useAuthStore = defineStore('auth', {
     },
     async logout({ keepFlag = false } = {}) {
       if (!keepFlag) this.sessionExpired = false
+      // A deliberate sign-out ends the offline entry too: there is nothing left to remember.
+      this.offlineSession = false
       this.applyToken('')
       this.clearProfile()
       if (supabase) await supabase.auth.signOut().catch(() => {})

@@ -5,7 +5,16 @@ import { useRoute, useRouter } from 'vue-router'
 import InmovillaState from '../components/InmovillaState.vue'
 import { LISTING_STATUSES, activeFeatures, completeness, locationOf, priceOf, titleOf } from '../models/property'
 import { useAuthStore } from '../stores/auth'
+import BusyDialog from '../components/BusyDialog.vue'
 import ConfirmDialog from '../components/ConfirmDialog.vue'
+import MergeDialog from '../components/MergeDialog.vue'
+import { reverseGeocode } from '../api/geocode'
+import { searchClients } from '../api/inmovillaRest'
+import { findMunicipality } from '../data/andalucia'
+import { useSettingsStore } from '../stores/settings'
+import { applyChoice, differingFields } from '../utils/merge'
+import { hasFastNetwork } from '../utils/network'
+import { useOnlineRetry } from '../composables/useOnlineRetry'
 import { useEnumsStore } from '../stores/enums'
 import { ownerIsComplete, useLocalPropertiesStore } from '../stores/localProperties'
 import { useFollowUpsStore } from '../stores/followUps'
@@ -52,6 +61,115 @@ const rows = computed(() => {
   ].filter(([, v]) => v !== undefined && v !== null && String(v).trim() !== '')
 })
 
+/**
+ * What could not be done in the field, done now.
+ *
+ * A listing written in front of a house with no data comes back with a position and a phone
+ * number and little else. Opening it on a real connection is the moment to finish the job: read
+ * the address the position points at, and ask Inmovilla whether that phone already belongs to
+ * someone. Both are announced while they run — they take seconds against remote registers — and
+ * both are cancellable.
+ */
+const busy = ref('') // '' | 'address' | 'owner'
+const catchUpNote = ref('')
+const merge = ref(null) // { title, intro, rows, apply }
+let cancelled = false
+
+const needsAddress = (d) => d && d.latitude != null && !d.cadastralRef && !d.street && !d.cityName
+const needsOwner = (d) => d && d.ownerPhone && !d.ownerCheckedAt && !d.ownerRemoteId
+
+async function catchUp() {
+  const d = p.value
+  if (!d || busy.value || !hasFastNetwork()) return
+  cancelled = false
+  if (needsAddress(d)) await readAddress(d)
+  if (!cancelled && needsOwner(p.value) && auth.hasRest) await findOwner(p.value)
+}
+
+async function readAddress(d) {
+  busy.value = 'address'
+  try {
+    const { address, cadastre } = await reverseGeocode({ lat: d.latitude, lon: d.longitude, lang: useSettingsStore().locale })
+    if (cancelled) return
+    const hit = findMunicipality(address.city, address.province)
+    await store.save({
+      ...JSON.parse(JSON.stringify(p.value)),
+      street: address.street || '',
+      number: address.number || '',
+      postalCode: address.postalCode || '',
+      cityName: hit ? hit.municipality.l : address.city || '',
+      cityCatastro: hit ? hit.municipality.c : '',
+      province: hit ? hit.province : p.value.province,
+      cadastralRef: cadastre?.reference || '',
+      cadastralUrl: cadastre?.mapUrl || '',
+    })
+    catchUpNote.value = t('merge.addressDone')
+  } catch {
+    /* No address today: the position is still there, and the button on the form still works. */
+  } finally {
+    busy.value = ''
+  }
+}
+
+/** Fields Inmovilla holds for an owner, in the order a person reads them. */
+const OWNER_FIELDS = [
+  { key: 'ownerName', labelKey: 'props.form.ownerName', read: (c) => c.name || c.nombre || '' },
+  { key: 'ownerSurname', labelKey: 'props.form.ownerSurname', read: (c) => c.surname || c.apellidos || '' },
+  { key: 'ownerEmail', labelKey: 'props.form.ownerEmail', read: (c) => c.email || '' },
+]
+
+async function findOwner(d) {
+  busy.value = 'owner'
+  try {
+    const found = await searchClients({ telefono: String(d.ownerPhone).replace(/\D/g, '') })
+    if (cancelled) return
+    const first = Array.isArray(found) ? found[0] : found
+    const base = { ...JSON.parse(JSON.stringify(p.value)), ownerCheckedAt: Date.now() }
+    if (!first) {
+      // Nothing to merge and nothing to send: only the note that the question has been asked.
+      await store.note(d.id, { ownerCheckedAt: base.ownerCheckedAt })
+      catchUpNote.value = t('merge.ownerNone')
+      return
+    }
+    base.ownerRemoteId = first.remoteId || first.cod_cli || null
+    const rows = differingFields(base, first, OWNER_FIELDS.map((f) => ({ ...f, label: t(f.labelKey) })))
+    if (!rows.length) {
+      await store.note(d.id, { ownerCheckedAt: base.ownerCheckedAt, ownerRemoteId: base.ownerRemoteId })
+      catchUpNote.value = t('merge.ownerFound', { id: base.ownerRemoteId || '—' })
+      return
+    }
+    merge.value = {
+      title: t('merge.ownerTitle'),
+      intro: t('merge.ownerIntro'),
+      rows,
+      apply: async (choice) => {
+        const { next, taken } = applyChoice(base, rows, choice)
+        // Taking nothing is a decision too, and it is not a change to send.
+        if (!taken) await store.note(d.id, { ownerCheckedAt: next.ownerCheckedAt, ownerRemoteId: next.ownerRemoteId })
+        else await store.save(next)
+        catchUpNote.value = t('merge.ownerFound', { id: next.ownerRemoteId || '—' })
+      },
+    }
+  } catch {
+    /* Inmovilla is not answering: leave ownerCheckedAt null so the next opening tries again. */
+  } finally {
+    busy.value = ''
+  }
+}
+
+function cancelCatchUp() {
+  cancelled = true
+  busy.value = ''
+}
+
+async function applyMerge(choice) {
+  const pending = merge.value
+  merge.value = null
+  await pending?.apply(choice)
+}
+
+useOnlineRetry(() => catchUp())
+
 onMounted(async () => {
   await store.ensureLoaded()
   followUps.ensureLoaded()
@@ -59,6 +177,7 @@ onMounted(async () => {
   if (p.value) await store.ensurePhotoUrls(p.value)
   loading.value = false
   if (toast.value) setTimeout(() => (toast.value = ''), 2500)
+  catchUp()
 })
 watch(() => p.value?.photos?.length, () => p.value && store.ensurePhotoUrls(p.value))
 
@@ -90,6 +209,11 @@ async function reactivate() {
     <p v-else-if="!p" class="alert">{{ t('common.notFound') }}</p>
 
     <template v-else>
+      <p v-if="catchUpNote" class="alert alert-info catch-up" role="status">
+        {{ catchUpNote }}
+        <button type="button" class="link" @click="catchUpNote = ''">{{ t('common.close') }}</button>
+      </p>
+
       <div class="gallery">
         <img :src="photos.length ? store.photoUrls[photos[active]?.id] || PLACEHOLDER : PLACEHOLDER" :alt="titleOf(p)" />
         <span class="badge" :class="Number(p.operation) === 2 ? 'badge-rent' : 'badge-sale'">{{ Number(p.operation) === 2 ? t('common.rent') : t('common.sale') }}</span>
@@ -179,6 +303,22 @@ async function reactivate() {
           {{ p.status === 'draft' ? t('props.detail.deleteDraft') : t('props.detail.unpublish') }}
         </button>
       </div>
+      <BusyDialog
+        :open="Boolean(busy)"
+        :message="busy === 'address' ? t('merge.reading') : t('merge.searching')"
+        :detail="busy === 'address' ? t('merge.readingDetail') : ''"
+        @cancel="cancelCatchUp"
+      />
+
+      <MergeDialog
+        :open="Boolean(merge)"
+        :title="merge?.title || ''"
+        :intro="merge?.intro || ''"
+        :rows="merge?.rows || []"
+        @apply="applyMerge"
+        @close="merge = null"
+      />
+
       <ConfirmDialog
         :open="confirmRemove"
         :message="p.status === 'draft' ? t('props.detail.confirmDraft', { t: titleOf(p) }) : t('props.detail.confirmUnpublish', { t: titleOf(p) })"
@@ -234,6 +374,8 @@ async function reactivate() {
 .danger { color: var(--danger); }
 .danger-fill { background: var(--danger); }
 .confirm { display: flex; flex-wrap: wrap; align-items: center; gap: 0.6rem; justify-content: center; }
+.catch-up { display: flex; align-items: center; justify-content: space-between; gap: 0.75rem; }
+.catch-up .link { border: 0; background: none; color: inherit; font-weight: 700; text-decoration: underline; padding: 0; font-size: 0.85rem; }
 .toast { position: fixed; left: 50%; bottom: calc(var(--nav-height) + 1rem + env(safe-area-inset-bottom)); transform: translateX(-50%); background: var(--text); color: #fff; padding: 0.6rem 1.1rem; border-radius: 999px; font-weight: 600; font-size: 0.9rem; box-shadow: 0 6px 18px rgba(0,0,0,0.25); }
 .toast-enter-active, .toast-leave-active { transition: opacity 0.25s, transform 0.25s; }
 .toast-enter-from, .toast-leave-to { opacity: 0; transform: translate(-50%, 10px); }

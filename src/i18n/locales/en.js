@@ -23,7 +23,7 @@ export default {
   },
   nav: { properties: 'Listings', agenda: 'Agenda', clients: 'Clients', pendingSync: '{n} changes waiting to sync', due: '{n} follow-ups due today or overdue' },
   auth: {
-    login: 'Sign in', intro: 'Sign in with your Immoba account.', email: 'Email', password: 'Password', remember: 'Remember me on this device', enter: 'Sign in',
+    login: 'Sign in', intro: 'Sign in with your INMO account.', email: 'Email', password: 'Password', remember: 'Remember me on this device', enter: 'Sign in',
     checking: 'Checking…', bad: 'Wrong email or password.', setupTitle: 'Create your account', setupIntro: 'First start: create the administrator account. You will then enter the Inmovilla keys, which identify your agency.',
     yourName: 'Your name', signupCode: 'Signup code', create: 'Create account', haveAccount: 'I already have an account', newAgency: 'Create a new agency',
     expired: 'Your session expired. Please sign in again.', passwordRule: 'At least 8 characters',
@@ -77,6 +77,8 @@ export default {
     adminDesc: 'Manages keys and users; creates, edits and deletes', agentDesc: 'Creates and edits listings, clients, follow-ups and owners', readonlyDesc: 'Views without editing',
   },
   props: {
+    offlineDetail: 'No network: the Inmovilla listing cannot be loaded.',
+    offlineList: 'No network: the Inmovilla listing cannot be loaded.', offlineRetry: 'It will try again as soon as the connection is back.',
     inmovilla: 'Inmovilla', mine: 'My listings', newProperty: 'New listing', searchPlaceholder: 'Search by reference or city', all: 'All', allTypes: 'All types',
     sortRecent: 'Most recent', sortPriceAsc: 'Price: low to high', sortPriceDesc: 'Price: high to low', sortRef: 'Reference',
     count: '{n} listings', noMatch: 'No listings match', cached: 'No connection to Inmovilla. Showing the last saved listing.', loadMore: 'Load more',
@@ -115,7 +117,18 @@ export default {
     },
     valid: { ref: 'The reference is required', refFormat: 'Letters, digits, dashes and dots only', type: 'Choose the property type', city: 'Choose the city', priceRent: 'Enter the rent', price: 'Enter the sale price', year: 'Invalid year', cp: 'Invalid postal code', email: 'Invalid email', ownerName: "Enter the owner's first name", ownerSurname: "Enter the owner's last name", ownerPhone: "Enter the owner's phone", built: 'Enter the built area', condition: 'Choose the condition', photos: 'Add at least one photo', },
   },
+  merge: {
+    mine: 'On the device', theirs: 'In Inmovilla', allMine: 'Keep all of mine', allTheirs: 'Take all from Inmovilla',
+    keepMine: 'Change nothing', keepChosen: 'Take 1 field | Take {n} fields',
+    ownerTitle: 'Owner found in Inmovilla', ownerIntro: 'That number already exists in Inmovilla, with different details. Choose what you keep: nothing changes without you.',
+    clientTitle: 'Client found in Inmovilla', clientIntro: 'That contact already exists in Inmovilla, with different details. Choose what you keep.',
+    ownerFound: 'Owner found in Inmovilla (no. {id}) — they will be linked to the listing.', clientFound: 'Contact found in Inmovilla (no. {id}).',
+    ownerNone: 'No Inmovilla contact with that number: one will be created on sending.', clientNone: 'No Inmovilla contact matches: one will be created on sending.',
+    searching: 'Looking the contact up in Inmovilla…', reading: 'Reading the address and the cadastral reference…', readingDetail: 'From the position saved in the field.',
+    addressDone: 'Address read from the saved position.',
+  },
   clients: {
+    offlineSearch: 'No network: Inmovilla cannot be searched.',
     title: 'Clients', searchPh: 'Name, phone or email', new: 'New client', empty: 'No clients on this device yet', emptyBody: 'Create a client or look one up in Inmovilla by phone or email. Works offline too.', addClient: 'Add client',
     searchingRemote: 'Searching Inmovilla…', noRemote: 'No matches in Inmovilla either.', searchRemote: 'Search Inmovilla', alsoRemote: 'Also search Inmovilla', nameOnlyLocal: 'Inmovilla only searches by phone or email; by name the search covers clients already seen on this device.',
     create: 'Create “{q}”', count: '{n} of {total} clients', noContact: 'No contact details', num: 'no. {id}',

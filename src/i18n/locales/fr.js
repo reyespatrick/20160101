@@ -23,7 +23,7 @@ export default {
   },
   nav: { properties: 'Biens', agenda: 'Agenda', clients: 'Clients', pendingSync: '{n} modifications à synchroniser', due: "{n} suivis pour aujourd'hui ou en retard" },
   auth: {
-    login: 'Connexion', intro: 'Connectez-vous avec votre compte Immoba.', email: 'Email', password: 'Mot de passe', remember: 'Se souvenir de moi sur cet appareil', enter: 'Entrer',
+    login: 'Connexion', intro: 'Connectez-vous avec votre compte INMO.', email: 'Email', password: 'Mot de passe', remember: 'Se souvenir de moi sur cet appareil', enter: 'Entrer',
     checking: 'Vérification…', bad: 'Email ou mot de passe incorrect.', setupTitle: 'Créez votre compte', setupIntro: "Premier démarrage : créez le compte administrateur. Vous saisirez ensuite les clés Inmovilla, qui identifient votre agence.",
     yourName: 'Votre nom', signupCode: "Code d'inscription", create: 'Créer le compte', haveAccount: "J'ai déjà un compte", newAgency: 'Créer une nouvelle agence',
     expired: 'Votre session a expiré. Reconnectez-vous.', passwordRule: '8 caractères minimum',
@@ -77,6 +77,8 @@ export default {
     adminDesc: 'Gère les clés et les utilisateurs ; crée, modifie et supprime', agentDesc: 'Crée et modifie fiches, clients, suivis et propriétaires', readonlyDesc: 'Consulte sans modifier',
   },
   props: {
+    offlineDetail: "Réseau indisponible : la fiche Inmovilla ne peut pas être chargée.",
+    offlineList: 'Réseau indisponible : la liste Inmovilla ne peut pas être chargée.', offlineRetry: 'Nouvelle tentative dès le retour du réseau.',
     inmovilla: 'Inmovilla', mine: 'Mes biens', newProperty: 'Nouveau bien', searchPlaceholder: 'Rechercher par référence ou ville', all: 'Tout', allTypes: 'Tous les types',
     sortRecent: 'Plus récents', sortPriceAsc: 'Prix croissant', sortPriceDesc: 'Prix décroissant', sortRef: 'Référence',
     count: '{n} biens', noMatch: 'Aucun bien ne correspond', cached: 'Pas de connexion à Inmovilla. Dernier listing enregistré.', loadMore: 'Charger plus',
@@ -115,7 +117,18 @@ export default {
     },
     valid: { ref: 'La référence est obligatoire', refFormat: 'Lettres, chiffres, tirets et points uniquement', type: 'Choisissez le type de bien', city: 'Choisissez la ville', priceRent: 'Indiquez le loyer', price: 'Indiquez le prix de vente', year: 'Année invalide', cp: 'Code postal invalide', email: 'Email invalide', ownerName: 'Indiquez le prénom du propriétaire', ownerSurname: 'Indiquez le nom du propriétaire', ownerPhone: 'Indiquez le téléphone du propriétaire', built: 'Indiquez les mètres construits', condition: "Choisissez l'état", photos: 'Ajoutez au moins une photo', },
   },
+  merge: {
+    mine: 'Sur l\'appareil', theirs: 'Dans Inmovilla', allMine: 'Tout garder du mien', allTheirs: "Tout prendre d'Inmovilla",
+    keepMine: 'Ne rien changer', keepChosen: 'Reprendre 1 champ | Reprendre {n} champs',
+    ownerTitle: 'Propriétaire trouvé dans Inmovilla', ownerIntro: "Ce numéro existe déjà chez Inmovilla, avec des informations différentes. Choisissez ce que vous gardez : rien n'est modifié sans votre accord.",
+    clientTitle: 'Client trouvé dans Inmovilla', clientIntro: "Ce contact existe déjà chez Inmovilla, avec des informations différentes. Choisissez ce que vous gardez.",
+    ownerFound: 'Propriétaire trouvé dans Inmovilla (nº {id}) — il sera rattaché au bien.', clientFound: 'Contact retrouvé dans Inmovilla (nº {id}).',
+    ownerNone: "Aucun contact Inmovilla avec ce numéro : il sera créé à l'envoi.", clientNone: 'Aucun contact Inmovilla ne correspond : il sera créé à l\'envoi.',
+    searching: 'Recherche du contact dans Inmovilla…', reading: "Lecture de l'adresse et de la référence cadastrale…", readingDetail: 'À partir de la position enregistrée sur le terrain.',
+    addressDone: "Adresse lue depuis la position enregistrée.",
+  },
   clients: {
+    offlineSearch: 'Réseau indisponible : impossible de chercher dans Inmovilla.',
     title: 'Clients', searchPh: 'Nom, téléphone ou email', new: 'Nouveau client', empty: 'Aucun client sur cet appareil', emptyBody: 'Créez un client ou cherchez-en un dans Inmovilla par téléphone ou email. Fonctionne aussi hors ligne.', addClient: 'Ajouter un client',
     searchingRemote: 'Recherche dans Inmovilla…', noRemote: 'Aucune correspondance dans Inmovilla non plus.', searchRemote: 'Chercher dans Inmovilla', alsoRemote: 'Chercher aussi dans Inmovilla', nameOnlyLocal: "Inmovilla ne permet la recherche que par téléphone ou email ; par nom, la recherche porte sur les clients déjà vus sur cet appareil.",
     create: 'Créer « {q} »', count: '{n} sur {total} clients', noContact: 'Sans contact', num: 'nº {id}',

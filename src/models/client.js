@@ -16,6 +16,7 @@ export function emptyClient() {
   return {
     id: newId(),
     remoteId: null, // cod_cli in Inmovilla
+    checkedAt: null, // when Inmovilla was last asked about this contact; null = never got through
     name: '',
     surname: '',
     nif: '',

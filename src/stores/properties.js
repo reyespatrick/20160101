@@ -1,6 +1,7 @@
 import { defineStore } from 'pinia'
 import { buildWhere, fetchProperties, fetchProperty, ORDER_OPTIONS } from '../api/inmovilla'
 import { useAuthStore } from './auth'
+import { isNetworkError } from '../composables/useOnlineRetry'
 
 const CACHE_KEY = 'immoba.properties.cache'
 const PAGE_SIZE = 20
@@ -23,6 +24,7 @@ export const usePropertiesStore = defineStore('properties', {
     loadingMore: false,
     error: '',
     fromCache: false,
+    offline: false, // the load failed for want of a network, not for a reason
     needsApiweb: false, // the listing needs the apiweb key, which is issued separately
     filters: { search: '', operation: 'all', typeKey: '', order: ORDER_OPTIONS[0].value },
     details: {}, // cod_ofer -> ficha
@@ -40,6 +42,7 @@ export const usePropertiesStore = defineStore('properties', {
       const auth = useAuthStore()
       this.loading = true
       this.error = ''
+      this.offline = false
       this.needsApiweb = false
       try {
         const { items, meta, types } = await fetchProperties({
@@ -66,6 +69,17 @@ export const usePropertiesStore = defineStore('properties', {
           this.error = 'Inmovilla rechazó las claves de la agencia; avisa al administrador'
         } else if (err.code === 'session') {
           this.error = ''
+        } else if (isNetworkError(err)) {
+          // Nothing is wrong with the listing, only with the connection: say that, keep whatever
+          // was last seen, and let the screen ask again when the network comes back.
+          this.offline = true
+          const cached = readCache()
+          if (cached && !this.items.length) {
+            this.items = cached.items
+            this.total = cached.total
+            this.types = cached.types || []
+            this.fromCache = true
+          }
         } else {
           this.error = err.message || 'No se pudieron cargar las propiedades'
           const cached = readCache()

@@ -72,6 +72,9 @@ describe('property mapping', () => {
     // The town only has to be named: Inmovilla's key_loca is resolved in the background, and a
     // draft written in front of the door must not wait for it.
     expect(validateProperty(prop({ ...complete, cityName: '' }))).toHaveProperty('cityName')
+    // A listing captured in front of the door, with no network to name the town: the position
+    // stands in for it, and the address is read later from those same coordinates.
+    expect(validateProperty(prop({ ...complete, cityName: '', latitude: 36.5957, longitude: -4.6377 }))).toEqual({})
     expect(validateProperty(prop({ ...complete, cityKey: null }))).toEqual({})
     expect(validateProperty(prop({ ...complete, ref: 'a b' }))).toHaveProperty('ref')
     expect(validateProperty(prop({ ...complete, operation: 2, priceRent: null }))).toHaveProperty('priceRent')

@@ -21,7 +21,7 @@ export function followUpToIcs(f, { durationMin = 30 } = {}) {
   return [
     'BEGIN:VCALENDAR',
     'VERSION:2.0',
-    'PRODID:-//Immoba//Inmovilla PWA//ES',
+    'PRODID:-//INMO//Inmovilla PWA//ES',
     'BEGIN:VEVENT',
     `UID:immoba-${f.remoteId || f.id}@immoba`,
     `DTSTAMP:${icsUtc(Date.now())}`,
