@@ -74,6 +74,7 @@ export function emptyProperty() {
     postalCode: '', // cp
     latitude: null, // kept on the device: Inmovilla's REST fields for coordinates are undocumented
     longitude: null,
+    cadastralRef: '', // referencia catastral, read from the position (Sede Electrónica del Catastro)
     bedrooms: null, // habitaciones
     bathrooms: null, // banyos
     builtArea: null, // m_cons
@@ -133,6 +134,13 @@ export function validateProperty(p) {
   if (!String(p.ref || '').trim()) errors.ref = t('props.valid.ref')
   else if (!/^[\w.-]{2,40}$/.test(String(p.ref).trim())) errors.ref = t('props.valid.refFormat')
   if (!p.typeKey) errors.typeKey = t('props.valid.type')
+  // Inmovilla refuses POST /propietarios/ without both, so ask for them at the door.
+  if (!String(p.ownerPhone || '').replace(/\D/g, '')) errors.ownerPhone = t('props.valid.ownerPhone')
+  if (!Number(p.builtArea)) errors.builtArea = t('props.valid.built')
+  if (!p.conservation) errors.conservation = t('props.valid.condition')
+  if (!p.photos?.length) errors.photos = t('props.valid.photos')
+  if (!String(p.ownerName || '').trim()) errors.ownerName = t('props.valid.ownerName')
+  if (!String(p.ownerSurname || '').trim()) errors.ownerSurname = t('props.valid.ownerSurname')
   if (!p.cityKey) errors.cityKey = t('props.valid.city')
   if (Number(p.operation) === 2) {
     if (p.priceRent == null || Number(p.priceRent) <= 0) errors.priceRent = t('props.valid.priceRent')

@@ -19,5 +19,5 @@ export async function reverseGeocode({ lat, lon, lang }) {
     reportUnauthorized(err)
     throw err
   }
-  return body.address
+  return { address: body.address || {}, cadastre: body.cadastre || null }
 }

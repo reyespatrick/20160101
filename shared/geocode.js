@@ -10,6 +10,7 @@
  * The key never reaches the phone: the browser sends coordinates to our own endpoint, which
  * calls the provider. That also lets us swap providers without shipping a new app.
  */
+const CATASTRO_URL = 'https://ovc.catastro.meh.es/OVCServWeb/OVCWcfCallejero/COVCCoordenadas.svc/json/Consulta_RCCOOR'
 const GOOGLE_URL = 'https://maps.googleapis.com/maps/api/geocode/json'
 const NOMINATIM_URL = 'https://nominatim.openstreetmap.org/reverse'
 const TIMEOUT_MS = 12_000
@@ -51,6 +52,37 @@ export function fromNominatim(payload) {
     provider: 'nominatim',
   }
 }
+
+/**
+ * Spain's cadastre answers the one thing no map provider can: the **referencia catastral** of
+ * the plot under those coordinates. Free, keyless and official (Sede Electrónica del Catastro),
+ * it also returns the address as one line. It refuses a request whose User-Agent it does not
+ * recognise, hence the explicit one — a plain `curl` default is turned away with an HTML page.
+ */
+export function fromCatastro(payload) {
+  const result = payload?.Consulta_RCCOORResult
+  if (!result || result.control?.cuerr) return null
+  const coord = result.coordenadas?.coord?.[0] || result.coordenadas?.coord
+  const pc = coord?.pc
+  if (!pc?.pc1 || !pc?.pc2) return null
+  return { reference: `${pc.pc1}${pc.pc2}`, label: (coord.ldt || '').trim() }
+}
+
+export async function cadastralReference({ lat, lon, env = {} }) {
+  if (!validCoordinates(lat, lon)) return null
+  const url = `${CATASTRO_URL}?CoorX=${encodeURIComponent(lon)}&CoorY=${encodeURIComponent(lat)}&SRS=EPSG:4326`
+  try {
+    const payload = await withTimeout(async (signal) =>
+      (await fetch(url, { signal, headers: { 'User-Agent': env.GEOCODE_USER_AGENT || USER_AGENT, Accept: 'application/json' } })).json(),
+    )
+    return fromCatastro(payload)
+  } catch {
+    // Cosmetic extra: a listing is perfectly valid without it, so never fail the whole reading.
+    return null
+  }
+}
+
+const USER_AGENT = 'Mozilla/5.0 (compatible; immoba/1.0; real-estate field app)'
 
 async function withTimeout(fn) {
   const controller = new AbortController()

@@ -63,11 +63,15 @@ describe('property mapping', () => {
     expect(toInmovillaOwner(prop({ ownerRemoteId: '9', ownerName: 'Luis' }), { forUpdate: true })).toEqual({ cod_cli: 9, nombre: 'Luis' })
   })
   it('validates required Inmovilla fields', () => {
-    expect(validateProperty(prop())).toEqual({})
-    expect(validateProperty(prop({ typeKey: null }))).toHaveProperty('typeKey')
-    expect(validateProperty(prop({ cityKey: null }))).toHaveProperty('cityKey')
-    expect(validateProperty(prop({ ref: 'a b' }))).toHaveProperty('ref')
-    expect(validateProperty(prop({ operation: 2, priceRent: null }))).toHaveProperty('priceRent')
+    // Inmovilla needs nombre and apellidos to create the owner, so the form asks for both.
+    const complete = { ownerName: 'Carmen', ownerSurname: 'Ortiz', ownerPhone: '600111222', builtArea: 92, conservation: 2, photos: [{ id: 'p1', order: 0 }] }
+    expect(validateProperty(prop(complete))).toEqual({})
+    expect(validateProperty(prop({ ...complete, ownerName: '' }))).toHaveProperty('ownerName')
+    expect(validateProperty(prop({ ...complete, ownerSurname: '  ' }))).toHaveProperty('ownerSurname')
+    expect(validateProperty(prop({ ...complete, typeKey: null }))).toHaveProperty('typeKey')
+    expect(validateProperty(prop({ ...complete, cityKey: null }))).toHaveProperty('cityKey')
+    expect(validateProperty(prop({ ...complete, ref: 'a b' }))).toHaveProperty('ref')
+    expect(validateProperty(prop({ ...complete, operation: 2, priceRent: null }))).toHaveProperty('priceRent')
     expect(suggestRef('APP')).toMatch(/^APP-\d{6}-[A-Z0-9]{3}$/)
   })
 })

@@ -1,6 +1,6 @@
 <script setup>
 import { useI18n } from 'vue-i18n'
-import { computed, onMounted, reactive, ref, watch } from 'vue'
+import { computed, nextTick, onMounted, reactive, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import ChipGroup from '../components/ChipGroup.vue'
 import CityPicker from '../components/CityPicker.vue'
@@ -60,6 +60,8 @@ const sentAlready = computed(() => form.status !== 'draft')
  * address. Only fields the agent has not already typed are filled — a reading never overwrites
  * what someone entered on purpose.
  */
+const advancedOpen = ref(false)
+const ADVANCED_FIELDS = ['ref', 'cityKey', 'postalCode', 'yearBuilt', 'ownerEmail']
 const locating = ref('')   // '' | 'locating' | 'reading'
 const locateError = ref('')
 const locatedLabel = ref('')
@@ -84,16 +86,26 @@ async function readAddress() {
     form.latitude = coords.latitude
     form.longitude = coords.longitude
     locating.value = 'reading'
-    const address = await reverseGeocode({ lat: coords.latitude, lon: coords.longitude, lang: useSettingsStore().locale })
+    const { address, cadastre } = await reverseGeocode({ lat: coords.latitude, lon: coords.longitude, lang: useSettingsStore().locale })
+    if (cadastre?.reference && !form.cadastralRef) form.cadastralRef = cadastre.reference
     if (!form.street) form.street = address.street || ''
     if (!form.number) form.number = address.number || ''
     if (!form.postalCode) form.postalCode = address.postalCode || ''
     if (!form.cityKey && address.city) {
-      // Inmovilla identifies a city by its own key; match the reading against the agency's list.
-      const match = enums.searchCities(address.city, 1)[0]
-      city.value = match ? { key: match.key_loca, name: match.ciudad } : { key: null, name: address.city }
+      // Show the name at once, then resolve Inmovilla's key for it. That lookup must not be
+      // awaited: the enums endpoint allows two calls a minute, so the store spaces them 31 s
+      // apart and the button would appear frozen.
+      city.value = { key: null, name: address.city }
+      enums
+        .ensureCiudades()
+        .then(() => {
+          if (form.cityKey || form.cityName !== address.city) return // the agent has moved on
+          const match = enums.searchCities(address.city, 1)[0]
+          if (match) city.value = { key: match.key_loca, name: match.ciudad }
+        })
+        .catch(() => {})
     }
-    locatedLabel.value = address.label || ''
+    locatedLabel.value = address.label || cadastre?.label || ''
   } catch (err) {
     locateError.value = err.code === 'nomatch' ? t('props.form.geoNoAddress') : err.message || t('props.form.geoFailed')
   } finally {
@@ -201,6 +213,9 @@ async function submit() {
   errors.value = validateProperty(form)
   if (refCheck.value === 'taken') errors.value.ref = t('props.form.refExists')
   if (Object.keys(errors.value).length) {
+    // A field the agent cannot see cannot be fixed: open the accordion when the problem is inside it.
+    if (ADVANCED_FIELDS.some((f) => errors.value[f])) advancedOpen.value = true
+    await nextTick()
     document.querySelector('.field.invalid input, .field.invalid select, .invalid-chips, .city input.invalid')?.scrollIntoView({ block: 'center' })
     return
   }
@@ -239,24 +254,67 @@ async function cancel() {
         <small class="muted">{{ t('props.form.complete', { n: progress }) }}</small>
       </div>
 
+      <!-- L'essentiel : ce qu'on peut saisir devant la porte, en trois minutes -->
       <fieldset>
-        <legend>{{ t('props.form.photos') }}</legend>
-        <PhotoPicker v-model="form.photos" :urls="store.photoUrls" :add-files="addFiles" :remove-photo="removePhoto" />
-      </fieldset>
+        <legend class="legend-row">
+          <span>{{ t('props.form.essentials') }}</span>
+          <button type="button" class="btn btn-ghost small" :disabled="Boolean(locating)" @click="readAddress">
+            <svg viewBox="0 0 24 24" aria-hidden="true" class="pin"><path d="M12 21s7-6.2 7-11a7 7 0 10-14 0c0 4.8 7 11 7 11z" fill="none" stroke="currentColor" stroke-width="2" /><circle cx="12" cy="10" r="2.5" fill="none" stroke="currentColor" stroke-width="2" /></svg>
+            {{ locating === 'locating' ? t('props.form.locating') : locating === 'reading' ? t('props.form.reading') : t('props.form.readAddress') }}
+          </button>
+        </legend>
+        <p v-if="locateError" class="alert geo">{{ locateError }}</p>
+        <p v-else-if="locatedLabel" class="muted geo-ok">{{ locatedLabel }}</p>
 
-      <fieldset>
-        <legend>{{ t('props.form.refOp') }}</legend>
-        <div class="field" :class="{ invalid: errors.ref }">
-          <label for="ref">{{ t('props.form.ref') }} * <small class="muted">{{ t('props.form.refHint') }}</small></label>
-          <div class="ref-row">
-            <input id="ref" v-model.trim="form.ref" :readonly="sentAlready" autocapitalize="characters" @blur="checkRef" />
-            <span v-if="refCheck === 'checking'" class="muted">{{ t('props.form.checking') }}</span>
-            <span v-else-if="refCheck === 'ok'" class="ok">{{ t('props.form.available') }}</span>
-            <span v-else-if="refCheck === 'taken'" class="err">{{ t('props.form.taken') }}</span>
+        <h3 class="sub">{{ t('props.form.photos') }} *</h3>
+        <PhotoPicker v-model="form.photos" :urls="store.photoUrls" :add-files="addFiles" :remove-photo="removePhoto" />
+        <small v-if="errors.photos" class="err">{{ errors.photos }}</small>
+
+        <h3 class="sub">{{ t('props.form.owner') }}</h3>
+
+        <div class="field" :class="{ invalid: errors.ownerPhone }">
+          <label for="ownerPhone">{{ t('props.form.ownerPhone') }} *</label>
+          <div class="phone-row">
+            <input id="ownerPhone" v-model.trim="form.ownerPhone" type="tel" inputmode="tel" :placeholder="t('props.form.ownerPhonePh')" @input="ownerLookup = ''" />
+            <button type="button" class="btn btn-ghost small" :disabled="ownerLookup === 'searching'" @click="findOwner">
+              {{ ownerLookup === 'searching' ? t('props.form.searching') : t('props.form.searchOwner') }}
+            </button>
           </div>
-          <small v-if="errors.ref" class="err">{{ errors.ref }}</small>
-          <small v-else-if="sentAlready" class="muted">{{ t('props.form.refLocked') }}</small>
+          <small v-if="ownerError" class="err">{{ ownerError }}</small>
+          <small v-else-if="errors.ownerPhone" class="err">{{ errors.ownerPhone }}</small>
+          <small v-else class="muted">{{ t('props.form.ownerPhoneHint') }}</small>
         </div>
+        <div v-if="ownerLookup === 'found'" class="lookup found">
+          <span>{{ t('props.form.ownerFound', { name: [form.ownerName, form.ownerSurname].filter(Boolean).join(' ') }) }}</span>
+          <button type="button" class="link" @click="newOwner">{{ t('props.form.ownerNotThem') }}</button>
+        </div>
+        <div v-else-if="ownerLookup === 'none'" class="lookup none">
+          <span>{{ t('props.form.ownerNotFound') }}</span>
+        </div>
+
+        <div class="two">
+          <div class="field" :class="{ invalid: errors.ownerName }">
+            <label for="owner">{{ t('props.form.ownerName') }} *</label>
+            <input id="owner" v-model.trim="form.ownerName" autocapitalize="words" />
+            <small v-if="errors.ownerName" class="err">{{ errors.ownerName }}</small>
+          </div>
+          <div class="field" :class="{ invalid: errors.ownerSurname }">
+            <label for="ownerSurname">{{ t('props.form.ownerSurname') }} *</label>
+            <input id="ownerSurname" v-model.trim="form.ownerSurname" autocapitalize="words" />
+            <small v-if="errors.ownerSurname" class="err">{{ errors.ownerSurname }}</small>
+          </div>
+        </div>
+
+        <h3 class="sub">{{ t('props.form.theProperty') }}</h3>
+        <div class="field" :class="{ invalid: errors.typeKey }">
+          <label for="type">{{ t('props.form.type') }} *</label>
+          <select id="type" :value="form.typeKey ?? ''" @change="onTypeChange">
+            <option value="" disabled>{{ typeOptions.length ? t('props.form.chooseType') : enums.loading.tipos ? t('props.form.loadingTypes') : t('props.form.noTypes') }}</option>
+            <option v-for="t in typeOptions" :key="t.value" :value="t.value">{{ t.label }}</option>
+          </select>
+          <small v-if="errors.typeKey" class="err">{{ errors.typeKey }}</small>
+        </div>
+
         <ChipGroup v-model="form.operation" :options="OPERATIONS.map((o) => ({ value: o.value, label: t(o.labelKey) }))" />
         <div class="two">
           <div v-if="Number(form.operation) === 1" class="field" :class="{ invalid: errors.price }">
@@ -269,6 +327,43 @@ async function cancel() {
             <input id="priceRent" v-model.number="form.priceRent" type="number" inputmode="numeric" min="0" step="50" placeholder="Ej. 850" />
             <small v-if="errors.priceRent" class="err">{{ errors.priceRent }}</small>
           </div>
+          <div class="field" :class="{ invalid: errors.builtArea }">
+            <label for="built">{{ t('props.form.built') }} *</label>
+            <input id="built" v-model.number="form.builtArea" type="number" inputmode="decimal" min="0" placeholder="—" />
+            <small v-if="errors.builtArea" class="err">{{ errors.builtArea }}</small>
+          </div>
+        </div>
+
+        <div class="field" :class="{ invalid: errors.conservation }">
+          <label for="condition">{{ t('props.form.condition') }} *</label>
+          <select id="condition" v-model="form.conservation">
+            <option :value="null">{{ t('props.form.unspecified') }}</option>
+            <option v-for="o in enums.options('conservacion')" :key="o.value" :value="o.value">{{ o.label }}</option>
+          </select>
+          <small v-if="errors.conservation" class="err">{{ errors.conservation }}</small>
+        </div>
+      </fieldset>
+
+      <!-- Tout le reste : replié, mais jamais perdu -->
+      <details class="advanced" :open="advancedOpen" @toggle="advancedOpen = $event.target.open">
+        <summary>
+          <span>{{ t('props.form.advanced') }}</span>
+          <small class="muted">{{ t('props.form.advancedHint') }}</small>
+        </summary>
+
+        <fieldset>
+          <legend>{{ t('props.form.refOp') }}</legend>
+          <div class="field" :class="{ invalid: errors.ref }">
+            <label for="ref">{{ t('props.form.ref') }} * <small class="muted">{{ t('props.form.refHint') }}</small></label>
+            <div class="ref-row">
+              <input id="ref" v-model.trim="form.ref" :readonly="sentAlready" autocapitalize="characters" @blur="checkRef" />
+              <span v-if="refCheck === 'checking'" class="muted">{{ t('props.form.checking') }}</span>
+              <span v-else-if="refCheck === 'ok'" class="ok">{{ t('props.form.available') }}</span>
+              <span v-else-if="refCheck === 'taken'" class="err">{{ t('props.form.taken') }}</span>
+            </div>
+            <small v-if="errors.ref" class="err">{{ errors.ref }}</small>
+            <small v-else-if="sentAlready" class="muted">{{ t('props.form.refLocked') }}</small>
+          </div>
           <div class="field">
             <label for="publish">{{ t('props.form.publish') }}</label>
             <select id="publish" v-model="form.publish">
@@ -276,86 +371,65 @@ async function cancel() {
               <option v-for="o in enums.options('eninternet')" :key="o.value" :value="o.value">{{ o.label }}</option>
             </select>
           </div>
-        </div>
-      </fieldset>
+        </fieldset>
 
-      <fieldset>
-        <legend class="legend-row">
-          <span>{{ t('props.form.typeLocation') }}</span>
-          <button type="button" class="btn btn-ghost small" :disabled="Boolean(locating)" @click="readAddress">
-            <svg viewBox="0 0 24 24" aria-hidden="true" class="pin"><path d="M12 21s7-6.2 7-11a7 7 0 10-14 0c0 4.8 7 11 7 11z" fill="none" stroke="currentColor" stroke-width="2" /><circle cx="12" cy="10" r="2.5" fill="none" stroke="currentColor" stroke-width="2" /></svg>
-            {{ locating === 'locating' ? t('props.form.locating') : locating === 'reading' ? t('props.form.reading') : t('props.form.readAddress') }}
-          </button>
-        </legend>
-        <p v-if="locateError" class="alert geo">{{ locateError }}</p>
-        <p v-else-if="locatedLabel" class="muted geo-ok">{{ locatedLabel }}</p>
-        <div class="field" :class="{ invalid: errors.typeKey }">
-          <label for="type">{{ t('props.form.type') }} *</label>
-          <select id="type" :value="form.typeKey ?? ''" @change="onTypeChange">
-            <option value="" disabled>{{ typeOptions.length ? t('props.form.chooseType') : enums.loading.tipos ? t('props.form.loadingTypes') : t('props.form.noTypes') }}</option>
-            <option v-for="t in typeOptions" :key="t.value" :value="t.value">{{ t.label }}</option>
-          </select>
-          <small v-if="errors.typeKey" class="err">{{ errors.typeKey }}</small>
-        </div>
-        <div class="field" :class="{ invalid: errors.cityKey }">
-          <label>{{ t('props.form.city') }} *</label>
-          <CityPicker v-model="city" :invalid="Boolean(errors.cityKey)" />
-          <small v-if="errors.cityKey" class="err">{{ errors.cityKey }}</small>
-        </div>
-        <div class="field">
-          <label for="zone">{{ t('props.form.zone') }}</label>
-          <select v-if="zoneOptions.length" id="zone" :value="form.zoneKey ?? ''" @change="onZoneChange">
-            <option value="">{{ t('props.form.noZone') }}</option>
-            <option v-for="z in zoneOptions" :key="z.key_zona" :value="z.key_zona">{{ z.zona }}</option>
-          </select>
-          <input v-else id="zone" v-model.trim="form.zoneName" :placeholder="form.cityKey && enums.loading.zonas ? t('props.form.loadingZones') : t('props.form.zoneName')" />
-        </div>
-        <div class="two">
-          <div class="field grow">
-            <label for="street">{{ t('props.form.street') }}</label>
-            <input id="street" v-model.trim="form.street" autocomplete="street-address" />
+        <fieldset>
+          <legend>{{ t('props.form.typeLocation') }}</legend>
+          <div class="field" :class="{ invalid: errors.cityKey }">
+            <label>{{ t('props.form.city') }} *</label>
+            <CityPicker v-model="city" :invalid="Boolean(errors.cityKey)" />
+            <small v-if="errors.cityKey" class="err">{{ errors.cityKey }}</small>
           </div>
           <div class="field">
-            <label for="number">{{ t('props.form.number') }}</label>
-            <input id="number" v-model.trim="form.number" />
-          </div>
-        </div>
-        <div class="two">
-          <div class="field" :class="{ invalid: errors.postalCode }">
-            <label for="cp">{{ t('props.form.cp') }}</label>
-            <input id="cp" v-model.trim="form.postalCode" inputmode="numeric" autocomplete="postal-code" />
-            <small v-if="errors.postalCode" class="err">{{ errors.postalCode }}</small>
-          </div>
-          <div class="field">
-            <label for="floor">{{ t('props.form.floor') }}</label>
-            <input id="floor" v-model.number="form.floor" type="number" inputmode="numeric" min="-5" max="200" />
-          </div>
-        </div>
-      </fieldset>
-
-      <fieldset>
-        <legend>{{ t('props.form.characteristics') }}</legend>
-        <div class="three">
-          <div class="field"><label for="bedrooms">{{ t('props.form.bedrooms') }}</label><input id="bedrooms" v-model.number="form.bedrooms" type="number" inputmode="numeric" min="0" max="50" placeholder="—" /></div>
-          <div class="field"><label for="bathrooms">{{ t('props.form.baths') }}</label><input id="bathrooms" v-model.number="form.bathrooms" type="number" inputmode="numeric" min="0" max="50" placeholder="—" /></div>
-          <div class="field" :class="{ invalid: errors.yearBuilt }">
-            <label for="year">{{ t('props.form.year') }}</label>
-            <input id="year" v-model.number="form.yearBuilt" type="number" inputmode="numeric" min="1500" max="2100" placeholder="—" />
-            <small v-if="errors.yearBuilt" class="err">{{ errors.yearBuilt }}</small>
-          </div>
-        </div>
-        <div class="three">
-          <div class="field"><label for="built">{{ t('props.form.built') }}</label><input id="built" v-model.number="form.builtArea" type="number" inputmode="decimal" min="0" placeholder="—" /></div>
-          <div class="field"><label for="usable">{{ t('props.form.usable') }}</label><input id="usable" v-model.number="form.usableArea" type="number" inputmode="decimal" min="0" placeholder="—" /></div>
-          <div class="field"><label for="plot">{{ t('props.form.plot') }}</label><input id="plot" v-model.number="form.plotArea" type="number" inputmode="decimal" min="0" placeholder="—" /></div>
-        </div>
-        <div class="two">
-          <div class="field">
-            <label for="condition">{{ t('props.form.condition') }}</label>
-            <select id="condition" v-model="form.conservation">
-              <option :value="null">{{ t('props.form.unspecified') }}</option>
-              <option v-for="o in enums.options('conservacion')" :key="o.value" :value="o.value">{{ o.label }}</option>
+            <label for="zone">{{ t('props.form.zone') }}</label>
+            <select v-if="zoneOptions.length" id="zone" :value="form.zoneKey ?? ''" @change="onZoneChange">
+              <option value="">{{ t('props.form.noZone') }}</option>
+              <option v-for="z in zoneOptions" :key="z.key_zona" :value="z.key_zona">{{ z.zona }}</option>
             </select>
+            <input v-else id="zone" v-model.trim="form.zoneName" :placeholder="form.cityKey && enums.loading.zonas ? t('props.form.loadingZones') : t('props.form.zoneName')" />
+          </div>
+          <div class="two">
+            <div class="field grow">
+              <label for="street">{{ t('props.form.street') }}</label>
+              <input id="street" v-model.trim="form.street" autocomplete="street-address" />
+            </div>
+            <div class="field">
+              <label for="number">{{ t('props.form.number') }}</label>
+              <input id="number" v-model.trim="form.number" />
+            </div>
+          </div>
+          <div class="two">
+            <div class="field" :class="{ invalid: errors.postalCode }">
+              <label for="cp">{{ t('props.form.cp') }}</label>
+              <input id="cp" v-model.trim="form.postalCode" inputmode="numeric" autocomplete="postal-code" />
+              <small v-if="errors.postalCode" class="err">{{ errors.postalCode }}</small>
+            </div>
+            <div class="field">
+              <label for="floor">{{ t('props.form.floor') }}</label>
+              <input id="floor" v-model.number="form.floor" type="number" inputmode="numeric" min="-5" max="200" />
+            </div>
+          </div>
+          <div class="field">
+            <label for="cadastral">{{ t('props.form.cadastral') }}</label>
+            <input id="cadastral" v-model.trim="form.cadastralRef" autocapitalize="characters" :placeholder="t('props.form.cadastralPh')" />
+            <small class="muted">{{ t('props.form.cadastralHint') }}</small>
+          </div>
+        </fieldset>
+
+        <fieldset>
+          <legend>{{ t('props.form.characteristics') }}</legend>
+          <div class="three">
+            <div class="field"><label for="bedrooms">{{ t('props.form.bedrooms') }}</label><input id="bedrooms" v-model.number="form.bedrooms" type="number" inputmode="numeric" min="0" max="50" placeholder="—" /></div>
+            <div class="field"><label for="bathrooms">{{ t('props.form.baths') }}</label><input id="bathrooms" v-model.number="form.bathrooms" type="number" inputmode="numeric" min="0" max="50" placeholder="—" /></div>
+            <div class="field" :class="{ invalid: errors.yearBuilt }">
+              <label for="year">{{ t('props.form.year') }}</label>
+              <input id="year" v-model.number="form.yearBuilt" type="number" inputmode="numeric" min="1500" max="2100" placeholder="—" />
+              <small v-if="errors.yearBuilt" class="err">{{ errors.yearBuilt }}</small>
+            </div>
+          </div>
+          <div class="two">
+            <div class="field"><label for="usable">{{ t('props.form.usable') }}</label><input id="usable" v-model.number="form.usableArea" type="number" inputmode="decimal" min="0" placeholder="—" /></div>
+            <div class="field"><label for="plot">{{ t('props.form.plot') }}</label><input id="plot" v-model.number="form.plotArea" type="number" inputmode="decimal" min="0" placeholder="—" /></div>
           </div>
           <div class="field">
             <label for="orientation">{{ t('props.form.orientation') }}</label>
@@ -364,73 +438,47 @@ async function cancel() {
               <option v-for="o in enums.options('keyori')" :key="o.value" :value="o.value">{{ o.label }}</option>
             </select>
           </div>
-        </div>
-        <div class="field">
-          <label>{{ t('props.form.energy') }}</label>
-          <ChipGroup v-model="form.energyRating" :options="ENERGY_RATINGS.map((r) => ({ value: r, label: r || 'N/D' }))" />
-        </div>
-        <div class="field">
-          <label>{{ t('props.form.extras') }}</label>
-          <div class="features">
-            <label v-for="[key, labelKey] in FEATURES" :key="key" class="feature" :class="{ on: form.features[key] }">
-              <input type="checkbox" :checked="Boolean(form.features[key])" @change="toggleFeature(key)" />
-              {{ t(labelKey) }}
-            </label>
+          <div class="field">
+            <label>{{ t('props.form.energy') }}</label>
+            <ChipGroup v-model="form.energyRating" :options="ENERGY_RATINGS.map((r) => ({ value: r, label: r || 'N/D' }))" />
           </div>
-        </div>
-      </fieldset>
-
-      <fieldset>
-        <legend>{{ t('props.form.titleDesc') }}</legend>
-        <div class="field">
-          <label for="title">{{ t('props.form.titleField') }}</label>
-          <input id="title" v-model.trim="form.title" :placeholder="t('props.form.titlePh')" maxlength="160" />
-        </div>
-        <div class="field">
-          <label for="description">{{ t('props.form.descField') }}</label>
-          <textarea id="description" v-model="form.description" rows="6" :placeholder="t('props.form.descPh')"></textarea>
-          <small class="muted">{{ t('props.form.chars', { n: form.description.length }) }}</small>
-        </div>
-      </fieldset>
-
-      <fieldset>
-        <legend>{{ t('props.form.owner') }} <small class="muted">{{ t('props.form.ownerHint') }}</small></legend>
-        <div class="field">
-          <label for="ownerPhone">{{ t('props.form.ownerPhone') }}</label>
-          <div class="phone-row">
-            <input id="ownerPhone" v-model.trim="form.ownerPhone" type="tel" inputmode="tel" :placeholder="t('props.form.ownerPhonePh')" @input="ownerLookup = ''" />
-            <button type="button" class="btn btn-ghost small" :disabled="ownerLookup === 'searching'" @click="findOwner">
-              {{ ownerLookup === 'searching' ? t('props.form.searching') : t('props.form.searchOwner') }}
-            </button>
+          <div class="field">
+            <label>{{ t('props.form.extras') }}</label>
+            <div class="features">
+              <label v-for="[key, labelKey] in FEATURES" :key="key" class="feature" :class="{ on: form.features[key] }">
+                <input type="checkbox" :checked="Boolean(form.features[key])" @change="toggleFeature(key)" />
+                {{ t(labelKey) }}
+              </label>
+            </div>
           </div>
-          <small v-if="ownerError" class="err">{{ ownerError }}</small>
-          <small v-else class="muted">{{ t('props.form.ownerPhoneHint') }}</small>
-        </div>
+        </fieldset>
 
-        <div v-if="ownerLookup === 'found'" class="lookup found">
-          <span>{{ t('props.form.ownerFound', { name: [form.ownerName, form.ownerSurname].filter(Boolean).join(' ') }) }}</span>
-          <button type="button" class="link" @click="newOwner">{{ t('props.form.ownerNotThem') }}</button>
-        </div>
-        <div v-else-if="ownerLookup === 'none'" class="lookup none">
-          <span>{{ t('props.form.ownerNotFound') }}</span>
-        </div>
+        <fieldset>
+          <legend>{{ t('props.form.titleDesc') }}</legend>
+          <div class="field">
+            <label for="title">{{ t('props.form.titleField') }}</label>
+            <input id="title" v-model.trim="form.title" :placeholder="t('props.form.titlePh')" maxlength="160" />
+          </div>
+          <div class="field">
+            <label for="description">{{ t('props.form.descField') }}</label>
+            <textarea id="description" v-model="form.description" rows="6" :placeholder="t('props.form.descPh')"></textarea>
+            <small class="muted">{{ t('props.form.chars', { n: form.description.length }) }}</small>
+          </div>
+        </fieldset>
 
-        <div class="two">
-          <div class="field"><label for="owner">{{ t('props.form.ownerName') }}</label><input id="owner" v-model.trim="form.ownerName" autocapitalize="words" /></div>
-          <div class="field"><label for="ownerSurname">{{ t('props.form.ownerSurname') }}</label><input id="ownerSurname" v-model.trim="form.ownerSurname" autocapitalize="words" /></div>
-        </div>
-        <div class="two">
+        <fieldset>
+          <legend>{{ t('props.form.owner') }} <small class="muted">{{ t('props.form.ownerHint') }}</small></legend>
           <div class="field" :class="{ invalid: errors.ownerEmail }">
             <label for="ownerEmail">{{ t('props.form.ownerEmail') }}</label>
             <input id="ownerEmail" v-model.trim="form.ownerEmail" type="email" inputmode="email" />
             <small v-if="errors.ownerEmail" class="err">{{ errors.ownerEmail }}</small>
           </div>
-        </div>
-        <div class="field">
-          <label for="notes">{{ t('props.form.notes') }} <small class="muted">{{ t('props.form.notesHint') }}</small></label>
-          <textarea id="notes" v-model="form.notes" rows="3" :placeholder="t('props.form.notesPh')"></textarea>
-        </div>
-      </fieldset>
+          <div class="field">
+            <label for="notes">{{ t('props.form.notes') }} <small class="muted">{{ t('props.form.notesHint') }}</small></label>
+            <textarea id="notes" v-model="form.notes" rows="3" :placeholder="t('props.form.notesPh')"></textarea>
+          </div>
+        </fieldset>
+      </details>
 
       <p v-if="errors.form" class="alert">{{ errors.form }}</p>
     </form>
@@ -444,6 +492,15 @@ async function cancel() {
 </template>
 
 <style scoped>
+.sub { margin: 1.1rem 0 0.2rem; font-size: 0.82rem; font-weight: 700; color: var(--muted); text-transform: uppercase; letter-spacing: 0.05em; }
+.sub:first-of-type { margin-top: 0; }
+.advanced { border: 1px solid var(--border); border-radius: var(--radius); background: var(--surface); margin-bottom: 1rem; }
+.advanced > summary { display: flex; align-items: baseline; gap: 0.5rem; flex-wrap: wrap; padding: 1rem 1.2rem; min-height: 48px; font-weight: 700; cursor: pointer; list-style: none; }
+.advanced > summary::-webkit-details-marker { display: none; }
+.advanced > summary::before { content: '▸'; color: var(--brand); font-size: 0.9em; transition: transform 0.15s; }
+.advanced[open] > summary::before { transform: rotate(90deg); }
+.advanced > summary small { font-weight: 400; font-size: 0.82rem; }
+.advanced fieldset { border-top: 1px solid var(--border); border-radius: 0; box-shadow: none; margin: 0; }
 .legend-row { display: flex; align-items: center; justify-content: space-between; gap: 0.75rem; width: 100%; }
 .legend-row .small { padding: 0.4rem 0.7rem; font-size: 0.82rem; font-weight: 600; white-space: nowrap; }
 .pin { width: 16px; height: 16px; }

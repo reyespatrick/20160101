@@ -3,7 +3,7 @@
  * needs the same five fields from either. These pin the mapping and the guard rails.
  */
 import { describe, expect, it } from 'vitest'
-import { fromGoogle, fromNominatim, reverseGeocode, validCoordinates } from '../shared/geocode.js'
+import { fromCatastro, fromGoogle, fromNominatim, reverseGeocode, validCoordinates } from '../shared/geocode.js'
 
 describe('coordinates', () => {
   it('accepts real positions and rejects nonsense', () => {
@@ -63,5 +63,42 @@ describe('Nominatim', () => {
   it('never invents a field it did not get', () => {
     expect(fromNominatim({ address: { city: 'Alicante' } })).toMatchObject({ number: '', street: '', postalCode: '', province: '' })
     expect(fromNominatim({})).toBeNull()
+  })
+})
+
+describe('Spanish cadastre', () => {
+  it('joins the two halves into the referencia catastral and keeps the address line', () => {
+    // Shape observed against the live service for Alicante's town hall, 10 Sept 2026.
+    const payload = {
+      Consulta_RCCOORResult: {
+        control: { cucoor: 1 },
+        coordenadas: { coord: [{ pc: { pc1: '0273103', pc2: 'YH2407C' }, ldt: 'PZ AJUNTAMENT 1 ALICANTE/ALACANT (ALICANTE)' }] },
+      },
+    }
+    expect(fromCatastro(payload)).toEqual({ reference: '0273103YH2407C', label: 'PZ AJUNTAMENT 1 ALICANTE/ALACANT (ALICANTE)' })
+  })
+
+  it('accepts coord as a bare object as well as an array', () => {
+    const one = { Consulta_RCCOORResult: { coordenadas: { coord: { pc: { pc1: 'AAA', pc2: 'BBB' }, ldt: ' X ' } } } }
+    expect(fromCatastro(one)).toEqual({ reference: 'AAABBB', label: 'X' })
+  })
+
+  it('returns null where there is no plot', () => {
+    // Live answer for a point at sea.
+    expect(fromCatastro({ Consulta_RCCOORResult: { control: { cuerr: 1 }, lerr: [{ cod: '16', des: 'PARA ESAS COORDENADAS NO HAY REFERENCIA DISPONIBLE' }] } })).toBeNull()
+    expect(fromCatastro({ Consulta_RCCOORResult: { coordenadas: { coord: [{ pc: { pc1: '0273103' } }] } } })).toBeNull()
+    expect(fromCatastro({})).toBeNull()
+  })
+})
+
+describe('owner completeness', () => {
+  it('holds an owner back until Inmovilla can accept it', async () => {
+    const { ownerIsComplete } = await import('../src/stores/localProperties.js')
+    // POST /propietarios/ requires cod_ofer, nombre and apellidos.
+    expect(ownerIsComplete({ ownerPhone: '600111222' })).toBe(false)
+    expect(ownerIsComplete({ ownerName: 'Carmen' })).toBe(false)
+    expect(ownerIsComplete({ ownerName: 'Carmen', ownerSurname: '  ' })).toBe(false)
+    expect(ownerIsComplete({ ownerName: 'Carmen', ownerSurname: 'Ortiz' })).toBe(true)
+    expect(ownerIsComplete(null)).toBe(false)
   })
 })

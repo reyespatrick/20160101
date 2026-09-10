@@ -7,7 +7,7 @@ import { LISTING_STATUSES, activeFeatures, completeness, locationOf, priceOf, ti
 import { useAuthStore } from '../stores/auth'
 import ConfirmDialog from '../components/ConfirmDialog.vue'
 import { useEnumsStore } from '../stores/enums'
-import { useLocalPropertiesStore } from '../stores/localProperties'
+import { ownerIsComplete, useLocalPropertiesStore } from '../stores/localProperties'
 import { useFollowUpsStore } from '../stores/followUps'
 import FollowUpCard from '../components/FollowUpCard.vue'
 import { PLACEHOLDER, formatDate } from '../utils/format'
@@ -156,6 +156,12 @@ async function reactivate() {
         <div v-else class="fu-list"><FollowUpCard v-for="f in propertyFollowUps.slice(0, 5)" :key="f.id" :follow-up="f" compact /></div>
       </article>
 
+      <article v-if="p.ownerPhone && !ownerIsComplete(p)" class="block owner-todo">
+        <h2>{{ t('props.detail.ownerIncomplete') }}</h2>
+        <p class="muted">{{ t('props.detail.ownerIncompleteBody', { phone: p.ownerPhone }) }}</p>
+        <RouterLink v-if="auth.canWrite" :to="{ name: 'local-property-edit', params: { id } }" class="btn btn-ghost small">{{ t('props.detail.ownerComplete') }}</RouterLink>
+      </article>
+
       <article v-if="p.ownerName || p.ownerPhone || p.notes" class="block">
         <h2>{{ t('props.detail.ownerNotes') }}</h2>
         <dl class="rows">
@@ -201,6 +207,9 @@ async function reactivate() {
 .head h1 { margin: 0 0 0.2rem; font-size: 1.4rem; }
 .head p { margin: 0; }
 .price { font-size: 1.5rem; font-weight: 800; color: var(--brand); white-space: nowrap; }
+.owner-todo { border-left: 4px solid var(--accent); }
+.owner-todo h2 { margin-bottom: 0.35rem; }
+.owner-todo p { margin: 0 0 0.7rem; }
 .estimate-cta { margin: 0 0 0.85rem; display: flex; flex-direction: column; gap: 0.35rem; }
 .estimate-cta .btn { width: 100%; }
 .estimate-cta small { text-align: center; font-size: 0.78rem; }

@@ -19,6 +19,13 @@ import { useAuthStore } from './auth'
  */
 const RETRY_AFTER_408_MS = 65_000
 
+/**
+ * Inmovilla refuses POST /propietarios/ without nombre AND apellidos, so an owner known only by
+ * phone cannot be created there yet. The listing still goes out; the owner waits on the device
+ * until someone gives it a name, and the screens say so rather than inventing a placeholder.
+ */
+export const ownerIsComplete = (p) => Boolean(String(p?.ownerName || '').trim() && String(p?.ownerSurname || '').trim())
+
 export const useLocalPropertiesStore = defineStore('localProperties', {
   state: () => ({
     items: [],
@@ -192,7 +199,7 @@ export const useLocalPropertiesStore = defineStore('localProperties', {
           }
         }
         // second pass: cod_ofer / owner for listings sent earlier whose lookup was not ready
-        for (const record of this.items.filter((p) => !p.dirty && p.status !== 'draft' && (!p.codOfer || (p.ownerDirty && p.ownerName)))) {
+        for (const record of this.items.filter((p) => !p.dirty && p.status !== 'draft' && (!p.codOfer || (p.ownerDirty && ownerIsComplete(p))))) {
           try {
             await this.completeRemote(auth, agency, record)
           } catch (err) {
@@ -258,7 +265,7 @@ export const useLocalPropertiesStore = defineStore('localProperties', {
           patch.codOfer = codOfer
         }
       }
-      if (codOfer && record.ownerDirty && record.ownerName) {
+      if (codOfer && record.ownerDirty && ownerIsComplete(record)) {
         const withCod = { ...record, codOfer }
         if (record.ownerRemoteId) await updateOwner(withCod)
         else patch.ownerRemoteId = await createOwner(withCod)
