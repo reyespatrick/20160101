@@ -11,7 +11,7 @@
  * scrolls or clips (a form, another sheet), and a list clipped by its own parent is worse than
  * a native menu.
  */
-import { computed, nextTick, ref, watch } from 'vue'
+import { computed, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 
 const { t } = useI18n()
@@ -31,7 +31,6 @@ const emit = defineEmits(['update:modelValue'])
 
 const open = ref(false)
 const query = ref('')
-const search = ref(null)
 const SEARCH_FROM = 6 // below that, a search field costs more taps than it saves
 
 const same = (a, b) => String(a ?? '') === String(b ?? '')
@@ -51,14 +50,14 @@ const shown = computed(() => {
   return props.options.filter((o) => plain(o.label).includes(q) || plain(o.hint).includes(q))
 })
 
-watch(open, async (isOpen) => {
-  if (!isOpen) return
-  query.value = ''
-  await nextTick()
-  // Not focused on purpose when there is no search: raising the keyboard over a short list
-  // hides the very thing the agent came to tap.
-  if (searchable.value) search.value?.focus({ preventScroll: true })
+watch(open, (isOpen) => {
+  if (isOpen) query.value = ''
 })
+
+// Nothing is focused on purpose. Focusing the search field raises the keyboard, which covers the
+// list the sheet was opened to show — and most of the time the choice is right there, one tap
+// away. Whoever wants to type taps the field.
+
 
 function pick(option) {
   emit('update:modelValue', option.value)
@@ -91,7 +90,7 @@ function pick(option) {
               <button type="button" class="icon" :aria-label="t('common.close')" @click="open = false">✕</button>
             </header>
             <div v-if="searchable" class="search">
-              <input ref="search" v-model="query" type="search" autocomplete="off" :placeholder="t('common.search')" />
+              <input v-model="query" type="search" autocomplete="off" :placeholder="t('common.search')" />
             </div>
             <ul class="list" role="listbox">
               <li v-if="emptyLabel">

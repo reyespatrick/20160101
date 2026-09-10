@@ -9,7 +9,7 @@
  * Province first, then the town: Andalusia has 785 municipalities and a single list of them
  * would be unusable, while a province narrows it to between 45 and 174, filtered as you type.
  */
-import { computed, nextTick, ref, watch } from 'vue'
+import { computed, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import PickerField from './PickerField.vue'
 import { PROVINCES, municipalitiesOf } from '../data/andalucia'
@@ -23,7 +23,6 @@ const props = defineProps({
 const emit = defineEmits(['save', 'close'])
 
 const draft = ref(blank())
-const panel = ref(null)
 
 function blank() {
   return { province: '', cityName: '', cityCatastro: '', zoneKey: null, zoneName: '', street: '', number: '', postalCode: '', floor: null, cadastralRef: '' }
@@ -33,9 +32,9 @@ watch(
   () => props.open,
   async (open) => {
     if (!open) return
+    // Nothing is focused: the keyboard would rise over the sheet it was opened to show, and the
+    // first thing most people do here is tap GPS or a list, not type.
     draft.value = { ...blank(), ...JSON.parse(JSON.stringify(props.address)) }
-    await nextTick()
-    panel.value?.querySelector('input')?.focus({ preventScroll: true })
   },
   { immediate: true },
 )
@@ -68,7 +67,7 @@ function onZone(key) {
 <template>
   <Transition name="sheet">
     <div v-if="open" class="backdrop" role="dialog" aria-modal="true" :aria-label="t('props.form.addressSheet')" @click.self="emit('close')" @keydown.esc="emit('close')">
-      <div ref="panel" class="panel">
+      <div class="panel">
         <header>
           <h2>{{ t('props.form.addressSheet') }}</h2>
           <button type="button" class="icon" :aria-label="t('common.close')" @click="emit('close')">✕</button>
