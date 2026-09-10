@@ -278,6 +278,16 @@ async function refreshCadastre() {
 const ownerLookup = ref('') // '' | 'searching' | 'found' | 'none'
 const ownerError = ref('')
 
+/**
+ * A complaint about the number must not outlive the number it was about. Typing again is the
+ * answer to "that is too short", so the message goes the moment the field changes — otherwise it
+ * sits under a perfectly good number, saying it is incomplete.
+ */
+function onPhoneInput() {
+  ownerLookup.value = ''
+  ownerError.value = ''
+}
+
 async function findOwner() {
   const phone = String(form.ownerPhone || '').replace(/[^0-9]/g, '')
   ownerError.value = ''
@@ -526,7 +536,7 @@ async function cancel() {
         <div class="field" :class="{ invalid: errors.ownerPhone }">
           <label for="ownerPhone">{{ t('props.form.ownerPhone') }} *</label>
           <div class="phone-row">
-            <input id="ownerPhone" v-model.trim="form.ownerPhone" type="tel" inputmode="tel" :placeholder="t('props.form.ownerPhonePh')" @input="ownerLookup = ''" />
+            <input id="ownerPhone" v-model.trim="form.ownerPhone" type="tel" inputmode="tel" :placeholder="t('props.form.ownerPhonePh')" @input="onPhoneInput" />
             <button type="button" class="btn btn-ghost small" :disabled="ownerLookup === 'searching'" @click="findOwner">
               {{ ownerLookup === 'searching' ? t('props.form.searching') : t('props.form.searchOwner') }}
             </button>
