@@ -43,7 +43,7 @@ function syncLabel() {
         <input ref="searchInput" v-model="store.query" type="search" :placeholder="t('clients.searchPh')" :aria-label="t('common.search')" autocomplete="off" />
         <button v-if="store.query" type="button" class="clear" :aria-label="t('common.close')" @click="store.query = ''; searchInput.focus()">×</button>
       </div>
-      <RouterLink v-if="auth.canWrite && !emptyCta" :to="{ name: 'client-new' }" class="btn new-btn">+ {{ t('common.new') }}</RouterLink>
+      <RouterLink v-if="auth.canDraft && !emptyCta" :to="{ name: 'client-new' }" class="btn new-btn">+ {{ t('common.new') }}</RouterLink>
     </div>
 
     <p class="sync muted">
@@ -61,7 +61,7 @@ function syncLabel() {
       <div class="empty-icon">👤</div>
       <h2>{{ t('clients.empty') }}</h2>
       <p class="muted">{{ t('clients.emptyBody') }}</p>
-      <RouterLink v-if="auth.canWrite" :to="{ name: 'client-new' }" class="btn">{{ t('clients.addClient') }}</RouterLink>
+      <RouterLink v-if="auth.canDraft" :to="{ name: 'client-new' }" class="btn">{{ t('clients.addClient') }}</RouterLink>
     </div>
 
     <div v-else-if="!store.filtered.length" class="empty">
@@ -72,7 +72,7 @@ function syncLabel() {
         <template v-else><button type="button" class="link" @click="store.searchRemote()">{{ t('clients.searchRemote') }}</button></template>
       </p>
       <p v-else class="muted">{{ t('clients.nameOnlyLocal') }}</p>
-      <RouterLink v-if="auth.canWrite" :to="{ name: 'client-new', query: { q: store.query } }" class="btn btn-ghost">{{ t('clients.create', { q: store.query }) }}</RouterLink>
+      <RouterLink v-if="auth.canDraft" :to="{ name: 'client-new', query: { q: store.query } }" class="btn btn-ghost">{{ t('clients.create', { q: store.query }) }}</RouterLink>
     </div>
 
     <div v-else class="list">
@@ -85,7 +85,7 @@ function syncLabel() {
       <ClientCard v-for="c in store.filtered" :key="c.id" :client="c" />
     </div>
 
-    <RouterLink v-if="auth.canWrite && !emptyCta" :to="{ name: 'client-new' }" class="fab" :aria-label="t('clients.new')">+</RouterLink>
+    <RouterLink v-if="auth.canDraft && !emptyCta" :to="{ name: 'client-new' }" class="fab" :aria-label="t('clients.new')">+</RouterLink>
   </section>
 </template>
 

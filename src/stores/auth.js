@@ -53,6 +53,14 @@ export const useAuthStore = defineStore('auth', {
     canDelete() {
       return this.user?.role === 'admin' && !this.writesLocked
     },
+    /**
+     * Drafting on the device writes nothing to Inmovilla, so neither the agency write lock nor a
+     * missing REST key should hide the create buttons — only the role does. Sending is what stays
+     * gated: canWrite covers that, and the relay refuses a locked write regardless.
+     */
+    canDraft() {
+      return this.roleCanWrite
+    },
     /** Valuations only read from Inmovilla, so the write lock does not apply to them. */
     canEstimate() {
       return this.roleCanWrite

@@ -48,7 +48,7 @@ async function remove() {
   <section class="container client-detail">
     <div class="top">
       <RouterLink :to="{ name: 'clients' }" class="btn btn-ghost">← {{ t('clients.detail.back') }}</RouterLink>
-      <RouterLink v-if="client && auth.canWrite" :to="{ name: 'client-edit', params: { id } }" class="btn">{{ t('common.edit') }}</RouterLink>
+      <RouterLink v-if="client && auth.canDraft" :to="{ name: 'client-edit', params: { id } }" class="btn">{{ t('common.edit') }}</RouterLink>
     </div>
 
     <div v-if="loading" class="spinner"></div>

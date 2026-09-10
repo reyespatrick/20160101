@@ -83,7 +83,7 @@ async function reactivate() {
   <section class="container detail">
     <div class="top">
       <RouterLink :to="{ name: 'properties', query: { source: 'mine' } }" class="btn btn-ghost">← {{ t('props.detail.back') }}</RouterLink>
-      <RouterLink v-if="p && auth.canWrite" :to="{ name: 'local-property-edit', params: { id } }" class="btn">{{ t('common.edit') }}</RouterLink>
+      <RouterLink v-if="p && auth.canDraft" :to="{ name: 'local-property-edit', params: { id } }" class="btn">{{ t('common.edit') }}</RouterLink>
     </div>
 
     <div v-if="loading" class="spinner"></div>

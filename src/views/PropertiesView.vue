@@ -57,7 +57,7 @@ onBeforeUnmount(() => observer?.disconnect())
           {{ t('props.mine') }} <span v-if="local.active.length" class="pill">{{ local.active.length }}</span>
         </button>
       </div>
-      <RouterLink v-if="auth.canWrite && !emptyCta" :to="{ name: 'local-property-new' }" class="btn new-btn">+ {{ t('props.newProperty') }}</RouterLink>
+      <RouterLink v-if="auth.canDraft && !emptyCta" :to="{ name: 'local-property-new' }" class="btn new-btn">+ {{ t('props.newProperty') }}</RouterLink>
     </div>
 
     <template v-if="source === 'mine'">
@@ -83,7 +83,7 @@ onBeforeUnmount(() => observer?.disconnect())
         <div class="empty-icon">🏠</div>
         <h2>{{ t('props.mineEmpty') }}</h2>
         <p class="muted">{{ t('props.mineEmptyBody') }}</p>
-        <RouterLink v-if="auth.canWrite" :to="{ name: 'local-property-new' }" class="btn">{{ t('props.newProperty') }}</RouterLink>
+        <RouterLink v-if="auth.canDraft" :to="{ name: 'local-property-new' }" class="btn">{{ t('props.newProperty') }}</RouterLink>
       </div>
       <div v-else-if="!local.filtered.length" class="empty">
         <h2>{{ t('common.noResults') }}</h2>
@@ -92,7 +92,7 @@ onBeforeUnmount(() => observer?.disconnect())
       <div v-else class="grid">
         <LocalPropertyCard v-for="p in local.filtered" :key="p.id" :property="p" />
       </div>
-      <RouterLink v-if="auth.canWrite && !emptyCta" :to="{ name: 'local-property-new' }" class="fab" :aria-label="t('props.newProperty')">+</RouterLink>
+      <RouterLink v-if="auth.canDraft && !emptyCta" :to="{ name: 'local-property-new' }" class="fab" :aria-label="t('props.newProperty')">+</RouterLink>
     </template>
 
     <template v-else>

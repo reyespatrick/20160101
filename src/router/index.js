@@ -10,18 +10,18 @@ const routes = [
   { path: '/', name: 'properties', component: () => import('../views/PropertiesView.vue') },
   { path: '/propiedad/:codOfer', name: 'property', component: () => import('../views/PropertyDetailView.vue'), props: true },
   { path: '/valoracion/:source(inmovilla|local)/:id', name: 'estimate', meta: { estimate: true }, component: () => import('../views/EstimateView.vue'), props: true },
-  { path: '/mis-propiedades/nueva', name: 'local-property-new', meta: { write: true }, component: () => import('../views/LocalPropertyFormView.vue') },
+  { path: '/mis-propiedades/nueva', name: 'local-property-new', meta: { draft: true }, component: () => import('../views/LocalPropertyFormView.vue') },
   { path: '/mis-propiedades/:id', name: 'local-property', component: () => import('../views/LocalPropertyDetailView.vue'), props: true },
-  { path: '/mis-propiedades/:id/editar', name: 'local-property-edit', meta: { write: true }, component: () => import('../views/LocalPropertyFormView.vue'), props: true },
+  { path: '/mis-propiedades/:id/editar', name: 'local-property-edit', meta: { draft: true }, component: () => import('../views/LocalPropertyFormView.vue'), props: true },
   { path: '/agenda', name: 'followups', component: () => import('../views/FollowUpsView.vue') },
-  { path: '/agenda/nuevo', name: 'followup-new', meta: { write: true }, component: () => import('../views/FollowUpFormView.vue') },
-  { path: '/agenda/:id', name: 'followup-edit', meta: { write: true }, component: () => import('../views/FollowUpFormView.vue'), props: true },
+  { path: '/agenda/nuevo', name: 'followup-new', meta: { draft: true }, component: () => import('../views/FollowUpFormView.vue') },
+  { path: '/agenda/:id', name: 'followup-edit', meta: { draft: true }, component: () => import('../views/FollowUpFormView.vue'), props: true },
   { path: '/propietario/nuevo', name: 'owner-new', meta: { write: true }, component: () => import('../views/OwnerFormView.vue') },
   { path: '/propietario/:id/editar', name: 'owner-edit', meta: { write: true }, component: () => import('../views/OwnerFormView.vue'), props: true },
   { path: '/clientes', name: 'clients', component: () => import('../views/ClientsView.vue') },
-  { path: '/clientes/nuevo', name: 'client-new', meta: { write: true }, component: () => import('../views/ClientFormView.vue') },
+  { path: '/clientes/nuevo', name: 'client-new', meta: { draft: true }, component: () => import('../views/ClientFormView.vue') },
   { path: '/clientes/:id', name: 'client', component: () => import('../views/ClientDetailView.vue'), props: true },
-  { path: '/clientes/:id/editar', name: 'client-edit', meta: { write: true }, component: () => import('../views/ClientFormView.vue'), props: true },
+  { path: '/clientes/:id/editar', name: 'client-edit', meta: { draft: true }, component: () => import('../views/ClientFormView.vue'), props: true },
   { path: '/:pathMatch(.*)*', redirect: '/' },
 ]
 
@@ -42,6 +42,8 @@ router.beforeEach(async (to) => {
   if ((to.name === 'login' || to.name === 'setup') && auth.isAuthenticated) return { name: 'properties' }
   if (to.meta.admin && !auth.isAdmin) return { name: 'profile' }
   if (to.meta.write && !auth.canWrite) return { name: 'properties' }
+  // Drafting is local: the role decides, not the agency's write lock.
+  if (to.meta.draft && !auth.canDraft) return { name: 'properties' }
   if (to.meta.estimate && !auth.canEstimate) return { name: 'properties' }
   return true
 })
