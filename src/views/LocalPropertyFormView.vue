@@ -571,9 +571,8 @@ async function cancel() {
           <small v-if="errors.ownerEmail" class="err">{{ errors.ownerEmail }}</small>
         </div>
 
-        <h3 class="sub">{{ t('props.form.photos') }} *</h3>
+        <h3 class="sub">{{ t('props.form.photos') }}</h3>
         <PhotoPicker v-model="form.photos" :urls="store.photoUrls" :add-files="addFiles" :remove-photo="removePhoto" />
-        <small v-if="errors.photos" class="err">{{ errors.photos }}</small>
       </fieldset>
 
       <!-- Tout le reste : replié, mais jamais perdu -->

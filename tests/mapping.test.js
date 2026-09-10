@@ -64,8 +64,11 @@ describe('property mapping', () => {
   })
   it('validates required Inmovilla fields', () => {
     // Inmovilla needs nombre and apellidos to create the owner, so the form asks for both.
-    const complete = { ownerName: 'Carmen', ownerSurname: 'Ortiz', ownerPhone: '600111222', builtArea: 92, conservation: 2, photos: [{ id: 'p1', order: 0 }] }
+    const complete = { ownerName: 'Carmen', ownerSurname: 'Ortiz', ownerPhone: '600111222', builtArea: 92, conservation: 2 }
     expect(validateProperty(prop(complete))).toEqual({})
+    // Photographs are what an agent adds last, sometimes from the car: never a reason to refuse
+    // the listing they have just spent ten minutes writing.
+    expect(validateProperty(prop({ ...complete, photos: [] }))).toEqual({})
     expect(validateProperty(prop({ ...complete, ownerName: '' }))).toHaveProperty('ownerName')
     expect(validateProperty(prop({ ...complete, ownerSurname: '  ' }))).toHaveProperty('ownerSurname')
     expect(validateProperty(prop({ ...complete, typeKey: null }))).toHaveProperty('typeKey')

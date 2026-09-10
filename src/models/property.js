@@ -148,7 +148,6 @@ export function validateProperty(p) {
   if (!String(p.ownerPhone || '').replace(/\D/g, '')) errors.ownerPhone = t('props.valid.ownerPhone')
   if (!Number(p.builtArea)) errors.builtArea = t('props.valid.built')
   if (!p.conservation) errors.conservation = t('props.valid.condition')
-  if (!p.photos?.length) errors.photos = t('props.valid.photos')
   if (!String(p.ownerName || '').trim()) errors.ownerName = t('props.valid.ownerName')
   if (!String(p.ownerSurname || '').trim()) errors.ownerSurname = t('props.valid.ownerSurname')
   // The town only has to be named — Inmovilla's key_loca is resolved in the background — and
