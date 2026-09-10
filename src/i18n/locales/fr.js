@@ -27,6 +27,7 @@ export default {
     yourName: 'Votre nom', signupCode: "Code d'inscription", create: 'Créer le compte', haveAccount: "J'ai déjà un compte", newAgency: 'Créer une nouvelle agence',
     expired: 'Votre session a expiré. Reconnectez-vous.', passwordRule: '8 caractères minimum',
     noKeysAdmin: 'Les clés Inmovilla ne sont pas configurées. En tant qu\'administrateur, vous pouvez le faire depuis votre profil.',
+    noRestAdmin: 'La clé REST d’Inmovilla manque : la consultation fonctionne, mais rien ne peut être créé ni modifié. Ajoutez-la dans votre profil.', noRestAgent: 'La clé REST d’Inmovilla manque : la consultation fonctionne, mais rien ne peut être créé ni modifié. Demandez-la à l’administrateur.', 
     noKeysAgent: "L'agence n'a pas encore configuré ses clés Inmovilla. Demandez à l'administrateur de les ajouter.", goKeys: 'Configurer les clés',
   },
   profile: {

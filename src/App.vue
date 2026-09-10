@@ -64,7 +64,8 @@ onMounted(async () => {
     <AppHeader v-if="auth.isAuthenticated" />
     <div v-if="!online" class="offline-bar">{{ t('common.offlineBar') }}</div>
     <div v-if="auth.isAuthenticated && !auth.hasRest && $route.name !== 'agency-keys'" class="keys-bar">
-      <span>{{ auth.isAdmin ? t('auth.noKeysAdmin') : t('auth.noKeysAgent') }}</span>
+      <!-- The two Inmovilla APIs are configured separately: name the one that is actually missing. -->
+      <span>{{ auth.hasApiweb ? (auth.isAdmin ? t('auth.noRestAdmin') : t('auth.noRestAgent')) : auth.isAdmin ? t('auth.noKeysAdmin') : t('auth.noKeysAgent') }}</span>
       <RouterLink v-if="auth.isAdmin" :to="{ name: 'agency-keys' }" class="btn small">{{ t('auth.goKeys') }}</RouterLink>
     </div>
     <div v-if="auth.isAuthenticated && auth.writesLocked && auth.hasKeys && $route.name !== 'agency-keys'" class="lock-bar">
