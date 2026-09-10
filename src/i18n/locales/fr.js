@@ -130,6 +130,11 @@ export default {
     searching: 'Recherche du contact dans Inmovilla…', reading: "Lecture de l'adresse et de la référence cadastrale…", readingDetail: 'À partir de la position enregistrée sur le terrain.',
     addressDone: "Adresse lue depuis la position enregistrée.",
   },
+  adopt: {
+    title: 'Des données restent rattachées à l\'agence {agency}',
+    body: "{n} enregistrements — biens, clients, suivis — ont été créés sur cet appareil sous l'agence {agency}. Voulez-vous les rattacher à l'agence {current} ? Ils restent sur l'appareil et ne sont envoyés nulle part.",
+    confirm: 'Les rattacher', ignore: 'Les laisser',
+  },
   clients: {
     offlineSearch: 'Réseau indisponible : impossible de chercher dans Inmovilla.',
     title: 'Clients', searchPh: 'Nom, téléphone ou email', new: 'Nouveau client', empty: 'Aucun client sur cet appareil', emptyBody: 'Créez un client ou cherchez-en un dans Inmovilla par téléphone ou email. Fonctionne aussi hors ligne.', addClient: 'Ajouter un client',

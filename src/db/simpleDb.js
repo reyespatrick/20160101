@@ -14,7 +14,26 @@ export function createSimpleDb(dbName, storeName) {
         if (!db.objectStoreNames.contains(storeName)) db.createObjectStore(storeName, { keyPath: 'key' }).createIndex('agency', 'agency', { unique: false })
         if (!db.objectStoreNames.contains('meta')) db.createObjectStore('meta', { keyPath: 'key' })
       }
-      req.onsuccess = () => resolve(req.result)
+      req.onsuccess = () => {
+        const db = req.result
+        // A database can exist at this version and still lack its stores — it only takes another
+        // module opening it by name first, which creates it empty. Rather than being crippled for
+        // good, bump the version once and build what is missing.
+        if (!db.objectStoreNames.contains(storeName) || !db.objectStoreNames.contains('meta')) {
+          const version = db.version + 1
+          db.close()
+          const again = indexedDB.open(dbName, version)
+          again.onupgradeneeded = () => {
+            const fresh = again.result
+            if (!fresh.objectStoreNames.contains(storeName)) fresh.createObjectStore(storeName, { keyPath: 'key' }).createIndex('agency', 'agency', { unique: false })
+            if (!fresh.objectStoreNames.contains('meta')) fresh.createObjectStore('meta', { keyPath: 'key' })
+          }
+          again.onsuccess = () => resolve(again.result)
+          again.onerror = () => reject(again.error)
+          return
+        }
+        resolve(db)
+      }
       req.onerror = () => reject(req.error)
     })
     dbPromise.catch(() => (dbPromise = undefined))

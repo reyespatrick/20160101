@@ -130,6 +130,11 @@ export default {
     searching: 'Looking the contact up in Inmovilla…', reading: 'Reading the address and the cadastral reference…', readingDetail: 'From the position saved in the field.',
     addressDone: 'Address read from the saved position.',
   },
+  adopt: {
+    title: 'Some data is still filed under agency {agency}',
+    body: '{n} records — listings, clients, follow-ups — were created on this device under agency {agency}. Move them to agency {current}? They stay on the device and are sent nowhere.',
+    confirm: 'Move them', ignore: 'Leave them',
+  },
   clients: {
     offlineSearch: 'No network: Inmovilla cannot be searched.',
     title: 'Clients', searchPh: 'Name, phone or email', new: 'New client', empty: 'No clients on this device yet', emptyBody: 'Create a client or look one up in Inmovilla by phone or email. Works offline too.', addClient: 'Add client',

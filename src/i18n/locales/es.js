@@ -130,6 +130,11 @@ export default {
     searching: 'Buscando el contacto en Inmovilla…', reading: 'Leyendo la dirección y la referencia catastral…', readingDetail: 'A partir de la posición guardada sobre el terreno.',
     addressDone: 'Dirección leída desde la posición guardada.',
   },
+  adopt: {
+    title: 'Hay datos que siguen bajo la agencia {agency}',
+    body: '{n} registros — inmuebles, clientes, seguimientos — se crearon en este dispositivo bajo la agencia {agency}. ¿Los pasamos a la agencia {current}? Siguen en el dispositivo y no se envían a ninguna parte.',
+    confirm: 'Pasarlos', ignore: 'Dejarlos',
+  },
   clients: {
     offlineSearch: 'Sin red: no se puede buscar en Inmovilla.',
     title: 'Clientes', searchPh: 'Nombre, teléfono o email', new: 'Nuevo cliente', empty: 'Aún no hay clientes en este dispositivo', emptyBody: 'Crea un cliente o busca uno de Inmovilla por su teléfono o email. Funciona también sin conexión.', addClient: 'Añadir cliente',

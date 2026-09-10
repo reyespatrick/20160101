@@ -6,7 +6,9 @@ import AppHeader from './components/AppHeader.vue'
 import BottomNav from './components/BottomNav.vue'
 import ErrorBoundary from './components/ErrorBoundary.vue'
 import Toasts from './components/Toasts.vue'
+import ConfirmDialog from './components/ConfirmDialog.vue'
 import UpdateBanner from './components/UpdateBanner.vue'
+import { adoptFrom, findOrphans } from './db/adopt'
 import { useAuthStore } from './stores/auth'
 import { useClientsStore } from './stores/clients'
 import { useEnumsStore } from './stores/enums'
@@ -24,6 +26,41 @@ const { t } = useI18n()
 const router = useRouter()
 const route = useRoute()
 const online = ref(navigator.onLine)
+
+/**
+ * Records this device holds for another agency — after an agency number changed, or an account
+ * was rebuilt. They are offered, never taken: on a shared device, adopting silently would hand
+ * one agency's clients to another.
+ */
+const orphans = ref(null)
+const adopting = ref(false)
+let orphansChecked = ''
+
+async function lookForOrphans() {
+  const agency = auth.numagencia
+  if (!agency || orphansChecked === agency) return
+  orphansChecked = agency
+  const found = await findOrphans(agency).catch(() => [])
+  if (found.length) orphans.value = found[0]
+}
+
+async function adoptOrphans() {
+  if (!orphans.value || adopting.value) return
+  adopting.value = true
+  try {
+    await adoptFrom(orphans.value.agency, auth.numagencia)
+    orphans.value = null
+    // The stores read their agency once, at load: start them again on the records they now own.
+    for (const store of [localProperties, clients, followUps, owners]) store.reset?.()
+    await Promise.all([localProperties.ensureLoaded?.(), clients.ensureLoaded?.(), followUps.ensureLoaded?.()])
+  } finally {
+    adopting.value = false
+  }
+}
+
+// Immediate, and again whenever the agency changes: at first mount the session may not be
+// restored yet, and the check would look for records belonging to nobody.
+watch(() => auth.numagencia, lookForOrphans, { immediate: true })
 
 // When the server rejects the session (expired, deactivated), go back to the login screen
 watch(
@@ -87,6 +124,17 @@ onMounted(async () => {
     <BottomNav v-if="auth.isAuthenticated" />
     <Toasts />
   </div>
+
+    <ConfirmDialog
+      :open="Boolean(orphans)"
+      tone="normal"
+      :message="t('adopt.title', { agency: orphans?.agency })"
+      :detail="t('adopt.body', { n: orphans?.count, agency: orphans?.agency, current: auth.numagencia })"
+      :confirm-label="adopting ? t('common.saving') : t('adopt.confirm')"
+      :cancel-label="t('adopt.ignore')"
+      @confirm="adoptOrphans"
+      @cancel="orphans = null"
+    />
 </template>
 
 <style scoped>
