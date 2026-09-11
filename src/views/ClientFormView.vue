@@ -55,7 +55,7 @@ async function findClient() {
     // Through the store, never straight to the API: what Inmovilla answers is written to the
     // device as a clean record — cached, searchable and readable offline, and never queued for
     // sending back. A contact met at the door with no network is exactly why this exists.
-    const found = await store.searchRemote(digits)
+    const found = await store.searchRemote(form.mobile)
     const first = Array.isArray(found) ? found[0] : found
     if (first) {
       match.value = first

@@ -61,13 +61,29 @@ export const enumsZonas = (keyLoca) => restRequest(PATHS.enums, { query: { zonas
 export async function getClient(codCli) {
   return fromInmovillaClient(await restRequest(PATHS.clients, { query: { cod_cli: codCli } }))
 }
+/**
+ * Look a contact up by phone or email.
+ *
+ * The number is normalised the way we write it, and when that finds nobody the raw digits are
+ * tried once: a contact typed into Inmovilla's own screens may carry its country code inside the
+ * number field, where our normalised key would never match it. Two requests at worst, and only
+ * when the first came back empty.
+ */
 export async function searchClients({ telefono, email }) {
-  try {
-    return clientsFromSearch(await restRequest(PATHS.clientSearch, { query: { telefono, email } }))
-  } catch (err) {
-    if (err.status === 404) return []
-    throw err
+  const ask = async (query) => {
+    try {
+      return clientsFromSearch(await restRequest(PATHS.clientSearch, { query }))
+    } catch (err) {
+      if (err.status === 404) return []
+      throw err
+    }
   }
+  if (!telefono) return ask({ telefono, email })
+  const key = phoneKey(telefono)
+  const raw = digitsOf(telefono)
+  const found = await ask({ telefono: key || raw, email })
+  if (found.length || !key || key === raw) return found
+  return ask({ telefono: raw, email })
 }
 export async function createClient(client) {
   return extractCodCli(await restRequest(PATHS.clients, { method: 'POST', json: toInmovillaClient(client) }))
@@ -146,6 +162,7 @@ export async function searchFollowUps({ from, to }) {
 
 // ---- owners (propietarios), full records ----
 import { fromInmovillaOwner, toInmovillaOwnerRecord } from './inmovillaMapping'
+import { digitsOf, phoneKey } from '../models/client'
 
 async function ownerQuery(query) {
   try {

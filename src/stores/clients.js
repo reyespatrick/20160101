@@ -112,7 +112,7 @@ export const useClientsStore = defineStore('clients', {
       this.searchOffline = false
       try {
         await this.ensureLoaded()
-        const params = looksLikeEmail(q) ? { email: q } : { telefono: digitsOf(q).slice(-9) }
+        const params = looksLikeEmail(q) ? { email: q } : { telefono: q }
         const found = await searchClients(params)
         if (found.length) {
           this.items = upsertRemote(this.items, found)

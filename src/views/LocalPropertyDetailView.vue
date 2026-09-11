@@ -138,7 +138,7 @@ const OWNER_FIELDS = [
 async function findOwner(d) {
   busy.value = 'owner'
   try {
-    const found = await searchClients({ telefono: String(d.ownerPhone).replace(/\D/g, '') })
+    const found = await searchClients({ telefono: d.ownerPhone })
     if (cancelled) return
     const first = Array.isArray(found) ? found[0] : found
     const base = { ...JSON.parse(JSON.stringify(p.value)), ownerCheckedAt: Date.now() }

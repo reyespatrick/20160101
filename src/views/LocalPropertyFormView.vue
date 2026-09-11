@@ -13,6 +13,7 @@ import { useEnumsStore } from '../stores/enums'
 import { useLocalPropertiesStore } from '../stores/localProperties'
 import { cadastreByAddress, reverseGeocode } from '../api/geocode'
 import { searchClients } from '../api/inmovillaRest'
+import { digitsOf } from '../models/client'
 import { useSettingsStore } from '../stores/settings'
 const { t } = useI18n()
 
@@ -293,9 +294,9 @@ function onPhoneInput() {
 }
 
 async function findOwner() {
-  const phone = String(form.ownerPhone || '').replace(/[^0-9]/g, '')
+  const phone = String(form.ownerPhone || '')
   ownerError.value = ''
-  if (phone.length < 6) {
+  if (digitsOf(phone).length < 6) {
     ownerError.value = t('props.form.ownerPhoneShort')
     return
   }

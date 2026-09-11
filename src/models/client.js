@@ -75,6 +75,19 @@ export function splitPhone(s) {
   return { prefix, number: digits ? Number(digits) : null }
 }
 
+/**
+ * The digits to search Inmovilla with — the same ones we would have written.
+ *
+ * Inmovilla stores a contact's number as an integer with the country code in a separate field, so
+ * "+34 600 11 22 33" is filed as 600112233. Searching with the prefix attached finds nothing, and
+ * "nothing" is read as "this person is new": the duplicate is created by the very lookup meant to
+ * prevent it. One function decides the key, and both writing and searching use it.
+ */
+export function phoneKey(s) {
+  const { number } = splitPhone(s)
+  return number === null || number === undefined ? '' : String(number)
+}
+
 export function looksLikePhone(q) {
   return digitsOf(q).length >= 6 && /^[\d\s()+.-]+$/.test(String(q).trim())
 }

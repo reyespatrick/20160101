@@ -108,3 +108,28 @@ describe('outbox', () => {
     expect(merged.map((c) => c.name)).toEqual(['local dirty', 'new', 'added'])
   })
 })
+
+/**
+ * The number is the only key Inmovilla lets us search a contact on, so the shape we search with
+ * has to be the shape we wrote. Getting that wrong does not fail loudly — it answers "nobody has
+ * this number", and the duplicate is created by the very lookup meant to prevent it.
+ */
+describe('the phone as an identity', () => {
+  it('searches with exactly what it would have written', async () => {
+    const { phoneKey, splitPhone } = await import('../src/models/client.js')
+    for (const written of ['+34 600 11 22 33', '0034600112233', '600 11 22 33', '600112233']) {
+      expect(phoneKey(written)).toBe('600112233')
+      expect(String(splitPhone(written).number)).toBe(phoneKey(written))
+    }
+    expect(phoneKey('')).toBe('')
+    expect(phoneKey(null)).toBe('')
+  })
+
+  it('keeps the country code out of the number, where Inmovilla keeps it', async () => {
+    const { splitPhone } = await import('../src/models/client.js')
+    expect(splitPhone('+34 600 11 22 33')).toEqual({ prefix: 34, number: 600112233 })
+    expect(splitPhone('+41 79 123 45 67')).toEqual({ prefix: 41, number: 791234567 })
+    // No prefix marker: nothing is assumed, the digits are the number.
+    expect(splitPhone('600112233')).toEqual({ prefix: null, number: 600112233 })
+  })
+})
