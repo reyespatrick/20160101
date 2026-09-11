@@ -1,5 +1,6 @@
 export default {
   common: {
+    loadingLists: 'Cargando las listas de Inmovilla…', 
     fromVersion: 'desde la {v}',
     choose: 'Elegir', noMatch: 'Sin resultados',
     save: 'Guardar', saving: 'Guardando…', cancel: 'Cancelar', edit: 'Editar', delete: 'Eliminar', yes: 'Sí', no: 'No', back: 'Volver', new: 'Nuevo',

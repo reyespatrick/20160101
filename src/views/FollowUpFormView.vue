@@ -144,6 +144,7 @@ function cancel() {
             id="type"
             :model-value="form.typeKey"
             :options="enums.tiposSeguimiento"
+            :loading="enums.loading.tiposSeguimiento"
             :invalid="Boolean(errors.typeKey)"
             :title="t('agenda.form.type')"
             :placeholder="enums.tiposSeguimiento.length ? t('agenda.form.noType') : enums.loading.tiposSeguimiento ? t('agenda.form.loadingTypes') : t('agenda.form.noTypes')"

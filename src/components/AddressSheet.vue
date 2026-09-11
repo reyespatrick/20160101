@@ -19,6 +19,7 @@ const props = defineProps({
   open: { type: Boolean, default: false },
   address: { type: Object, required: true },
   zoneOptions: { type: Array, default: () => [] },
+  zonesLoading: { type: Boolean, default: false },
 })
 const emit = defineEmits(['save', 'close'])
 
@@ -107,6 +108,7 @@ function onZone(key) {
               id="sheet-zone"
               :model-value="draft.zoneKey"
               :options="zoneChoices"
+              :loading="zonesLoading"
               :title="t('props.form.zone')"
               :placeholder="t('props.form.noZone')"
               :empty-label="t('props.form.noZone')"

@@ -25,6 +25,9 @@ const props = defineProps({
   disabled: { type: Boolean, default: false },
   invalid: { type: Boolean, default: false },
   compact: { type: Boolean, default: false },
+  /** Inmovilla is still answering. Its enumerations are throttled to two calls a minute, so this
+      wait can run to half a minute — long enough that silence reads as a broken screen. */
+  loading: { type: Boolean, default: false },
   id: { type: String, default: '' },
 })
 const emit = defineEmits(['update:modelValue'])
@@ -78,7 +81,8 @@ function pick(option) {
       @click="open = true"
     >
       <span class="value">{{ shownLabel || placeholder || t('common.choose') }}</span>
-      <svg viewBox="0 0 24 24" aria-hidden="true" class="chevron"><path d="M7 10l5 5 5-5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" /></svg>
+      <span v-if="loading" class="dots" aria-hidden="true"><i></i><i></i><i></i></span>
+      <svg v-else viewBox="0 0 24 24" aria-hidden="true" class="chevron"><path d="M7 10l5 5 5-5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" /></svg>
     </button>
 
     <Teleport to="body">
@@ -92,7 +96,11 @@ function pick(option) {
             <div v-if="searchable" class="search">
               <input v-model="query" type="search" autocomplete="off" :placeholder="t('common.search')" />
             </div>
-            <ul class="list" role="listbox">
+            <div v-if="loading && !options.length" class="waiting">
+              <div class="spinner" aria-hidden="true"></div>
+              <p class="muted">{{ t('common.loadingLists') }}</p>
+            </div>
+            <ul v-else class="list" role="listbox">
               <li v-if="emptyLabel">
                 <button type="button" class="row" :class="{ on: modelValue == null || modelValue === '' }" @click="pick({ value: emptyValue })">
                   <span class="muted">{{ emptyLabel }}</span>
@@ -159,6 +167,17 @@ header h2 { margin: 0; font-size: 1.05rem; }
 .text small { font-weight: 400; font-size: 0.8rem; }
 .tick { color: var(--brand); font-weight: 800; }
 .none { padding: 1.2rem 0.75rem; text-align: center; }
+.waiting { padding: 2.2rem 1rem 2.6rem; text-align: center; }
+.waiting p { margin: 0.9rem 0 0; font-size: 0.9rem; }
+.spinner { width: 30px; height: 30px; margin: 0 auto; border: 3px solid var(--border); border-top-color: var(--brand); border-radius: 50%; animation: turn 0.9s linear infinite; }
+@keyframes turn { to { transform: rotate(360deg); } }
+/* Three dots breathing in turn: enough to say "still working" in the width of a chevron. */
+.dots { display: inline-flex; gap: 3px; flex: none; }
+.dots i { width: 5px; height: 5px; border-radius: 50%; background: var(--brand); animation: breathe 1.1s ease-in-out infinite; }
+.dots i:nth-child(2) { animation-delay: 0.15s; }
+.dots i:nth-child(3) { animation-delay: 0.3s; }
+@keyframes breathe { 0%, 80%, 100% { opacity: 0.25; transform: scale(0.8); } 40% { opacity: 1; transform: scale(1); } }
+@media (prefers-reduced-motion: reduce) { .spinner { animation-duration: 2.4s; } .dots i { animation: none; opacity: 0.6; } }
 .picker-enter-active, .picker-leave-active { transition: opacity 0.18s ease; }
 .picker-enter-active .panel, .picker-leave-active .panel { transition: transform 0.22s ease; }
 .picker-enter-from, .picker-leave-to { opacity: 0; }

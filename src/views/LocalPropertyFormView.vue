@@ -479,6 +479,7 @@ async function cancel() {
             id="type"
             :model-value="form.typeKey"
             :options="typeOptions"
+            :loading="enums.loading.tipos"
             :invalid="Boolean(errors.typeKey)"
             :title="t('props.form.type')"
             :placeholder="typeOptions.length ? t('props.form.chooseType') : enums.loading.tipos ? t('props.form.loadingTypes') : t('props.form.noTypes')"
@@ -512,6 +513,7 @@ async function cancel() {
             id="condition"
             v-model="form.conservation"
             :options="enums.options('conservacion')"
+            :loading="enums.loading.tipos"
             :invalid="Boolean(errors.conservation)"
             :title="t('props.form.condition')"
             :placeholder="t('props.form.unspecified')"
@@ -639,6 +641,7 @@ async function cancel() {
               id="orientation"
               v-model="form.orientation"
               :options="enums.options('keyori')"
+              :loading="enums.loading.tipos"
               :title="t('props.form.orientation')"
               :placeholder="t('props.form.unspecified')"
               :empty-label="t('props.form.unspecified')"
@@ -685,7 +688,7 @@ async function cancel() {
       @close="ownerMerge = null"
     />
 
-    <AddressSheet :open="sheetOpen" :address="form" :zone-options="zoneOptions" @save="applyAddress" @close="sheetOpen = false" />
+    <AddressSheet :open="sheetOpen" :address="form" :zone-options="zoneOptions" :zones-loading="enums.loading.zonas" @save="applyAddress" @close="sheetOpen = false" />
 
     <ConfirmDialog
       :open="askPosition"
