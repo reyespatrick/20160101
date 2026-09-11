@@ -5,7 +5,8 @@ import { useRoute, useRouter } from 'vue-router'
 import { emptyClient, looksLikeEmail, looksLikePhone, validateClient } from '../models/client'
 import { useClientsStore } from '../stores/clients'
 import { useAuthStore } from '../stores/auth'
-import { searchClients } from '../api/inmovillaRest'
+import MergeDialog from '../components/MergeDialog.vue'
+import { applyChoice, differingFields } from '../utils/merge'
 const { t } = useI18n()
 
 const props = defineProps({ id: { type: String, default: '' } })
@@ -72,12 +73,56 @@ async function findClient() {
   }
 }
 
+/** Everything Inmovilla holds for a contact, in the order a person reads it. */
+const CLIENT_FIELDS = [
+  ['name', 'clients.form.name'],
+  ['surname', 'clients.form.surname'],
+  ['phone', 'clients.form.phone'],
+  ['email', 'clients.form.email'],
+  ['nif', 'clients.form.nif'],
+  ['street', 'clients.form.street'],
+  ['number', 'clients.form.number'],
+  ['postalCode', 'clients.form.cp'],
+  ['city', 'clients.form.city'],
+  ['province', 'clients.form.province'],
+  ['notes', 'clients.form.notes'],
+]
+const merge = ref(null)
+
 /**
  * Open the contact Inmovilla already has. The search has just written it to the device, so this
  * is a local record: it opens now, and it will still open next week in a village with no signal.
+ *
+ * Where the agent has already typed something different, the two versions go side by side first.
+ * A name typed at a viewing is not automatically wrong, and neither is the one in the CRM.
  */
 function openMatch() {
-  router.replace({ name: 'client', params: { id: match.value.id || `inmo-${match.value.remoteId}` } })
+  const contact = match.value
+  const rows = differingFields(form, contact, CLIENT_FIELDS.map(([key, labelKey]) => ({ key, label: t(labelKey) })))
+  if (!rows.some((r) => r.mine)) return goTo(contact)
+  merge.value = { contact, rows }
+}
+
+function goTo(contact) {
+  router.replace({ name: 'client', params: { id: contact.id || `inmo-${contact.remoteId}` } })
+}
+
+async function applyMerge(choice) {
+  const pending = merge.value
+  merge.value = null
+  if (!pending) return
+  // Start from the contact Inmovilla already has — the search cached it — and put back only the
+  // fields where the agent chose to keep what they typed. Everything else is already theirs.
+  const base = store.byId(pending.contact.id || `inmo-${pending.contact.remoteId}`) || pending.contact
+  const next = { ...base, checkedAt: Date.now() }
+  let kept = 0
+  for (const row of pending.rows) {
+    if (choice[row.key] !== 'mine') continue
+    next[row.key] = row.mine
+    kept += 1
+  }
+  if (kept) await store.save(next)
+  goTo(pending.contact)
 }
 
 function onPhoneInput() {
@@ -245,6 +290,15 @@ function cancel() {
         {{ saving ? t('common.saving') : isEdit ? t('clients.form.saveChanges') : t('clients.form.save') }}
       </button>
     </div>
+
+    <MergeDialog
+      :open="Boolean(merge)"
+      :title="t('merge.clientTitle')"
+      :intro="t('merge.clientIntro')"
+      :rows="merge?.rows || []"
+      @apply="applyMerge"
+      @close="merge = null"
+    />
   </section>
 </template>
 

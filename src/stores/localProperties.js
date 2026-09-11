@@ -1,6 +1,6 @@
 import { defineStore } from 'pinia'
 import { findByRef } from '../api/inmovilla'
-import { createOwner, hostPhoto, isAuthError, isRateLimited, saveProperty, updateOwner } from '../api/inmovillaRest'
+import { createOwner, hostPhoto, isAuthError, isRateLimited, saveProperty, searchClients, updateOwner } from '../api/inmovillaRest'
 import { propertiesDb } from '../db/propertiesDb'
 import { emptyProperty, matchesProperty, newId } from '../models/property'
 import { compareToBase, officeMoved, snapshotOfLocal, snapshotOfRemote } from '../models/remote'
@@ -364,8 +364,21 @@ export const useLocalPropertiesStore = defineStore('localProperties', {
       }
       if (codOfer && record.ownerDirty && ownerIsComplete(record)) {
         const withCod = { ...record, codOfer }
-        if (record.ownerRemoteId) await updateOwner(withCod)
-        else patch.ownerRemoteId = await createOwner(withCod)
+        if (record.ownerRemoteId) {
+          await updateOwner(withCod)
+        } else {
+          // Look before creating. The listing may have been written hours ago in a dead zone,
+          // where the lookup at the door was impossible; or a colleague may have created this
+          // very owner in the meantime. Creating blind is how one person ends up in the CRM
+          // three times, and the phone number is the only key Inmovilla lets us ask on.
+          const found = await searchClients({ telefono: record.ownerPhone }).catch(() => [])
+          const first = Array.isArray(found) ? found[0] : found
+          const remoteId = first?.remoteId || first?.cod_cli || null
+          // Found: link, and leave their details alone. Nobody chose to overwrite a contact they
+          // never saw; any difference surfaces when the listing is next opened, where it can be
+          // arbitrated. Not found: create.
+          patch.ownerRemoteId = remoteId || (await createOwner(withCod))
+        }
         patch.ownerDirty = false
       }
       if (Object.keys(patch).length) {

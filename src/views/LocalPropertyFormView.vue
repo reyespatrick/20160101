@@ -6,7 +6,9 @@ import AddressSheet from '../components/AddressSheet.vue'
 import ConfirmDialog from '../components/ConfirmDialog.vue'
 import ChipGroup from '../components/ChipGroup.vue'
 import PickerField from '../components/PickerField.vue'
+import MergeDialog from '../components/MergeDialog.vue'
 import PhotoPicker from '../components/PhotoPicker.vue'
+import { applyChoice, differingFields } from '../utils/merge'
 import { ENERGY_RATINGS, FEATURES, OPERATIONS, completeness, emptyProperty, suggestRef, validateProperty } from '../models/property'
 import { findMunicipality, provinceOf } from '../data/andalucia'
 import { useEnumsStore } from '../stores/enums'
@@ -293,6 +295,14 @@ function onPhoneInput() {
   ownerError.value = ''
 }
 
+/** What Inmovilla holds for a contact, against what the agent has typed. */
+const OWNER_FIELDS = [
+  { key: 'ownerName', labelKey: 'props.form.ownerName', read: (c) => c.name || c.nombre || '' },
+  { key: 'ownerSurname', labelKey: 'props.form.ownerSurname', read: (c) => c.surname || c.apellidos || '' },
+  { key: 'ownerEmail', labelKey: 'props.form.ownerEmail', read: (c) => c.email || '' },
+]
+const ownerMerge = ref(null)
+
 async function findOwner() {
   const phone = String(form.ownerPhone || '')
   ownerError.value = ''
@@ -304,16 +314,20 @@ async function findOwner() {
   try {
     const found = await searchClients({ telefono: phone })
     const first = Array.isArray(found) ? found[0] : found
-    if (first) {
-      form.ownerName = first.name || first.nombre || form.ownerName
-      form.ownerSurname = first.surname || first.apellidos || form.ownerSurname
-      form.ownerEmail = first.email || form.ownerEmail
-      form.ownerRemoteId = first.remoteId || first.cod_cli || null
-      ownerFromInmovilla = Object.fromEntries(OWNER_KEYS.map((k) => [k, form[k]]))
-      ownerLookup.value = 'found'
-    } else {
+    if (!first) {
       ownerLookup.value = 'none'
+      return
     }
+    const rows = differingFields(form, first, OWNER_FIELDS.map((f) => ({ ...f, label: t(f.labelKey) })))
+    // Nothing typed yet, or the two agree: take what Inmovilla has and say who it is.
+    if (!rows.some((r) => r.mine)) {
+      for (const row of rows) form[row.key] = row.theirs
+      linkOwner(first)
+      return
+    }
+    // The agent typed something else. Inmovilla is not automatically right — the agent met them
+    // yesterday, the CRM has the paperwork — so the two versions go side by side.
+    ownerMerge.value = { first, rows }
   } catch (err) {
     if (err.status === 404) ownerLookup.value = 'none'
     else {
@@ -321,6 +335,21 @@ async function findOwner() {
       ownerError.value = err.message || t('common.failed', { where: '' })
     }
   }
+}
+
+function linkOwner(contact) {
+  form.ownerRemoteId = contact.remoteId || contact.cod_cli || null
+  ownerFromInmovilla = Object.fromEntries(OWNER_KEYS.map((k) => [k, form[k]]))
+  ownerLookup.value = 'found'
+}
+
+function applyOwnerMerge(choice) {
+  const pending = ownerMerge.value
+  ownerMerge.value = null
+  if (!pending) return
+  const { next } = applyChoice(form, pending.rows, choice)
+  for (const row of pending.rows) form[row.key] = next[row.key]
+  linkOwner(pending.first)
 }
 
 /** "Not this one" / "create": keep the number, clear the identity, let the agent type. */
@@ -646,6 +675,15 @@ async function cancel() {
 
       <p v-if="errors.form" class="alert">{{ errors.form }}</p>
     </form>
+
+    <MergeDialog
+      :open="Boolean(ownerMerge)"
+      :title="t('merge.ownerTitle')"
+      :intro="t('merge.ownerIntro')"
+      :rows="ownerMerge?.rows || []"
+      @apply="applyOwnerMerge"
+      @close="ownerMerge = null"
+    />
 
     <AddressSheet :open="sheetOpen" :address="form" :zone-options="zoneOptions" @save="applyAddress" @close="sheetOpen = false" />
 
