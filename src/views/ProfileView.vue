@@ -73,14 +73,18 @@ async function logout() {
       <h1>{{ t('profile.title') }}</h1>
     </header>
 
-    <article class="block who">
+    <!-- For an administrator the card is the way in to the agency's keys: it already names the
+         agency, so a separate row saying the same thing twice earns nothing. -->
+    <component :is="auth.isAdmin ? 'RouterLink' : 'article'" :to="auth.isAdmin ? { name: 'agency-keys' } : undefined" class="block who" :class="{ tappable: auth.isAdmin }">
       <div class="avatar">{{ (auth.user?.name || auth.user?.email || '?').slice(0, 2).toUpperCase() }}</div>
-      <div>
+      <div class="identity">
         <div class="name">{{ auth.user?.name || auth.user?.email }}</div>
         <div class="muted">{{ auth.user?.email }} · {{ t(ROLES.find((r) => r.value === auth.role)?.labelKey || 'roles.readonly') }}</div>
         <div class="muted">{{ t('profile.agency') }}: {{ auth.agency?.name }}<span v-if="auth.agency?.numagencia"> · nº {{ auth.agency.numagencia }}</span></div>
+        <div v-if="auth.isAdmin" class="keys-state muted">🔑 {{ t('profile.keys') }} · {{ auth.hasKeys ? t('keys.configured') : t('keys.notConfigured') }}</div>
       </div>
-    </article>
+      <span v-if="auth.isAdmin" class="chevron muted" aria-hidden="true">›</span>
+    </component>
 
     <article class="block">
       <h2>{{ t('profile.language') }}</h2>
@@ -95,10 +99,6 @@ async function logout() {
 
     <article v-if="auth.isAdmin" class="block admin">
       <h2>{{ t('profile.adminOnly') }}</h2>
-      <RouterLink :to="{ name: 'agency-keys' }" class="row">
-        <span>🔑 {{ t('profile.keys') }}</span>
-        <span class="muted">{{ auth.hasKeys ? t('keys.configured') : t('keys.notConfigured') }} ›</span>
-      </RouterLink>
       <RouterLink :to="{ name: 'users' }" class="row"><span>👥 {{ t('profile.users') }}</span><span class="muted">›</span></RouterLink>
     </article>
 
@@ -137,6 +137,10 @@ async function logout() {
 .block h2 { margin: 0 0 0.6rem; font-size: 0.9rem; color: var(--muted); text-transform: uppercase; letter-spacing: 0.04em; }
 .mt { margin-top: 1rem !important; }
 .who { display: flex; gap: 1rem; align-items: center; }
+.who.tappable { color: inherit; text-decoration: none; }
+.who .identity { flex: 1; min-width: 0; }
+.who .keys-state { margin-top: 0.35rem; font-size: 0.8rem; }
+.who .chevron { font-size: 1.4rem; }
 .avatar { flex: 0 0 56px; height: 56px; border-radius: 50%; background: var(--brand); color: #fff; display: grid; place-items: center; font-weight: 800; font-size: 1.2rem; }
 .name { font-weight: 700; font-size: 1.1rem; }
 .segments { display: flex; background: var(--surface-2); border-radius: 10px; padding: 3px; }
