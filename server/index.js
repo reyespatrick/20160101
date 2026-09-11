@@ -192,8 +192,10 @@ app.post('/api/inmovilla', requireUser, requireApiweb, express.json({ limit: '64
 // ---------------------------------------------------------------------------
 app.use('/api/rest', requireUser, requireRest, express.raw({ type: () => true, limit: MAX_BODY }), async (req, res) => {
   const method = req.method.toUpperCase()
-  if (method !== 'GET' && locked(req)) return lockedResponse(res)
-  if (method !== 'GET' && !canWrite(req.user.role)) return res.status(403).json({ error: 'Tu cuenta es de solo lectura', code: 'role' })
+  // HEAD is a GET without the body: a read, and the lock has nothing to say about it.
+  const reads = method === 'GET' || method === 'HEAD'
+  if (!reads && locked(req)) return lockedResponse(res)
+  if (!reads && !canWrite(req.user.role)) return res.status(403).json({ error: 'Tu cuenta es de solo lectura', code: 'role' })
   if (method === 'DELETE' && !canDelete(req.user.role)) return res.status(403).json({ error: 'Solo un administrador puede eliminar en Inmovilla', code: 'role' })
   try {
     const r = await restRelay(req.creds.restToken, method, req.url, req.get('content-type'), Buffer.isBuffer(req.body) ? req.body : null)

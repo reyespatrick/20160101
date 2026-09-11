@@ -17,8 +17,10 @@ function buildRelay(db, auth) {
   const lockedResponse = (res) => res.status(403).json({ error: 'read only', code: 'locked' })
   app.use('/api/rest', auth.requireUser, express.raw({ type: () => true }), (req, res) => {
     const method = req.method.toUpperCase()
-    if (method !== 'GET' && locked(req)) return lockedResponse(res)
-    if (method !== 'GET' && !auth.canWrite(req.user.role)) return res.status(403).json({ error: 'role', code: 'role' })
+    // Mirrors server/index.js: HEAD is a GET without the body, so it is a read.
+    const reads = method === 'GET' || method === 'HEAD'
+    if (!reads && locked(req)) return lockedResponse(res)
+    if (!reads && !auth.canWrite(req.user.role)) return res.status(403).json({ error: 'role', code: 'role' })
     if (method === 'DELETE' && !auth.canDelete(req.user.role)) return res.status(403).json({ error: 'role', code: 'role' })
     res.json({ relayed: method })
   })
@@ -49,7 +51,7 @@ beforeAll(async () => {
 afterAll(() => server?.close())
 
 const call = (p, method, token) =>
-  fetch(base + p, { method, headers: { Authorization: `Bearer ${token}` }, body: method === 'GET' ? undefined : 'x' }).then(async (r) => ({
+  fetch(base + p, { method, headers: { Authorization: `Bearer ${token}` }, body: method === 'GET' || method === 'HEAD' ? undefined : 'x' }).then(async (r) => ({
     status: r.status,
     body: await r.json().catch(() => ({})),
   }))
@@ -68,6 +70,13 @@ describe('agency write lock', () => {
       }
       expect((await call('/api/photos', 'PUT', token)).body.code).toBe('locked')
     }
+  })
+
+  it('does not mistake a HEAD for a write', async () => {
+    // HEAD is a GET without the body. Refusing it would mean a locked agency cannot even ask
+    // whether a record exists, which the lock was never meant to prevent.
+    db.setAgencyReadOnly(agencyId, true)
+    expect((await call('/api/rest/clientes/?cod_cli=1', 'HEAD', adminToken)).status).not.toBe(403)
   })
 
   it('still allows reading while on', async () => {

@@ -14,7 +14,8 @@ export const onRequest = guard(async (context) => {
   if (missing) return missing
 
   const method = context.request.method.toUpperCase()
-  if (method !== 'GET') {
+  // HEAD is a GET without the body: a read, and the lock has nothing to say about it.
+  if (method !== 'GET' && method !== 'HEAD') {
     const denied = requireWrite(session, { destructive: method === 'DELETE' })
     if (denied) return denied
   }
