@@ -5,7 +5,6 @@ import { useRoute, useRouter } from 'vue-router'
 import { emptyOwner, validateOwner } from '../models/owner'
 import { useOwnersStore } from '../stores/owners'
 import { useAuthStore } from '../stores/auth'
-import ConfirmDialog from '../components/ConfirmDialog.vue'
 const { t } = useI18n()
 
 const props = defineProps({ id: { type: String, default: '' } })
@@ -18,7 +17,6 @@ const form = reactive(emptyOwner())
 const errors = ref({})
 const saving = ref(false)
 const notFound = ref(false)
-const confirmDelete = ref(false)
 const isEdit = computed(() => Boolean(props.id))
 const online = ref(navigator.onLine)
 window.addEventListener('online', () => (online.value = true))
@@ -66,10 +64,6 @@ async function submit() {
   } finally {
     saving.value = false
   }
-}
-async function remove() {
-  await store.remove(props.id)
-  router.replace(backTarget.value)
 }
 </script>
 
@@ -143,10 +137,6 @@ async function remove() {
 
       <p v-if="errors.form" class="alert">{{ errors.form }}</p>
 
-      <div v-if="isEdit && auth.canDelete" class="danger-zone">
-        <button type="button" class="btn btn-ghost danger" @click="confirmDelete = true">{{ t('owner.form.delete') }}</button>
-      </div>
-      <ConfirmDialog :open="confirmDelete" :message="t('owner.form.confirm')" :confirm-label="t('owner.form.delete')" @confirm="remove" @cancel="confirmDelete = false" />
     </form>
 
     <div v-if="!notFound" class="save-bar">
@@ -169,7 +159,6 @@ legend { float: left; width: 100%; font-weight: 700; margin-bottom: 0.5rem; padd
 .field textarea { border: 1px solid var(--border); border-radius: 10px; padding: 0.7rem 0.85rem; resize: vertical; font: inherit; }
 .field.invalid input { border-color: var(--danger); }
 .err { color: var(--danger); font-size: 0.8rem; }
-.danger-zone { display: flex; justify-content: center; }
 .danger { color: var(--danger); }
 .danger-fill { background: var(--danger); }
 .confirm { display: flex; flex-wrap: wrap; align-items: center; gap: 0.6rem; justify-content: center; }

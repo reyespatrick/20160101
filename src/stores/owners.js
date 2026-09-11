@@ -1,5 +1,5 @@
 import { defineStore } from 'pinia'
-import { createOwnerRecord, deleteOwner, getOwnerByCodOfer, isAuthError, isRateLimited, updateOwnerRecord } from '../api/inmovillaRest'
+import { createOwnerRecord, getOwnerByCodOfer, isAuthError, isRateLimited, updateOwnerRecord } from '../api/inmovillaRest'
 import { ownersDb } from '../db/ownersDb'
 import { emptyOwner } from '../models/owner'
 import { pendingRecords, planFor } from '../sync/outbox'
@@ -8,7 +8,8 @@ import { useAuthStore } from './auth'
 /**
  * Owners ("propietarios") live in Inmovilla, linked to listings. The device caches the
  * owners it has looked up (by listing) and keeps an outbox: create (POST with cod_ofer),
- * update (PUT cod_cli), delete (DELETE). Limit 20 calls/min.
+ * update (PUT cod_cli). There is no delete: an owner exists only because a listing points at
+ * them. Limit 20 calls/min.
  */
 const RETRY_AFTER_408_MS = 65_000
 
@@ -84,18 +85,6 @@ export const useOwnersStore = defineStore('owners', {
       this.sync()
       return saved
     },
-    async remove(id) {
-      const existing = this.items.find((o) => o.id === id)
-      if (!existing) return
-      if (!existing.remoteId) {
-        await ownersDb.remove(this.agency(), id)
-        this.items = this.items.filter((o) => o.id !== id)
-        return
-      }
-      const saved = await ownersDb.putLocal(this.agency(), { ...existing, deleted: true, updatedAt: Date.now() })
-      this.upsertLocal(saved)
-      this.sync()
-    },
     upsertLocal(o) {
       const i = this.items.findIndex((x) => x.id === o.id)
       if (i >= 0) this.items.splice(i, 1, o)
@@ -133,11 +122,9 @@ export const useOwnersStore = defineStore('owners', {
                 await updateOwnerRecord(payload)
                 await ownersDb.markSynced(agency, record.id, {})
                 break
-              case 'delete':
-                await deleteOwner(record.remoteId)
-                await ownersDb.remove(agency, record.id)
-                break
               default:
+                // 'delete' or 'drop': there is no owner deletion, so a record in that state can
+                // only be a local one that was never sent. It leaves the device and nothing else.
                 await ownersDb.remove(agency, record.id)
             }
           } catch (err) {

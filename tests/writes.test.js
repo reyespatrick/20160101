@@ -37,10 +37,17 @@ describe('writes to Inmovilla', () => {
         'POST PATHS.properties',
         'POST PATHS.owners',
         'PUT PATHS.owners',
-        'DELETE `${PATHS.owners}${encodeURIComponent(codCli)}`',
         'POST PATHS.followUps',
       ]),
     )
+  })
+
+  it('never delete an owner — they exist only because a listing points at them', () => {
+    // The name survives in a comment saying why it is absent; what must not exist is the call.
+    const source = readFileSync('src/api/inmovillaRest.js', 'utf8')
+    expect(source).not.toMatch(/export (async )?function deleteOwner/)
+    expect(source).not.toMatch(/PATHS\.owners[^\n]*'DELETE'/)
+    expect(readFileSync('src/stores/owners.js', 'utf8')).not.toMatch(/deleteOwner\(/)
   })
 
   it('never delete a listing — a withdrawn one is marked unavailable instead', () => {

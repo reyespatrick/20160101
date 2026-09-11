@@ -161,7 +161,7 @@ export default {
   },
   owner: {
     title: 'Owner', none: 'No owner registered in Inmovilla for this listing.', rejected: 'Inmovilla rejected the owner: {msg}', also: 'Also owner of:', unavailable: 'unavailable', mobile: 'Mobile', phone: 'Landline', email: 'Email', nif: 'ID', notes: 'Notes',
-    form: { title: 'New owner', editTitle: 'Edit owner', willLink: 'Will be created in Inmovilla linked to the listing', data: 'Owner details', name: 'First name', surname: 'Last name', mobile: 'Mobile', phone: 'Landline', email: 'Email', nif: 'ID number', address: 'Address', street: 'Street', number: 'Number', cp: 'Postal code', city: 'City', province: 'Province', notes: 'Notes', notesPh: 'Keys, viewing availability, agreements…', delete: 'Delete owner', confirm: 'Delete this owner in Inmovilla? Inmovilla will refuse while it is still linked to a listing.', save: 'Save owner', gone: 'This owner is not on this device.' },
+    form: { title: 'New owner', editTitle: 'Edit owner', willLink: 'Will be created in Inmovilla linked to the listing', data: 'Owner details', name: 'First name', surname: 'Last name', mobile: 'Mobile', phone: 'Landline', email: 'Email', nif: 'ID number', address: 'Address', street: 'Street', number: 'Number', cp: 'Postal code', city: 'City', province: 'Province', notes: 'Notes', notesPh: 'Keys, viewing availability, agreements…', save: 'Save owner', gone: 'This owner is not on this device.' },
     valid: { name: 'The first name is required', link: 'The owner must be linked to a listing', email: 'Invalid email', phone: 'Invalid phone', cp: 'Invalid postal code' },
   },
 }

@@ -196,6 +196,10 @@ export async function updateOwnerRecord(owner) {
   await restRequest(PATHS.owners, { method: 'PUT', json: toInmovillaOwnerRecord(owner, { forUpdate: true }) })
   return owner.remoteId
 }
-export function deleteOwner(codCli) {
-  return restRequest(`${PATHS.owners}${encodeURIComponent(codCli)}`, { method: 'DELETE' })
-}
+/**
+ * There is no `deleteOwner`, on purpose.
+ *
+ * An owner only exists in Inmovilla because a listing points at them: deleting the record would
+ * leave that listing without one, and the person may well own another. Withdrawing a listing is
+ * what ends the relationship, and that marks it unavailable rather than deleting anything.
+ */
