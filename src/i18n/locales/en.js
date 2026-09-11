@@ -39,6 +39,7 @@ export default {
     saved: 'Saved', name: 'Name', role: 'Role', agency: 'Agency', adminOnly: 'Administrators only',
   },
   lock: {
+    chipOn: 'Read-only', chipOff: 'Writing',
     titleOn: 'Read-only mode', titleOff: 'Writing is allowed', noteOn: 'Only an administrator can turn it off. The server refuses every write while it is on, even if the app tries.', noteOff: 'Read-only mode is on by default; an administrator can put it back at any time.',
     title: 'Read-only mode', bar: 'Read-only mode: nothing will be sent to Inmovilla', manage: 'Manage',
     onBody: 'Nobody can create, change or delete anything in Inmovilla, whatever their role. Browsing and valuations still work.',

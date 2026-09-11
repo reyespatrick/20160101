@@ -39,6 +39,7 @@ export default {
     saved: 'Enregistré', name: 'Nom', role: 'Rôle', agency: 'Agence', adminOnly: 'Administrateurs seulement',
   },
   lock: {
+    chipOn: 'Lecture seule', chipOff: 'Écriture',
     titleOn: 'Mode lecture seule', titleOff: 'Écriture autorisée', noteOn: 'Seul un administrateur peut le désactiver. Le serveur refuse toute écriture tant qu’il est actif, même si l’application essaie.', noteOff: 'Le mode lecture seule est actif par défaut ; un administrateur peut le rétablir à tout moment.',
     title: 'Mode lecture seule', bar: 'Mode lecture seule : rien ne sera envoyé à Inmovilla', manage: 'Gérer',
     onBody: 'Personne ne peut créer, modifier ni supprimer quoi que ce soit dans Inmovilla, quel que soit son rôle. La consultation et les estimations restent disponibles.',
