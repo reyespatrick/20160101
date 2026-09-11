@@ -133,3 +133,25 @@ describe('the phone as an identity', () => {
     expect(splitPhone('600112233')).toEqual({ prefix: null, number: 600112233 })
   })
 })
+
+describe('what the listing carries to Inmovilla', () => {
+  it('sends the plot reference where Inmovilla keeps it', async () => {
+    const { toInmovillaProperty } = await import('../src/api/inmovillaMapping.js')
+    const { emptyProperty } = await import('../src/models/property.js')
+    const base = { ...emptyProperty(), ref: 'APP-1', typeKey: 5, cityKey: 1, cadastralRef: '4145102uf5444n0018hf' }
+    expect(toInmovillaProperty(base).catastro).toEqual([{ rcatastral: '4145102UF5444N0018HF' }])
+    // Without one, the block is left out entirely: it is replaced wholesale, and an empty one
+    // would wipe the registry details the office may have entered.
+    expect(toInmovillaProperty({ ...base, cadastralRef: '' })).not.toHaveProperty('catastro')
+  })
+
+  it('counts bedrooms the way Inmovilla records them', async () => {
+    const { bedroomsOf } = await import('../src/utils/format.js')
+    // A real two-bedroom flat, seen live: no singles, two doubles.
+    expect(bedroomsOf({ habitaciones: 0, habdobles: 2 })).toBe(2)
+    expect(bedroomsOf({ habitaciones: 3, habdobles: 0 })).toBe(3)
+    expect(bedroomsOf({ habitaciones: 1, habdobles: 2 })).toBe(3)
+    expect(bedroomsOf({})).toBe(0)
+    expect(bedroomsOf(null)).toBe(0)
+  })
+})

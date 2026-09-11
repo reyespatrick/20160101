@@ -1,3 +1,4 @@
+import { readFileSync } from 'node:fs'
 import { describe, expect, it } from 'vitest'
 import { buildFormBody, buildParam, normalizeRequest, parseApiResponse, splitSection } from '../server/inmovilla.js'
 import { mockResponse } from '../server/mock.js'
@@ -114,5 +115,17 @@ describe('what apiweb means when it refuses', () => {
     expect(describeRefusal('algo completamente distinto')).toBe('')
     expect(describeRefusal('')).toBe('')
     expect(describeRefusal(null)).toBe('')
+  })
+})
+
+describe('Inmovilla enumerations', () => {
+  it('are kept once fetched — the API allows two calls a minute', async () => {
+    // Types, towns and zones are Inmovilla's own reference data: they change when a town is
+    // added, which is almost never, and refetching on a timer spends a scarce allowance on an
+    // answer that has not moved. Verified live: `408 · sólo es posible realizar 2 cada 1 minuto`.
+    const source = readFileSync('src/stores/enums.js', 'utf8')
+    expect(source).not.toMatch(/TTL_MS|Date\.now\(\) - ts </)
+    expect(source).toMatch(/fresh\(ts\) \{\s*\n?\s*return Boolean\(ts\)/)
+    expect(source).toMatch(/refresh\(\) \{/)
   })
 })

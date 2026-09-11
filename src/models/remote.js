@@ -18,7 +18,7 @@ export const REMOTE_FIELDS = [
   { key: 'priceRent', from: 'precioalq', labelKey: 'props.form.priceRent', number: true },
   { key: 'operation', from: 'keyacci', labelKey: 'props.rows.operation', number: true },
   { key: 'typeKey', from: 'key_tipo', labelKey: 'props.form.type', number: true },
-  { key: 'bedrooms', from: 'habitaciones', labelKey: 'props.form.bedrooms', number: true },
+  { key: 'bedrooms', from: 'habitaciones', labelKey: 'props.form.bedrooms', number: true, plus: 'habdobles' },
   { key: 'bathrooms', from: 'banyos', labelKey: 'props.form.baths', number: true },
   { key: 'builtArea', from: 'm_cons', labelKey: 'props.form.built', number: true },
   { key: 'plotArea', from: 'm_parcela', labelKey: 'props.form.plot', number: true },
@@ -46,7 +46,11 @@ export function same(a, b) {
 export function snapshotOfRemote(row) {
   if (!row) return null
   const out = {}
-  for (const f of REMOTE_FIELDS) out[f.key] = row[f.from] ?? null
+  for (const f of REMOTE_FIELDS) {
+    // Inmovilla splits bedrooms between `habitaciones` and `habdobles`; the app writes them all
+    // into the first, so reading back means adding the two.
+    out[f.key] = f.plus ? (Number(row[f.from]) || 0) + (Number(row[f.plus]) || 0) : (row[f.from] ?? null)
+  }
   return out
 }
 

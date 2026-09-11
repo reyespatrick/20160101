@@ -9,7 +9,16 @@ import { useAuthStore } from './auth'
  * The enums endpoint allows 2 calls per minute, so calls are spaced 31 s apart
  * and results are kept for a week in localStorage.
  */
-const TTL_MS = 7 * 24 * 60 * 60 * 1000
+/**
+ * Inmovilla's enumerations — property types, towns, zones, follow-up types — are its own
+ * reference data. They change when Inmovilla adds a town, which is to say almost never, and the
+ * API allows **two calls a minute** for all of them together: refetching on a timer spends a
+ * scarce allowance on an answer that has not moved in months.
+ *
+ * So they are kept for good. What is fetched once stays until someone asks for it again, which
+ * `refresh()` does — the profile can offer it, and a missing key in a listing is the symptom that
+ * would send someone there.
+ */
 const MIN_GAP_MS = 31_000
 const storageKey = (agency) => `immoba.enums.${agency}`
 
@@ -98,8 +107,19 @@ export const useEnumsStore = defineStore('enums', {
         /* quota */
       }
     },
+    /** Once fetched, an enumeration is kept: only `refresh()` sets it aside. */
     fresh(ts) {
-      return ts && Date.now() - ts < TTL_MS
+      return Boolean(ts)
+    },
+
+    /**
+     * Forget what is cached so the next screen asks Inmovilla again. For the day a town or a
+     * property type appears and the app has not seen it.
+     */
+    refresh() {
+      this.fetchedAt = { tipos: 0, ciudades: 0, tiposSeguimiento: 0 }
+      this.zonasFetchedAt = {}
+      this.persist()
     },
     async ensureTipos() {
       this.restore()

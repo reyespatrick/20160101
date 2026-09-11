@@ -126,7 +126,16 @@ rather than a wrong one. Bump `package.json` by hand only for a real version cha
 
 - Plain JS, no TypeScript. Vue `<script setup>`. No semicolons, single quotes, 2 spaces.
 - Inmovilla field names are kept as-is in mapping code (`inmovillaMapping.js`); app models use camelCase.
-- REST rate limits: 408 = rate limited → outbox pauses 65 s. Enums: 2 calls/min → cached 7 days.
+- REST rate limits: 408 = rate limited → outbox pauses 65 s. Enums: **2 calls a minute, per request
+  type** (verified live, 11 Sept 2026) → fetched once and **kept for good**; `enums.refresh()` is the
+  only way to ask again. They are Inmovilla's reference data, not the agency's.
+- **Inmovilla splits bedrooms in two**: `habitaciones` (singles) and `habdobles` (doubles). A real
+  two-bedroom flat can carry `habitaciones: 0`; read both (`bedroomsOf`) or a listing shows none.
+- **`keyacci` is not limited to 1 and 2.** A live listing carries `20` (seasonal rental). The app
+  offers sale and rent only, and never edits an Inmovilla-created listing, so it cannot overwrite
+  one — but `isRent` must keep its price-based fallback, which is what displays those correctly.
+- `GET /propiedades/?listado` is a cheap census: one line per listing with `ref`, `nodisponible`
+  and `fechaact`. The way to notice a listing deleted at the office, without touching apiweb.
 - apiweb: 70 requests/minute **per IP** or Inmovilla blocks it (10 min, permanent after 10 blocks). The relay
   caps itself via `createRateLimiter` at `APIWEB_MAX_PER_MIN` (60).
 - **apiweb validates the caller's IP — settled, and the IP is now authorised.** The published documentation

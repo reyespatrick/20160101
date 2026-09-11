@@ -7,7 +7,7 @@ import { useAuthStore } from '../stores/auth'
 import { useFollowUpsStore } from '../stores/followUps'
 import FollowUpCard from '../components/FollowUpCard.vue'
 import OwnerCard from '../components/OwnerCard.vue'
-import { PLACEHOLDER, featuresOf, formatDate, isRent, locationOf, operationLabel, photoOf, priceOf, surfaceOf } from '../utils/format'
+import { bedroomsOf, PLACEHOLDER, featuresOf, formatDate, isRent, locationOf, operationLabel, photoOf, priceOf, surfaceOf } from '../utils/format'
 import { isNetworkError, useOnlineRetry } from '../composables/useOnlineRetry'
 import { useEstimatesStore } from '../stores/estimates'
 const { t } = useI18n()
@@ -58,7 +58,7 @@ const details = computed(() => {
     [t('props.rows.ref'), d.ref],
     [t('props.rows.operation'), isRent(d) ? t('common.rent') : t('common.sale')],
     [t('props.rows.type'), d.nbtipo],
-    [t('props.rows.bedrooms'), d.habitaciones],
+    [t('props.rows.bedrooms'), bedroomsOf(d)],
     [t('props.rows.baths'), d.banyos],
     [t('props.rows.built'), surfaceOf(d)],
     [t('props.rows.plot'), Number(d.m_parcela) ? `${d.m_parcela} m²` : ''],
@@ -142,7 +142,7 @@ onMounted(() => {
       </header>
 
       <ul class="quick">
-        <li v-if="Number(p.habitaciones)"><strong>{{ t('common.rooms', { n: p.habitaciones }) }}</strong></li>
+        <li v-if="bedroomsOf(p)"><strong>{{ t('common.rooms', { n: bedroomsOf(p) }) }}</strong></li>
         <li v-if="Number(p.banyos)"><strong>{{ t('common.baths', { n: p.banyos }) }}</strong></li>
         <li v-if="surfaceOf(p)"><strong>{{ surfaceOf(p) }}</strong></li>
       </ul>

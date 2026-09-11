@@ -77,7 +77,8 @@ export function peerFromListing(p, rent) {
     price,
     m2,
     ppm2: price && m2 ? Math.round(price / m2) : null,
-    bedrooms: Number(p.habitaciones) || 0,
+    // Inmovilla counts singles and doubles separately; a two-bedroom flat can have zero of the first.
+    bedrooms: (Number(p.habitaciones) || 0) + (Number(p.habdobles) || 0),
     bathrooms: Number(p.banyos) || 0,
     city: p.ciudad || '',
     zone: p.zona || '',

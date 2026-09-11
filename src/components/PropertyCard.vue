@@ -1,7 +1,7 @@
 <script setup>
 import { useI18n } from 'vue-i18n'
 import { computed } from 'vue'
-import { PLACEHOLDER, isRent, locationOf, operationLabel, photoOf, priceOf, surfaceOf } from '../utils/format'
+import { bedroomsOf, PLACEHOLDER, isRent, locationOf, operationLabel, photoOf, priceOf, surfaceOf } from '../utils/format'
 const { t } = useI18n()
 
 const props = defineProps({ property: { type: Object, required: true } })
@@ -21,7 +21,7 @@ const title = computed(() => [p.value.nbtipo, p.value.ciudad].filter(Boolean).jo
       <h3 class="title">{{ title }}</h3>
       <div class="location muted">{{ locationOf(p) || '—' }}</div>
       <ul class="specs">
-        <li v-if="Number(p.habitaciones)">{{ t('common.rooms', { n: p.habitaciones }) }}</li>
+        <li v-if="bedroomsOf(p)">{{ t('common.rooms', { n: bedroomsOf(p) }) }}</li>
         <li v-if="Number(p.banyos)">{{ t('common.baths', { n: p.banyos }) }}</li>
         <li v-if="surfaceOf(p)">{{ surfaceOf(p) }}</li>
         <li v-if="Number(p.m_parcela)">{{ t('common.plot', { n: p.m_parcela }) }}</li>

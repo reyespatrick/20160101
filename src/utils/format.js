@@ -2,6 +2,18 @@ import { intlLocale, t } from '../i18n'
 
 const eur = new Intl.NumberFormat('es-ES', { style: 'currency', currency: 'EUR', maximumFractionDigits: 0 })
 
+/**
+ * How many bedrooms a listing has, as Inmovilla actually records them.
+ *
+ * It keeps two counts: `habitaciones` for single rooms and `habdobles` for doubles. A real
+ * two-bedroom flat can therefore have `habitaciones: 0` and `habdobles: 2` — and the app, reading
+ * only the first, showed it with no bedroom at all, on the card and on the ficha. Seen on a live
+ * listing (AR2.1, 11 Sept 2026).
+ */
+export function bedroomsOf(p) {
+  return (Number(p?.habitaciones) || 0) + (Number(p?.habdobles) || 0)
+}
+
 export function isRent(p) {
   return Number(p?.keyacci) === 2 || (!Number(p?.precioinmo) && Number(p?.precioalq) > 0)
 }

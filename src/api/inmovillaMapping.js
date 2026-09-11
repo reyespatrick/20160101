@@ -143,6 +143,11 @@ export function toInmovillaProperty(p, photoUrls = []) {
   const rent = Number(p.operation) === 2
   const payload = {
     ref: text(p.ref),
+    // Inmovilla keeps the plot reference in a registry block of its own, so what the GPS and the
+    // Catastro found on the device travels with the listing instead of staying on the phone.
+    // Only sent when we have one: the block is replaced wholesale, and an empty one would wipe
+    // whatever the office had entered there (tomo, libro, folio…).
+    catastro: p.cadastralRef ? [{ rcatastral: String(p.cadastralRef).trim().toUpperCase() }] : undefined,
     keyacci: Number(p.operation) || 1,
     key_tipo: num(p.typeKey),
     key_loca: num(p.cityKey),
