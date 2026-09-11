@@ -29,20 +29,6 @@ async function withTimeout(fn) {
  * apiweb read. There is no mock branch on purpose: in development INMOVILLA_API_URL points at
  * `npm run mock:inmovilla`, so this code path is the same one production takes.
  */
-/**
- * Which apiweb answers this agency.
- *
- * One deployment, one upstream — except on the demo, where two agencies live side by side: a real
- * one that must read Inmovilla's actual catalogue through the hop, and a fictitious one whose
- * invented credentials the real apiweb rightly refuses. Naming that agency in FAKE_APIWEB_AGENCY
- * sends it, and only it, to the fake. Unset — production — this is one comparison and nothing else.
- */
-export function apiwebUrl(env, creds) {
-  const fake = env.FAKE_APIWEB_AGENCY && env.FAKE_APIWEB_URL
-  if (fake && String(creds?.numagencia || '') === String(env.FAKE_APIWEB_AGENCY)) return env.FAKE_APIWEB_URL
-  return env.INMOVILLA_API_URL || APIWEB_URL
-}
-
 export async function apiweb(env, creds, requests, { clientIp = '' } = {}) {
   const normalized = requests.map(normalizeRequest)
   await slot(env)
@@ -50,7 +36,7 @@ export async function apiweb(env, creds, requests, { clientIp = '' } = {}) {
     const headers = { 'Content-Type': 'application/x-www-form-urlencoded', Accept: 'application/json' }
     // When apiweb is reached through a fixed-IP hop (deploy/iis-hop), the hop checks this shared secret.
     if (env.APIWEB_HOP_SECRET) headers['X-Hop-Secret'] = headerValue(env.APIWEB_HOP_SECRET)
-    const res = await fetch(apiwebUrl(env, creds), {
+    const res = await fetch(env.INMOVILLA_API_URL || APIWEB_URL, {
       method: 'POST',
       headers,
       body: buildFormBody({ numagencia: creds.numagencia, password: creds.password, idioma: creds.idioma }, normalized, { clientIp, domain: env.INMOVILLA_DOMAIN || '', visitorFallback: env.INMOVILLA_VISITOR_IP }),
