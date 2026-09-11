@@ -145,9 +145,12 @@ export function toInmovillaProperty(p, photoUrls = []) {
     ref: text(p.ref),
     // Inmovilla keeps the plot reference in a registry block of its own, so what the GPS and the
     // Catastro found on the device travels with the listing instead of staying on the phone.
-    // Only sent when we have one: the block is replaced wholesale, and an empty one would wipe
-    // whatever the office had entered there (tomo, libro, folio…).
-    catastro: p.cadastralRef ? [{ rcatastral: String(p.cadastralRef).trim().toUpperCase() }] : undefined,
+    //
+    // Only on the first send, and only when we have one. A real block carries far more than the
+    // reference — `rnumero`, `registrod`, `rdirfinca`, the tomo and folio someone typed at the
+    // office — and the write replaces it wholesale. Sending ours over an existing listing would
+    // quietly erase all of that to save one field we already hold.
+    catastro: !p.codOfer && p.cadastralRef ? [{ rcatastral: String(p.cadastralRef).trim().toUpperCase() }] : undefined,
     keyacci: Number(p.operation) || 1,
     key_tipo: num(p.typeKey),
     key_loca: num(p.cityKey),

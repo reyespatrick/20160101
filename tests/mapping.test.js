@@ -140,9 +140,12 @@ describe('what the listing carries to Inmovilla', () => {
     const { emptyProperty } = await import('../src/models/property.js')
     const base = { ...emptyProperty(), ref: 'APP-1', typeKey: 5, cityKey: 1, cadastralRef: '4145102uf5444n0018hf' }
     expect(toInmovillaProperty(base).catastro).toEqual([{ rcatastral: '4145102UF5444N0018HF' }])
-    // Without one, the block is left out entirely: it is replaced wholesale, and an empty one
-    // would wipe the registry details the office may have entered.
+    // Without one, the block is left out entirely.
     expect(toInmovillaProperty({ ...base, cadastralRef: '' })).not.toHaveProperty('catastro')
+    // And never over a listing Inmovilla already has: a real block carries the registry entry,
+    // the deed number and the address someone typed at the office, and the write replaces it
+    // wholesale. Seen live on VR2.6 — rnumero 103883, registrod "Mijas 2".
+    expect(toInmovillaProperty({ ...base, codOfer: '29362377' })).not.toHaveProperty('catastro')
   })
 
   it('counts bedrooms the way Inmovilla records them', async () => {

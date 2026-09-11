@@ -40,11 +40,15 @@ const photos = computed(() => {
   const list = Array.isArray(detail.value?.fotos) ? detail.value.fotos.filter((u) => /^(https?:\/\/|\/)/.test(u)) : []
   return list.length ? list : [photoOf(p.value)]
 })
+/**
+ * Inmovilla separates paragraphs with a tilde, not a newline — a real description reads
+ * "…una experiencia de vida diferente.~Con 115 m² construidos…". Left alone, the character shows
+ * up in the middle of the text and the whole description arrives as one block.
+ */
 const description = computed(() => {
   const d = detail.value?.descripciones
-  if (Array.isArray(d)) return d.filter(Boolean).join('\n\n')
-  if (typeof d === 'string') return d
-  return detail.value?.descrip || ''
+  const raw = Array.isArray(d) ? d.filter(Boolean).join('\n\n') : typeof d === 'string' ? d : detail.value?.descrip || ''
+  return raw.split('~').map((line) => line.trim()).filter(Boolean).join('\n\n')
 })
 const title = computed(() => (p.value ? [p.value.nbtipo, p.value.ciudad].filter(Boolean).join(' · ') || `${t('common.ref')} ${p.value.ref}` : ''))
 const agent = computed(() => {
