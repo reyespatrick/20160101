@@ -38,6 +38,10 @@ REST token `demo-token`, any text as Anthropic key (valuations are simulated in 
 - Inmovilla and Anthropic keys belong to the **agency**, are entered **only by an admin** in the profile,
   verified live, encrypted at rest (`APP_SECRET`) and never sent to phones.
 - Roles: `admin` (everything), `agent` (create/edit, no delete), `readonly` (GET only). Enforced by the relay.
+- **There is no test Inmovilla account.** The client trials everything in production, against real
+  listings and real clients, and Inmovilla's writes are upserts — a wrong `ref` overwrites a real
+  listing rather than failing. The write lock below is therefore not a convenience, it is the only
+  safety net. Keep it on; lift it for the moment a write is intended, not for a session.
 - **Write lock**: `agencies.read_only`, on by default. While on, the relay refuses every non-GET to
   `/api/rest/*` and every photo upload with `403 code=locked`, for everyone including admins; only an admin
   can lift it in the profile. Valuations and reads are unaffected. Client mirror: `auth.writesLocked`, and
