@@ -101,9 +101,24 @@ export function deleteClient(codCli) {
 export function saveProperty(property, photoUrls) {
   return restRequest(PATHS.properties, { method: 'POST', json: toInmovillaProperty(property, photoUrls) })
 }
+/**
+ * A listing by its reference, through the REST API.
+ *
+ * This is what apiweb was doing until now — and apiweb is the scarce resource: 70 calls a minute
+ * for one IP, shared by every agency on the hop. Checking a reference, resolving a `cod_ofer` and
+ * detecting a conflict all happen on the *write* path, so the more listings agents created, the
+ * more they ate into everyone's *reading* quota. REST authenticates by token and has no such
+ * limit; apiweb is left to what it is good at, which is listing.
+ *
+ * The response carries the same field names the app already writes — `precioinmo`, `m_cons`,
+ * `habitaciones` — so what reads an apiweb row reads this too.
+ */
 export async function getPropertyByRef(ref) {
+  const safe = String(ref || '').trim()
+  if (!safe) return null
   try {
-    return await restRequest(PATHS.properties, { query: { ref } })
+    const found = await restRequest(PATHS.properties, { query: { ref: safe } })
+    return found && found.cod_ofer ? found : null
   } catch (err) {
     if (err.status === 404) return null
     throw err

@@ -74,6 +74,18 @@ function makeProperty(i) {
 
 const PROPERTIES = Array.from({ length: 57 }, (_, i) => makeProperty(i + 1))
 
+/**
+ * One listing, as the REST API answers it: a single object carrying the same field names the
+ * write path sends. This is what the app now uses to check a reference and resolve a cod_ofer,
+ * instead of spending an apiweb call on it.
+ */
+export function mockPropertyByRef(ref, codOfer) {
+  const wanted = String(ref || '').trim().toUpperCase()
+  return (
+    PROPERTIES.find((p) => (wanted && String(p.ref).toUpperCase() === wanted) || (codOfer && String(p.cod_ofer) === String(codOfer))) || null
+  )
+}
+
 /** Does a listing with this cod_ofer exist in the (mock) agency? Used by the mock REST for owner/follow-up links. */
 export function mockPropertyExists(codOfer) {
   return PROPERTIES.some((p) => String(p.cod_ofer) === String(codOfer))

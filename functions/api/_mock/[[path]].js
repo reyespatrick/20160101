@@ -13,7 +13,7 @@
  * it. That is deliberate and harmless: the app is offline-first and shows what it holds on the
  * device, so a created client or listing stays visible to the person who created it.
  */
-import { CITIES, CITY_KEY_BASE, MOCK_PHOTOS, TYPES, ZONES, mockResponse, upsertMockProperty, zoneKey } from '../../../server/mock.js'
+import { CITIES, CITY_KEY_BASE, MOCK_PHOTOS, TYPES, ZONES, mockPropertyByRef, mockResponse, upsertMockProperty, zoneKey } from '../../../server/mock.js'
 import { MOCK_PHOTO_COUNT, scene } from '../../../server/mockPhoto.js'
 
 const TOKEN = 'demo-token'
@@ -147,6 +147,13 @@ async function rest(request, path, query) {
 
   // ---- propiedades ----
   if (path === '/propiedades/') {
+    if (method === 'GET') {
+      // Inmovilla answers a single object, with the same field names it accepts on write.
+      const ref = query.get('ref')
+      const codOfer = num(query.get('cod_ofer'))
+      const found = mockPropertyByRef(ref, codOfer)
+      return found ? json(found) : fail(404, 404001, 'Propiedad no encontrada')
+    }
     if (method === 'POST') {
       if (!String(body.ref || '').trim()) return fail(406, 406001, 'Campo ref obligatorio')
       if (!body.keyacci || !body.key_tipo || !body.key_loca) return fail(406, 406001, 'Faltan keyacci, key_tipo o key_loca')

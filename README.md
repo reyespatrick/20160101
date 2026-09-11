@@ -106,11 +106,11 @@ code for that. Everything is per agency: users, keys, quotas.
 
 | Topic | What Inmovilla does | What the app does |
 | --- | --- | --- |
-| Listing identity | `POST /propiedades/` creates **or updates** by `ref`, all fields every time | Ref is required, suggested as `APP-yymmdd-xxx`, checked against apiweb before the first send; read-only once sent |
+| Listing identity | `POST /propiedades/` creates **or updates** by `ref`, all fields every time | Ref is required, suggested as `APP-yymmdd-xxx`, checked against `GET /propiedades/?ref=` before the first send; read-only once sent |
 | Required fields | `ref`, `keyacci`, `key_tipo`, `key_loca` | Type and city are chosen from the enum lists; free text is never sent as a code |
 | Enums | `/enums/?tipos`, `?ciudades`, `?zonas=key_loca`, **2 calls/min** | Cached a week in localStorage, calls spaced 31 s apart, warmed right after login |
 | Delete | none for listings | "Dar de baja" sends `nodisponible: true`; drafts are deleted locally |
-| cod_ofer | not returned by the POST | Resolved through apiweb by `ref` to link the ficha and create the owner |
+| cod_ofer | not returned by the POST | Resolved through `GET /propiedades/?ref=` to link the ficha and create the owner |
 | Owner | `POST /propietarios/` needs `cod_ofer` | Created/updated after the listing exists |
 | Clients | no list, search by phone/email only, `telefono*` numeric | Device cache of clients created or looked up here; phone/email queries also search Inmovilla; phones sent as digits with `prefijotel*` |
 | Client fields | nombre, apellidos, nif, email, teléfonos, dirección, observacion | Form limited to those fields (no invented status/budget) |
@@ -266,8 +266,10 @@ is the full `USUARIO_API`, which may carry a suffix (`123_244_ext`). `elDominio`
 Types: `paginacion` (list), `ficha` (detail, `where=cod_ofer=123`), `destacados`, `lostipos`, `ciudades`, `zonas`, `provincias`.
 Each response key is an array whose first element is `{ posicion, elementos, total }` followed by the items.
 
-**REST v1 (write)**: base `https://procesos.inmovilla.com/api/v1`, headers `Token` and `Content-Type: application/json`.
-Endpoints used: `/enums/`, `/clientes/` (+ `/clientes/buscar/`), `/propiedades/`, `/propietarios/`. Errors come as
+**REST v1 (read and write)** — [official docs](https://procesos.apinmo.com/api/v1/apidoc/): base
+`https://procesos.inmovilla.com/api/v1`, headers `Token` and `Content-Type: application/json`.
+Endpoints used: `/enums/`, `/clientes/` (+ `/clientes/buscar/`), `/propiedades/` (POST to write,
+**GET `?ref=` / `?cod_ofer=` to read one listing**), `/propietarios/`. Errors come as
 `{ codigo, mensaje }`; 408 means the per-minute limit was hit. The full mapping is in `src/api/inmovillaMapping.js`
 and the fake server in `server/mockRest.js` follows the same contract.
 

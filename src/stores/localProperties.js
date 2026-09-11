@@ -1,6 +1,5 @@
 import { defineStore } from 'pinia'
-import { findByRef } from '../api/inmovilla'
-import { createOwner, hostPhoto, isAuthError, isRateLimited, saveProperty, searchClients, updateOwner } from '../api/inmovillaRest'
+import { createOwner, getPropertyByRef, hostPhoto, isAuthError, isRateLimited, saveProperty, searchClients, updateOwner } from '../api/inmovillaRest'
 import { propertiesDb } from '../db/propertiesDb'
 import { emptyProperty, matchesProperty, newId } from '../models/property'
 import { compareToBase, officeMoved, snapshotOfLocal, snapshotOfRemote } from '../models/remote'
@@ -119,7 +118,7 @@ export const useLocalPropertiesStore = defineStore('localProperties', {
       const local = this.items.find((p) => p.id !== ownId && !p.deleted && p.ref === ref)
       if (local) return false
       try {
-        const found = await findByRef(ref)
+        const found = await getPropertyByRef(ref)
         if (!found) return true
         const own = this.items.find((p) => p.id === ownId)
         return Boolean(own && own.status !== 'draft' && own.ref === ref)
@@ -163,14 +162,14 @@ export const useLocalPropertiesStore = defineStore('localProperties', {
       if (!record.remoteSnapshot || record.status === 'draft') return null
       let remote
       try {
-        remote = await findByRef(record.ref)
+        remote = await getPropertyByRef(record.ref)
       } catch {
         return null
       }
       if (!remote) return null
       const rows = compareToBase({ base: record.remoteSnapshot, remote: snapshotOfRemote(remote), local: snapshotOfLocal(record) })
       if (!officeMoved(rows)) return null
-      return { rows, remote: snapshotOfRemote(remote), changedAt: String(remote.fechaact || ''), at: Date.now() }
+      return { rows, remote: snapshotOfRemote(remote), changedAt: String(remote.fechaact || remote.fecha || ''), at: Date.now() }
     },
 
     /**
@@ -351,7 +350,7 @@ export const useLocalPropertiesStore = defineStore('localProperties', {
       let patch = {}
       let codOfer = record.codOfer
       if (!codOfer) {
-        const found = await findByRef(record.ref)
+        const found = await getPropertyByRef(record.ref)
         if (found?.cod_ofer) {
           codOfer = String(found.cod_ofer)
           patch.codOfer = codOfer
@@ -359,7 +358,7 @@ export const useLocalPropertiesStore = defineStore('localProperties', {
           // own date so the screen can say when the office last touched the listing.
           patch.remoteSnapshot = snapshotOfRemote(found)
           patch.remoteSeenAt = Date.now()
-          patch.remoteChangedAt = String(found.fechaact || '')
+          patch.remoteChangedAt = String(found.fechaact || found.fecha || '')
         }
       }
       if (codOfer && record.ownerDirty && ownerIsComplete(record)) {

@@ -27,8 +27,13 @@ REST token `demo-token`, any text as Anthropic key (valuations are simulated in 
 
 ## Non-negotiable decisions (from the owner)
 
-- Inmovilla **REST API v1** is used for every write (clients, listings, owners, follow-ups); the legacy
-  **apiweb** is used for reading because it is fast and supports rich `where` filters. Both lack CORS,
+- Inmovilla **REST API v1** is used for every write (clients, listings, owners, follow-ups) **and for
+  reading one record by key** — `GET /propiedades/?ref=` or `?cod_ofer=`, documented at
+  https://procesos.apinmo.com/api/v1/apidoc/. The legacy **apiweb** is reserved for what it alone does
+  well: **listing** properties with rich `where` filters (the catalogue, the ficha, the comparables).
+  That line matters: apiweb is capped at 70 calls a minute *per IP*, shared by every agency on the hop,
+  so anything on the write path — checking a reference, resolving a cod_ofer, detecting a conflict —
+  must not spend it. Both lack CORS,
   hence a server-side hop (Pages Functions or the Node relay).
 - Inmovilla and Anthropic keys belong to the **agency**, are entered **only by an admin** in the profile,
   verified live, encrypted at rest (`APP_SECRET`) and never sent to phones.
