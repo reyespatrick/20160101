@@ -101,6 +101,18 @@ the allow list is per API user, and only the owner's was authorised.
 - `tests/` vitest, node environment. Playwright flows lived in the cloud session's scratchpad (not in repo);
   `playwright-core` + Chromium drive the mock server on :3000 when re-created.
 
+## Version and over-the-air updates
+
+The app updates itself: `vite-plugin-pwa` in `prompt` mode, `UpdateBanner.vue` checks the service
+worker every 30 minutes, on returning to the foreground and when the network comes back, then
+announces, applies and reloads. Nothing to install, nothing to ask of an agent.
+
+The version shown in the profile is built, never typed: `vite.config.js` injects `__APP_VERSION__`
+from `package.json` plus the repository's **commit count** as the build number, the short commit
+and the build date. It therefore rises on its own with every commit — `0.4.0 (76) · 59c4a9e` — and
+is identical for anyone building the same code. A checkout without history has no build number
+rather than a wrong one. Bump `package.json` by hand only for a real version change.
+
 ## Conventions
 
 - Plain JS, no TypeScript. Vue `<script setup>`. No semicolons, single quotes, 2 spaces.

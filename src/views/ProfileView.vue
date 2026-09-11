@@ -11,6 +11,7 @@ import { useLocalPropertiesStore } from '../stores/localProperties'
 import { useNotificationsStore } from '../stores/notifications'
 import { useOwnersStore } from '../stores/owners'
 import { LOCALES, THEMES, useSettingsStore } from '../stores/settings'
+import { versionDetail } from '../utils/version'
 
 const { t } = useI18n()
 const auth = useAuthStore()
@@ -121,6 +122,10 @@ async function logout() {
         <button v-if="confirming" type="button" class="btn btn-ghost" @click="confirming = false">{{ t('common.stay') }}</button>
       </div>
     </div>
+
+    <!-- Which build this is. An agent reporting something odd reads one line and it names the
+         exact code that produced it. -->
+    <p class="version muted">{{ t('profile.version', { v: versionDetail(settings.locale) }) }}</p>
   </section>
 </template>
 
@@ -142,6 +147,7 @@ async function logout() {
 .form { display: flex; flex-direction: column; gap: 0.8rem; }
 .two { display: grid; gap: 0.75rem; grid-template-columns: 1fr; }
 @media (min-width: 600px) { .two { grid-template-columns: 1fr 1fr; } }
+.version { margin: 1.5rem 0 0; text-align: center; font-size: 0.78rem; }
 .logout { margin-top: 1.5rem; display: flex; flex-direction: column; align-items: center; gap: 0.6rem; }
 .actions { display: flex; gap: 0.5rem; }
 .danger { color: var(--danger); }

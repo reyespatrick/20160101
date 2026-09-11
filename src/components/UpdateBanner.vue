@@ -2,6 +2,7 @@
 import { useI18n } from 'vue-i18n'
 import { onMounted, ref } from 'vue'
 import { useRegisterSW } from 'virtual:pwa-register/vue'
+import { versionLabel } from '../utils/version'
 const { t } = useI18n()
 
 /**
@@ -52,7 +53,7 @@ onMounted(() => {
   <Transition name="banner">
     <div v-if="status !== 'idle'" class="update" role="status" aria-live="polite">
       <span class="spinner-sm"></span>
-      <span v-if="status === 'updating'">{{ t('common.updating') }}</span>
+      <span v-if="status === 'updating'">{{ t('common.updating') }} <small class="from">{{ t('common.fromVersion', { v: versionLabel() }) }}</small></span>
       <span v-else>{{ t('common.updated') }}</span>
     </div>
   </Transition>

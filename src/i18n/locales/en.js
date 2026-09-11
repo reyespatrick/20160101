@@ -1,5 +1,6 @@
 export default {
   common: {
+    fromVersion: 'from {v}',
     choose: 'Choose', noMatch: 'No match',
     save: 'Save', saving: 'Saving…', cancel: 'Cancel', edit: 'Edit', delete: 'Delete', yes: 'Yes', no: 'No', back: 'Back', new: 'New',
     search: 'Search', loading: 'Loading…', retry: 'Retry', home: 'Go home', reload: 'Reload the app', add: 'Add', call: 'Call',
@@ -32,6 +33,7 @@ export default {
     goKeys: 'Set up keys',
   },
   profile: {
+    version: 'Version {v}',
     title: 'Profile', language: 'Language', theme: 'Theme', auto: 'Automatic', light: 'Light', dark: 'Dark', logout: 'Log out', account: 'My account',
     keys: 'Inmovilla keys', users: 'Agency users', changePassword: 'Change password', currentPassword: 'Current password', newPassword: 'New password',
     saved: 'Saved', name: 'Name', role: 'Role', agency: 'Agency', adminOnly: 'Administrators only',

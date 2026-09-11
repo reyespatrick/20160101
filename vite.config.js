@@ -1,8 +1,34 @@
+import { execSync } from 'node:child_process'
+import { readFileSync } from 'node:fs'
 import { defineConfig } from 'vite'
 import vue from '@vitejs/plugin-vue'
 import { VitePWA } from 'vite-plugin-pwa'
 
+/**
+ * The version the app shows, decided at build time and never edited by hand.
+ *
+ * The build number is the repository's commit count: it goes up on its own with every commit,
+ * it is the same for everyone building the same code, and it says something true — this build
+ * is the 143rd state of the project. A checkout without history (a CI export, a downloaded zip)
+ * simply has no build number rather than a wrong one.
+ */
+const pkg = JSON.parse(readFileSync(new URL('./package.json', import.meta.url), 'utf8'))
+const git = (cmd) => {
+  try {
+    return execSync(cmd, { stdio: ['ignore', 'pipe', 'ignore'] }).toString().trim()
+  } catch {
+    return ''
+  }
+}
+const build = git('git rev-list --count HEAD')
+const commit = git('git rev-parse --short HEAD')
+const VERSION = { version: pkg.version, build: build || '', commit, builtAt: new Date().toISOString() }
+
 export default defineConfig({
+  define: {
+    // A single frozen object rather than four globals: one thing to import, one thing to show.
+    __APP_VERSION__: JSON.stringify(VERSION),
+  },
   plugins: [
     vue(),
     VitePWA({

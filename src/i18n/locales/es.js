@@ -1,5 +1,6 @@
 export default {
   common: {
+    fromVersion: 'desde la {v}',
     choose: 'Elegir', noMatch: 'Sin resultados',
     save: 'Guardar', saving: 'Guardando…', cancel: 'Cancelar', edit: 'Editar', delete: 'Eliminar', yes: 'Sí', no: 'No', back: 'Volver', new: 'Nuevo',
     search: 'Buscar', loading: 'Cargando…', retry: 'Reintentar', home: 'Ir al inicio', reload: 'Recargar la app', add: 'Añadir', call: 'Llamar',
@@ -32,6 +33,7 @@ export default {
     goKeys: 'Configurar claves',
   },
   profile: {
+    version: 'Versión {v}',
     title: 'Perfil', language: 'Idioma', theme: 'Tema', auto: 'Automático', light: 'Claro', dark: 'Oscuro', logout: 'Cerrar sesión', account: 'Mi cuenta',
     keys: 'Claves de Inmovilla', users: 'Usuarios de la agencia', changePassword: 'Cambiar contraseña', currentPassword: 'Contraseña actual', newPassword: 'Nueva contraseña',
     saved: 'Guardado', name: 'Nombre', role: 'Rol', agency: 'Agencia', adminOnly: 'Solo administradores',
