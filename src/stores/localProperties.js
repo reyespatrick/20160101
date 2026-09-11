@@ -158,15 +158,8 @@ export const useLocalPropertiesStore = defineStore('localProperties', {
      * configured, or may be rate limited — because refusing to send on a failed *check* would
      * strand work on the phone for a reason the agent cannot act on.
      */
-    async checkRemote(record) {
-      if (!record.remoteSnapshot || record.status === 'draft') return null
-      let remote
-      try {
-        remote = await getPropertyByRef(record.ref)
-      } catch {
-        return null
-      }
-      if (!remote) return null
+    async checkRemote(record, remote) {
+      if (!record.remoteSnapshot || record.status === 'draft' || !remote) return null
       const rows = compareToBase({ base: record.remoteSnapshot, remote: snapshotOfRemote(remote), local: snapshotOfLocal(record) })
       if (!officeMoved(rows)) return null
       return { rows, remote: snapshotOfRemote(remote), changedAt: String(remote.fechaact || remote.fecha || ''), at: Date.now() }
@@ -306,9 +299,11 @@ export const useLocalPropertiesStore = defineStore('localProperties', {
         }
         urls.push(meta.publicUrl)
       }
-      // 2. has the office moved since we last agreed? Inmovilla's writes are upserts, so sending
-      // now would overwrite whatever was corrected there, silently and with nobody the wiser.
-      const conflict = await this.checkRemote(record)
+      // 2. read the listing back, once: the same answer tells us whether the office has moved —
+      // Inmovilla's writes are upserts, so sending blind would overwrite what was corrected there
+      // — and what its registry block already holds.
+      const remote = record.status === 'draft' ? null : await getPropertyByRef(record.ref).catch(() => null)
+      const conflict = await this.checkRemote(record, remote)
       if (conflict) {
         await propertiesDb.note(agency, record.id, { conflict })
         this.upsertLocal({ ...record, conflict })
@@ -329,7 +324,7 @@ export const useLocalPropertiesStore = defineStore('localProperties', {
         }
         payload.cityKey = match.key_loca
       }
-      await saveProperty(payload, urls)
+      await saveProperty(payload, urls, { remoteCatastro: remote?.catastro })
       const status = record.unavailable ? 'unavailable' : 'sent'
       // Inmovilla now holds exactly what we sent: that is the new common ground.
       await propertiesDb.markSynced(agency, record.id, {

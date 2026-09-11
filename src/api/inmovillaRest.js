@@ -98,8 +98,8 @@ export function deleteClient(codCli) {
 
 // ---- properties ----
 /** Create or update (Inmovilla matches on `ref`). Returns the raw response ({codigo, mensaje}). */
-export function saveProperty(property, photoUrls) {
-  return restRequest(PATHS.properties, { method: 'POST', json: toInmovillaProperty(property, photoUrls) })
+export function saveProperty(property, photoUrls, options) {
+  return restRequest(PATHS.properties, { method: 'POST', json: toInmovillaProperty(property, photoUrls, options) })
 }
 /**
  * A listing by its reference, through the REST API.

@@ -139,18 +139,34 @@ export function clientsFromSearch(body) {
  * @param {object} p app listing
  * @param {string[]} photoUrls public URLs of the photos, in display order
  */
-export function toInmovillaProperty(p, photoUrls = []) {
+/**
+ * The registry block to send, or nothing.
+ *
+ * Inmovilla's `catastro` holds far more than the plot reference — `rnumero`, `registrod`,
+ * `rdirfinca`, the tomo and folio someone typed at the office (VR2.6 carries all four) — and the
+ * write replaces it wholesale. So ours is never sent over theirs: the remote block is taken as it
+ * stands and the reference is written into it **only where it is empty**, which is the case that
+ * wanted filling in the first place (VR3.1 has a `rnumero` and no `rcatastral`).
+ *
+ * Nothing is sent when there is nothing to add. This never causes a write of its own: it only
+ * rides along with a change the agent made, on a listing the relay has already agreed to send.
+ */
+export function catastroFor(p, remoteCatastro) {
+  const ref = String(p.cadastralRef || '').trim().toUpperCase()
+  if (!ref) return undefined
+  const blocks = Array.isArray(remoteCatastro) ? remoteCatastro : remoteCatastro ? [remoteCatastro] : []
+  if (!blocks.length) return p.codOfer ? undefined : [{ rcatastral: ref }]
+  // Already known to Inmovilla — even a different one: theirs is the record, ours is a reading.
+  if (blocks.some((b) => String(b?.rcatastral || '').trim())) return undefined
+  return [{ ...blocks[0], rcatastral: ref }, ...blocks.slice(1)]
+}
+
+export function toInmovillaProperty(p, photoUrls = [], { remoteCatastro } = {}) {
   const rent = Number(p.operation) === 2
   const payload = {
     ref: text(p.ref),
-    // Inmovilla keeps the plot reference in a registry block of its own, so what the GPS and the
-    // Catastro found on the device travels with the listing instead of staying on the phone.
-    //
-    // Only on the first send, and only when we have one. A real block carries far more than the
-    // reference — `rnumero`, `registrod`, `rdirfinca`, the tomo and folio someone typed at the
-    // office — and the write replaces it wholesale. Sending ours over an existing listing would
-    // quietly erase all of that to save one field we already hold.
-    catastro: !p.codOfer && p.cadastralRef ? [{ rcatastral: String(p.cadastralRef).trim().toUpperCase() }] : undefined,
+    // The plot reference the GPS and the Catastro found, put where Inmovilla keeps it.
+    catastro: catastroFor(p, remoteCatastro),
     keyacci: Number(p.operation) || 1,
     key_tipo: num(p.typeKey),
     key_loca: num(p.cityKey),

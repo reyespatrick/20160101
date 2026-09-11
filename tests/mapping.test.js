@@ -142,10 +142,27 @@ describe('what the listing carries to Inmovilla', () => {
     expect(toInmovillaProperty(base).catastro).toEqual([{ rcatastral: '4145102UF5444N0018HF' }])
     // Without one, the block is left out entirely.
     expect(toInmovillaProperty({ ...base, cadastralRef: '' })).not.toHaveProperty('catastro')
-    // And never over a listing Inmovilla already has: a real block carries the registry entry,
-    // the deed number and the address someone typed at the office, and the write replaces it
-    // wholesale. Seen live on VR2.6 — rnumero 103883, registrod "Mijas 2".
+    // And never over a listing Inmovilla already has, unless we are told what it holds.
     expect(toInmovillaProperty({ ...base, codOfer: '29362377' })).not.toHaveProperty('catastro')
+  })
+
+  it('fills the registry block without emptying it', async () => {
+    const { catastroFor } = await import('../src/api/inmovillaMapping.js')
+    const mine = { codOfer: '29078991', cadastralRef: '3122102UF5432S0001LH' }
+
+    // VR3.1, live: a deed number and no plot reference. That is the case worth filling — and the
+    // rest of the block, typed at the office, comes back untouched.
+    const partial = [{ rnumero: '103882', rtomo: '0', registrod: '', rcatastral: '' }]
+    expect(catastroFor(mine, partial)).toEqual([{ rnumero: '103882', rtomo: '0', registrod: '', rcatastral: '3122102UF5432S0001LH' }])
+
+    // VR2.6, live: already referenced. Theirs is the record, ours is a reading — nothing is sent.
+    const full = [{ rnumero: '103883', registrod: 'Mijas 2', rdirfinca: 'Mijas del Faro 37', rcatastral: '3122102UF5432S0001LH' }]
+    expect(catastroFor(mine, full)).toBeUndefined()
+    // Even a different reference: we do not overrule the office from a phone reading.
+    expect(catastroFor({ ...mine, cadastralRef: 'AUTRE0000000X' }, full)).toBeUndefined()
+
+    // Nothing of ours to add, nothing sent.
+    expect(catastroFor({ ...mine, cadastralRef: '' }, partial)).toBeUndefined()
   })
 
   it('counts bedrooms the way Inmovilla records them', async () => {
